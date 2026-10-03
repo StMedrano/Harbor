@@ -1,6 +1,6 @@
 # Harbor Vercel + Supabase Production Architecture Design
 
-> **Status:** Approved written architecture. Implementation requires an approved Subproject 1 plan before execution.
+> **Status:** Approved written architecture. Implementation requires explicit approval of the replacement Subproject 1 plan before Native execution.
 >
 > This document supersedes `docs/superpowers/specs/2026-10-03-harbor-supabase-production-architecture-design.md` where this document changes client/frontend architecture. All unchanged Android supervision, safety, privacy, device-security, policy-engine, and Supabase backend requirements remain in force.
 
@@ -26,29 +26,9 @@ Harbor uses a strict platform split:
 
 Vercel does not become a second Harbor business-logic backend. Harbor does not route normal application logic through Vercel Functions, Server Actions, or Route Handlers when Supabase RLS or Edge Functions are the intended backend boundary.
 
-Supabase owns:
+Supabase owns Auth/session management, PostgreSQL, RLS, Edge Functions, Realtime, Storage, device security, desired state/commands, durable notification outbox, FCM dispatch, Web Push/VAPID dispatch, migrations, and backend secrets.
 
-- Auth and session management
-- PostgreSQL relational data
-- Row Level Security
-- Edge Functions for privileged/security-sensitive logic
-- Realtime for authorized parent UX
-- Storage
-- device enrollment/security state
-- desired state and command state
-- durable notification outbox
-- Android FCM dispatch
-- Web Push subscription state and VAPID dispatch
-- database migrations and backend secrets
-
-Vercel owns:
-
-- hosting the single Next.js web application
-- Parent PWA delivery
-- public marketing pages
-- account/help/privacy pages
-- PWA manifest and service worker delivery
-- preview and production web deployments
+Vercel owns the single Next.js web application, Parent PWA delivery, public/account/help/privacy pages, service-worker/manifest delivery, and preview/production web deployments.
 
 ## Primary technology stack
 
@@ -57,38 +37,38 @@ Vercel owns:
 - Kotlin
 - Jetpack Compose
 - Android 10 / API 29 minimum
-- Room for local cache/offline UI state
-- Supabase Kotlin client for Auth, RLS-safe Data API access, and Realtime
+- Room
+- Supabase Kotlin client for Auth/RLS-safe Data API/Realtime
 - Supabase Edge Function calls for privileged mutations
 - Google Maps/location UI
-- Firebase Cloud Messaging for parent notifications
+- FCM
 
 ### Child Android app
 
 - Kotlin
 - Jetpack Compose
 - Android 10 / API 29 minimum
-- Room for authoritative local policy state and usage ledger
-- Android Keystore ECDSA P-256 key pair
-- separate Supabase Auth device identity/session transport
-- Edge Function-only protected device operations
-- Firebase Cloud Messaging for wake-up transport
-- DevicePolicyManager and Lock Task for Full Supervision
-- VpnService and Harbor Browser for web protection
-- WorkManager/foreground services where Android requires them
+- Room for authoritative local policy state
+- Android Keystore ECDSA P-256
+- separate Supabase Auth device identity/session
+- Edge Function-only protected operations
+- FCM wake transport
+- DevicePolicyManager + Lock Task
+- VpnService + Harbor Browser
+- WorkManager/foreground services where required
 
 ### Parent PWA
 
 - Next.js
 - TypeScript
 - Vercel hosting
-- installable PWA manifest and service worker
+- installable manifest/service worker
 - Supabase JavaScript client with publishable key
 - Supabase Auth
-- RLS-safe direct Data API access
-- Supabase Realtime private channels
-- Supabase Edge Function calls for privileged actions
-- standard Web Push using VAPID
+- RLS-safe Data API
+- private Realtime channels
+- Edge Functions for privileged actions
+- standard Web Push/VAPID
 
 ### Supabase backend
 
@@ -97,7 +77,7 @@ Vercel owns:
 - RLS on every exposed Harbor table
 - TypeScript/Deno Edge Functions
 - Supabase Realtime
-- private Supabase Storage buckets
+- private Storage
 - Supabase CLI migrations
 - pgTAP/database security tests
 - transactional notification outbox
@@ -144,299 +124,107 @@ Harbor/
 
 ## Parent PWA scope and parity
 
-The Parent PWA is a first-class Harbor client, not a reduced companion dashboard.
+The Parent PWA is a first-class Harbor client, not a reduced dashboard. Its V1 scope matches native Parent Android wherever browser security/capability limits permit: dashboard, family/child/device state, maps, places/check-ins, alerts/Get Help acknowledgements, screen-time/app/schedule/pause/Kid Space controls, time-request/bonus approval, Lost Mode controls, family/guardian management, activity reports, security/MFA settings, and export/delete entry points.
 
-Its V1 parent-facing scope matches the native Parent Android app wherever browser security/capability limits permit:
-
-- dashboard
-- family and child views
-- device online/battery/heartbeat state
-- map/location views
-- places and check-ins
-- alerts
-- Get Help events and acknowledgement
-- screen-time rules
-- app rules
-- schedules
-- pause controls
-- Kid Space controls
-- time-request approval and bonus time
-- Lost Mode controls
-- family and guardian management
-- activity summaries and reports
-- account/security/MFA settings
-- family export/delete entry points
-
-Browser limitations do not change Harbor's backend capabilities. For example, the PWA may issue an authorized device command even though the Android-specific effect executes only on the Child app.
+Browser limitations do not change backend capabilities; Android-specific effects still execute on the Child app.
 
 ## Single Vercel web application
 
-Harbor uses one Vercel project for the web surface.
-
-The Next.js application contains:
-
-```text
-apps/web/app/
-├── (public)/
-│   ├── page.tsx
-│   ├── help/
-│   └── privacy/
-├── (auth)/
-│   ├── sign-in/
-│   ├── sign-up/
-│   ├── recover/
-│   └── mfa/
-└── (parent)/
-    ├── dashboard/
-    ├── children/
-    ├── map/
-    ├── alerts/
-    ├── controls/
-    ├── activity/
-    ├── family/
-    └── settings/
-```
-
-The web project is frontend-only from Harbor's architecture perspective. SSR may be used for public/account presentation where helpful, but Harbor business authorization and privileged operations remain in Supabase.
+Harbor uses one Vercel project rooted at `apps/web` for public, auth, and parent routes. The web project remains frontend-only from Harbor's business-architecture perspective. SSR may be used for presentation where helpful, but authorization and privileged operations remain in Supabase.
 
 ## Shared parent identity
 
-The Parent Android app and Parent PWA use the same Supabase Auth tenant and the same parent account.
+Parent Android and Parent PWA use the same Supabase Auth tenant/account.
 
-V1 supports:
-
-- email/password registration and sign-in
-- email verification
-- password recovery
-- session refresh/sign-out
-- TOTP MFA
-
-Family roles live in application database tables. Harbor never authorizes from editable `user_metadata`.
+V1 supports email/password, email verification, password recovery, session refresh/sign-out, and TOTP MFA. Family roles live in application tables; Harbor never authorizes from editable `user_metadata`.
 
 ## Staff/admin identity
 
-Parent and staff/admin accounts use the same Supabase Auth tenant, but staff/admin permissions are separate server-controlled application state.
-
-An authenticated account does not become staff merely because a JWT or editable profile field claims that role.
-
-Admin/support access requires:
-
-- server-controlled staff authorization record
-- mandatory MFA/AAL2
-- explicit audit logging
-- no implicit cross-family visibility
-
-The admin/support web experience may later live inside the same Next.js project, but staff capability is a separate authorization domain from ordinary parent access.
+Parent and staff/admin accounts use the same Supabase Auth tenant, but staff authorization is separate server-controlled state. Admin/support access requires server-controlled staff authorization, mandatory MFA/AAL2, explicit audit logging, and no implicit cross-family visibility.
 
 ## Parent PWA data-access model
 
-The Parent PWA talks directly to Supabase for operations that are safe under RLS.
+The Parent PWA talks directly to Supabase for RLS-safe operations. Browser-safe values may include the project URL, publishable key, and supported parent session state.
 
-The browser may contain:
+The browser must never contain service-role/secret Supabase keys, VAPID private key, Firebase service credentials, pairing pepper, or child private keys.
 
-- Supabase project URL
-- Supabase publishable key
-- parent access/refresh session managed by the supported Supabase client flow
-
-The browser must never contain:
-
-- service-role/secret Supabase key
-- VAPID private key
-- Firebase service credentials
-- pairing pepper
-- child device private keys
-
-### Direct Supabase access
-
-RLS-safe reads may go directly through the Supabase Data API, including parent-visible family, child, device, policy, alert, summary, and other explicitly exposed views/tables.
-
-Routine direct writes are permitted only when a narrow RLS policy safely expresses the authorization rule.
-
-### Edge Function access
-
-Privileged, security-sensitive, destructive, or multi-record operations go through Supabase Edge Functions. Examples include:
-
-- family creation
-- membership/guardian changes
-- child-device enrollment
-- policy version publication
-- device commands
-- bonus-time approval
-- Get Help processing
-- device revocation
-- Lost Mode destructive actions
-- family export
-- family deletion
-- staff/admin actions
+RLS-safe reads may use the Data API directly. Privileged, destructive, security-sensitive, or multi-record operations use Edge Functions.
 
 ## Step-up MFA / AAL2
 
-Sensitive parent actions require AAL2/MFA regardless of whether the request comes from Android or the PWA.
+Sensitive parent actions require AAL2 regardless of Android or PWA origin. At minimum this includes device revocation/unpairing, guardian/owner role changes, family export/delete, destructive Lost Mode operations, future remote wipe, and privileged staff/support actions.
 
-At minimum, require AAL2 for:
+Routine actions such as bedtime/screen-time changes, ordinary bonus approval, or pause do not require repeated MFA unless later threat modeling elevates them.
 
-- device revocation/unpairing
-- guardian/owner role changes
-- family export
-- family deletion
-- destructive Lost Mode operations
-- future remote wipe
-- staff/admin elevation or privileged support action
+High-risk actions use a 15-minute step-up window. If a verifiable MFA event timestamp is present in current session claims, Edge Functions reject events older than 15 minutes. If the platform cannot reliably prove challenge time, the client performs a fresh MFA challenge immediately before the operation and the Edge Function validates the strongest current AAL2 signal supported by Supabase Auth.
 
-Routine parent actions such as changing bedtime, updating screen-time limits, approving ordinary bonus time, or pausing an app do not require an MFA prompt on every action unless later threat-model work elevates them.
-
-High-risk actions use a 15-minute step-up window. If current Supabase session claims expose a verifiable MFA event timestamp, Edge Functions reject challenges older than 15 minutes. If the platform cannot reliably prove the challenge time from the current session, the client performs a fresh MFA challenge immediately before the operation and the Edge Function validates the strongest current-session AAL2 signal supported by the current Supabase Auth implementation.
-
-AAL2 is enforced server-side in Edge Functions, not only in frontend UI guards.
+AAL2 is enforced server-side.
 
 ## Trust boundaries
 
-Harbor has separate trust domains for:
-
-1. Parent users
-2. Child devices
-3. Staff/admin users
-4. backend privileged service operations
-5. public/unauthenticated web visitors
-
-A parent session is never reused as child-device authentication. A child device never stores parent credentials.
-
-The Parent Android app and Parent PWA are equivalent parent principals from the backend's point of view. Authorization is based on the same family membership and role state.
+Harbor separates parent users, child devices, staff/admin users, backend privileged service operations, and public/unauthenticated web visitors. Parent sessions are never reused as child-device credentials. Parent Android and PWA are equivalent parent principals from the backend's perspective.
 
 ## Schemas and exposure
 
-Harbor keeps explicit `public` and `private` schema boundaries.
-
 ### `public`
 
-Parent-facing resources intentionally exposed through the Data API, with RLS enabled before client grants.
-
-Initial resource classes include:
-
-- profiles
-- families
-- family_members
-- children
-- devices_public
-- policy_snapshots
-- time_requests
-- alerts
-- check_ins
-- places
-- activity_summaries
+Parent-facing resources intentionally exposed through the Data API with RLS enabled before grants. Initial resource classes include profiles, families, family_members, children, devices_public, policy_snapshots, time_requests, alerts, check_ins, places, and activity_summaries.
 
 ### `private`
 
-Backend-only/security-sensitive state, including:
+Backend/security state includes device_security, device_enrollment_tokens, device_request_nonces, device_desired_state, device_commands, device_fcm_registrations, parent_web_push_subscriptions, notification_outbox, raw telemetry tables, audit_events, retention_jobs, export_jobs, and staff_authorizations.
 
-- device_security
-- device_enrollment_tokens
-- device_request_nonces
-- device_desired_state
-- device_commands
-- device_fcm_registrations
-- parent_web_push_subscriptions
-- notification_outbox
-- location_events_raw
-- device_health_raw
-- usage_events_raw
-- audit_events
-- retention_jobs
-- export_jobs
-- staff_authorizations
-
-Private state is not granted to normal browser/Android Data API roles.
+Normal browser/Android client roles receive no direct private-table grants.
 
 ## Row Level Security
 
-RLS remains mandatory on every exposed Harbor table.
+Every exposed table uses RLS. Active family membership gates family reads; role gates mutation; known cross-family UUIDs do not bypass authorization; `TO authenticated` is never a complete rule; child anonymous Auth identities receive no family access merely because they have the authenticated Postgres role; direct UPDATE policies use both `USING` and `WITH CHECK`; exposed views use safe security-invoker behavior; authorization never uses `raw_user_meta_data`.
 
-Core rules:
-
-- active family membership is required for family-scoped reads
-- role controls mutation eligibility
-- known UUIDs from another family do not bypass authorization
-- `TO authenticated` is never the complete authorization rule
-- anonymous child-device Auth identities do not gain family-table access merely because they receive the `authenticated` Postgres role
-- `UPDATE` policies use both `USING` and `WITH CHECK` where direct updates are allowed
-- exposed views use security-invoker behavior or equivalent safe design
-- no authorization from `raw_user_meta_data`
-
-Cross-family IDOR/BOLA tests are release-blocking for both Parent Android and Parent PWA paths.
+Cross-family IDOR/BOLA tests are release-blocking for both parent client paths.
 
 ## Child-device identity and proof-of-possession
 
-Enrollment:
+Enrollment uses a six-digit one-time code for a specific child, 10-minute lifetime, keyed digest storage, an Android Keystore ECDSA P-256 key pair, a separate Supabase Auth device identity, and an atomic `device-claim` that binds Auth subject + public key + device state and consumes/audits the token.
 
-1. Parent creates a six-digit one-time pairing code for a specific child.
-2. Code lifetime is 10 minutes.
-3. Backend stores only a secure keyed digest of the code.
-4. Child app creates an ECDSA P-256 key pair in Android Keystore.
-5. Child app establishes its separate Supabase Auth identity/session.
-6. `device-claim` validates pairing state and caller.
-7. Backend binds Supabase Auth user ID plus P-256 public key to the Harbor device.
-8. Pairing code is consumed and audited.
-
-Protected device operations require both a valid bound Supabase Auth access token and ECDSA P-256 proof-of-possession. The signed canonical request includes method, operation, device ID, body SHA-256, timestamp, and unique nonce/JTI.
-
-The backend verifies current revocation state on every protected device operation. A copied JWT without the device private key is insufficient. Replayed signed requests are rejected.
+Protected child operations require both the bound Auth token and P-256 proof-of-possession. The canonical signed request includes method, operation, device ID, body SHA-256, timestamp, and nonce/JTI. The backend checks current revocation state on every call. Copied JWTs without the private key fail; replayed signatures fail.
 
 ## Desired state, commands, and offline enforcement
 
-PostgreSQL is the backend source of truth for desired policy and commands.
+PostgreSQL is the backend source of truth. Each child device has monotonically increasing desired-state versioning, current policy version, idempotent pending commands, acknowledgements, and last-seen/capability state.
 
-Each child device has a monotonically increasing desired-state version, current policy version, pending idempotent commands, acknowledgement state, and last-seen/capability state.
-
-FCM is a wake signal only. It does not carry authoritative policy.
-
-The Child app fetches state through signed `device-sync` calls and persists the last valid policy in Room. Offline or temporarily unreachable devices continue enforcing the last valid policy.
+FCM is wake-only. Child fetches state through signed `device-sync` and keeps the last valid policy in Room for offline enforcement.
 
 ## Parent Realtime architecture
 
-Both parent clients may use Supabase Realtime for low-latency UX. Parent subscriptions use private family-scoped topics such as `family:{family_id}` authorized by active family membership.
-
-Realtime may signal location freshness, device health, policy acknowledgement, time requests, Get Help/check-in state, and command state. It is not the source of truth.
+Both parent clients use private family-scoped topics like `family:{family_id}` authorized by active family membership. Realtime signals freshness/state changes but never becomes the source of truth.
 
 ## Notification architecture
 
-Harbor has one backend-driven notification pipeline with multiple transports:
+One durable backend notification pipeline fans out to Android FCM and Parent-PWA Web Push. Canonical flow:
 
-- Android parents: Firebase Cloud Messaging
-- Parent PWA: standard Web Push with VAPID
+`domain event -> PostgreSQL/outbox -> Supabase dispatcher -> FCM and/or Web Push -> parent client -> authoritative Supabase refresh`
 
-Canonical flow:
-
-`domain event -> PostgreSQL/outbox -> Supabase dispatcher -> FCM and/or Web Push -> parent client -> client fetches authoritative state`
-
-Push payloads remain minimal.
+Push payloads stay minimal.
 
 ## Web Push / VAPID
 
-The PWA registers a browser PushSubscription only after explicit parent opt-in. The subscription is sent to a Supabase Edge Function and stored privately, associated with the authenticated parent and a logical client installation.
-
-The VAPID public key may be shipped to the PWA. The VAPID private key remains only in Supabase backend secrets. Supabase Edge Functions perform delivery.
-
-Subscriptions support creation/update, endpoint/key rotation, explicit sign-out cleanup when possible, invalid/expired endpoint removal after delivery failure, and multiple browser installations per parent.
+The PWA registers PushSubscription only after explicit parent opt-in. The subscription is stored privately in Supabase and tied to authenticated parent + logical client installation. The VAPID public key may ship to browser code; the VAPID private key stays only in Supabase secrets. Edge Functions perform Web Push delivery and support rotation, multiple installations, explicit cleanup, and invalid-endpoint cleanup.
 
 ## Durable notification outbox
 
-`private.notification_outbox` is the durable source for external delivery intent, recording event identity, target, kind, route/payload reference, transport state, attempt count, next attempt, last error category, and timestamps.
-
-Delivery is at-least-once. Consumers and backend effects are idempotent. Urgent Get Help may attempt immediate delivery only after the durable write succeeds.
+`private.notification_outbox` records durable delivery intent, event identity, target, route/payload reference, transport state, attempt count, retry timing, error class, and timestamps. Delivery is at-least-once and idempotent. Urgent Get Help delivery is attempted only after durable persistence.
 
 ## Full-parity parent contracts
 
-Versioned shared contracts define concepts such as Family, FamilyMember, Child, DevicePublicState, PolicySnapshot, TimeRequest, Alert, CommandStatus, ActivitySummary, LocationSummary, and notification route/reference payloads.
-
-The TypeScript PWA consumes these directly or through generated TypeScript types. Android may consume generated/mirrored Kotlin models from the same contract definitions. Shared contracts standardize shape/semantics but do not move authorization out of Supabase.
+Versioned shared contracts standardize Family, FamilyMember, Child, DevicePublicState, PolicySnapshot, TimeRequest, Alert, CommandStatus, ActivitySummary, LocationSummary, notification route/reference payloads, and stable error semantics. Contracts do not replace backend authorization.
 
 ## Screen-time and policy semantics
 
-Child-local policy enforcement remains authoritative and preserves this precedence:
+Child-local enforcement remains authoritative and preserves this precedence:
 
 1. safety/control surfaces remain available
 2. parent Pause denies regular use
-3. active Kid Space denies use unless app/control is allowed
+3. active Kid Space denies unless app/control is allowed
 4. explicit blocked state denies
 5. restrictive schedule denies
 6. Unlimited bypasses time quota only
@@ -444,181 +232,97 @@ Child-local policy enforcement remains authoritative and preserves this preceden
 8. exhausted per-app quota denies
 9. otherwise allow
 
-Policies are versioned. Child stores the last valid policy in Room and rejects malformed/unsupported replacements rather than silently removing restrictions. Bonus time is explicit parent-approved allowance state.
+Policies are versioned and the child rejects malformed/unsupported replacements rather than silently removing restrictions. Bonus time is explicit parent-approved state.
 
 ## Kid Space
 
-Full-Supervision Kid Space remains native Android managed-device behavior using DevicePolicyManager/Lock Task, Harbor managed launcher, parent-approved allowlist, parent PIN local exit, authorized remote changes, preserved safety/control surfaces, and required Android emergency/system access.
-
-The PWA and Parent Android app expose equivalent Kid Space controls through the same backend policy/command APIs.
+Full-Supervision Kid Space remains native Android DevicePolicyManager/Lock Task behavior with Harbor launcher, parent allowlist, parent PIN local exit, remote authorized changes, preserved safety surfaces, and required Android emergency/system access.
 
 ## Get Help
 
-Get Help remains a deliberate approximately three-second child press-and-hold. The Child app submits a signed urgent event with available location/battery/network/timestamp/device context. Backend records it before push delivery.
-
-Parent Android and Parent PWA may both receive the alert. Harbor never automatically calls emergency services and does not intentionally disable Android-native emergency calling. Get Help and Call Parent remain available during Time's Up and Kid Space.
+Get Help is a deliberate ~3-second child hold. Signed child context is durably recorded before push. Both parent clients may receive the alert. Harbor does not automatically call emergency services and does not intentionally disable Android emergency calling. Get Help/Call Parent remain available during restrictions.
 
 ## Web protection
 
-Child web filtering remains native Android through VpnService/domain policy/SafeSearch where supported/Harbor Browser. Harbor does not perform TLS MITM. The PWA is a parent control/reporting surface only.
+Child filtering remains native Android via VpnService/domain policy/SafeSearch where supported/Harbor Browser. No TLS MITM. The PWA is parent control/reporting only.
 
 ## Vercel deployment model
 
-Harbor uses one Vercel project rooted at `apps/web` with PR previews and production deployment from the designated production branch. Frontend environment variables contain only browser-safe values and environment-specific Supabase URL/publishable key.
-
-The web deployment is replaceable without risking Harbor data because authoritative state lives in Supabase.
-
-Harbor never commits Vercel tokens, Supabase secret/service keys, VAPID private keys, Firebase service credentials, or other backend secrets.
+One Vercel project rooted at `apps/web` supports PR previews and production deployment. Frontend env vars contain only browser-safe, environment-specific values. Replacing a Vercel deployment cannot endanger authoritative Harbor state in Supabase.
 
 ## Environment isolation
 
-Development, staging, and production must not accidentally share one backend. Each release environment has an explicit mapping of Vercel environment, Supabase project/environment, Supabase URL, publishable key, allowed redirect/callback origins, Web Push VAPID configuration, and FCM backend credentials.
-
-The current Supabase project `bfvybxkjxilntjgndsrm` is development-only. Production uses a separately isolated Supabase environment/project or explicitly approved equivalent.
+Development/staging/production must have explicit Vercel↔Supabase mappings covering project/ref, URL, publishable key, redirect origins, VAPID configuration, and FCM credentials. Development ref `bfvybxkjxilntjgndsrm` is development-only. Production uses isolated Supabase infrastructure or an explicitly approved equivalent.
 
 ## PWA offline behavior
 
-The PWA may cache the application shell and non-sensitive static assets. It must not present stale cached family/device state as authoritative and must not make privileged changes appear committed when backend acceptance did not occur.
-
-Child policy enforcement is independent of PWA connectivity.
+The PWA may cache shell/static assets but must not present stale sensitive state as authoritative or pretend privileged offline changes succeeded. Child enforcement is independent of PWA connectivity.
 
 ## Error handling
 
-Parent Android and Parent PWA share stable backend error categories including:
-
-- `AUTH_REQUIRED`
-- `MFA_REQUIRED`
-- `FORBIDDEN`
-- `VALIDATION_FAILED`
-- `DEVICE_REVOKED`
-- `DEVICE_OFFLINE`
-- `STALE_VERSION`
-- `REPLAY_REJECTED`
+Stable backend errors include `AUTH_REQUIRED`, `MFA_REQUIRED`, `FORBIDDEN`, `VALIDATION_FAILED`, `DEVICE_REVOKED`, `DEVICE_OFFLINE`, `STALE_VERSION`, and `REPLAY_REJECTED`.
 
 ## Testing strategy
 
-### Database/security
+Database/security: pgTAP, RLS isolation, known-ID cross-family denial, device Auth denial, staff isolation, private grants.
 
-- pgTAP/schema tests
-- RLS family isolation
-- known-ID cross-family denial
-- device Auth denied parent Data API
-- staff authorization isolation
-- private-table grants
+Edge Functions: parent Auth, recent AAL2, family role, child proof, replay, revocation, command/outbox idempotency, Web Push authorization, invalid-subscription cleanup.
 
-### Edge Functions
+Parent PWA: auth/MFA, route guards, full navigation, RLS reads, privileged Edge calls, Realtime, manifest/service worker, Web Push lifecycle/deep links, offline/stale-state UX.
 
-- parent Auth validation
-- AAL2 enforcement
-- family-role authorization
-- child proof-of-possession
-- replay rejection
-- immediate revocation
-- command idempotency
-- outbox idempotency/retries
-- Web Push subscription authorization
-- Web Push delivery failure cleanup
+Parent Android: matching parent-domain flows, MFA/privileged actions, FCM, Realtime, Room/cache.
 
-### Parent PWA
+Child Android: enrollment, P-256 signing, sync/offline/reboot, policy semantics, DPC/Kid Space, VpnService, location/safety.
 
-- sign-up/sign-in/recovery/MFA
-- route protection
-- full parent navigation
-- RLS-safe reads
-- privileged Edge Function calls
-- Realtime refresh behavior
-- manifest/installability
-- service-worker registration
-- Web Push lifecycle/deep links
-- browser offline/stale-state UX
-
-### Parent Android
-
-- matching parent-domain flows against the same Supabase backend
-- MFA/privileged-action behavior
-- FCM
-- Realtime
-- Room/cache behavior
-
-### Child Android
-
-- enrollment
-- P-256 signing
-- sync/offline/reboot recovery
-- policy semantics
-- DPC/Kid Space
-- VpnService
-- location/safety flows
-
-### End-to-end acceptance
-
-A single test family is controllable from both Parent Android and Parent PWA against the same Supabase state. Representative flow includes shared sign-in, identical family/child state, one-time child pairing, cross-client policy reflection, exactly-once time approval, Get Help through FCM + Web Push, cross-family denial, AAL2 step-up failure/success, and immediate post-revocation child denial.
+End-to-end: one family controlled from both parent clients against the same Supabase state, including exactly-once approval, FCM + Web Push Get Help, cross-family denial, AAL2 step-up, and immediate revocation.
 
 ## CI and release gates
 
-CI fails on migration failure, DB/RLS test failure, Edge Function test failure, web test/build failure, Android test/build failure, secret scanning failure, contract compatibility failure, or production config mapped to the wrong backend environment.
-
-Vercel preview success alone is never sufficient to merge if backend/security gates fail.
+CI fails on migrations, DB/RLS tests, Edge Function tests, web build/tests, Android build/tests, secret scanning, contract compatibility, or wrong production-backend mapping. Vercel preview success alone is insufficient.
 
 ## Privacy and data minimization
 
-Default retention targets remain:
-
-- location history: 30 days
-- web activity metadata: 30 days
-- app usage: 90 days
-- safety events: 90 days
-- audit/security events: 365 days
-
-Raw high-frequency data remains private backend state. Push notifications avoid sensitive content when a generic route/reference is enough.
+Default retention targets remain 30 days location, 30 days web metadata, 90 days app usage, 90 days safety events, 365 days audit/security events. Raw high-frequency data remains private. Push avoids sensitive content when route/reference is enough.
 
 ## Features explicitly not moved to Vercel
 
-Family authorization, device enrollment, pairing-code verification, child proof-of-possession, child revocation, desired-state authority, command authority, policy publication, outbox state, FCM dispatch, Web Push VAPID private-key operations, audit authority, export/delete destructive workflows, Android screen-time enforcement, Kid Space/DPC behavior, and child VpnService filtering remain outside Vercel application logic.
+Family authorization, device enrollment, pairing verification, child proof-of-possession, revocation, desired-state authority, command authority, policy publication, outbox state, FCM dispatch, VAPID-private-key operations, audit authority, export/delete destructive workflows, Android screen-time enforcement, Kid Space/DPC, and child VpnService filtering stay outside Vercel business logic.
 
 ## Deferred/non-V1 items
 
-Still deferred unless separately approved:
-
-- iOS clients
-- full SMS/call-log ingestion
-- default SMS/Phone role
-- all-message AI analysis
-- driving/crash automation
-- automatic emergency-service calling
-- production remote wipe until separate high-risk review
+Still deferred unless separately approved: iOS, full SMS/call-log ingestion, default SMS/Phone role, all-message AI analysis, driving/crash automation, automatic emergency-service calling, and production remote wipe until separate high-risk review.
 
 ## Roadmap impact
 
-The 12-subproject decomposition remains, but Subproject 2 is **Parent Client Foundations** with two separately planned tracks:
+The 12-subproject decomposition remains. Subproject 2 is now **Parent Client Foundations** with separate tracks:
 
 - **2A — Parent Android Foundation**
 - **2B — Parent PWA Foundation**
 
-Both tracks consume the same Supabase backend, shared contracts, authorization rules, Realtime semantics, notification semantics, and parent-feature acceptance matrix. Each track gets its own Superpowers plan.
+Both consume the same Supabase backend, contracts, authorization, Realtime, notification semantics, and acceptance matrix. Each gets its own plan.
 
-Subproject 1 remains **Supabase Platform Foundation**. It creates backend interfaces required by both parent clients, including Web Push subscription storage/Edge Function boundaries and shared contract foundations, but it does not build the full Parent PWA.
+Subproject 1 remains **Supabase Platform Foundation**. It creates the backend interfaces needed by both parent clients, including Web Push subscription/Edge Function boundaries and shared-contract foundations, but not the full PWA.
 
 ## Architecture invariants
 
 1. Vercel is frontend-only for Harbor business architecture.
 2. Supabase is the backend source of truth.
-3. Parent Android and Parent PWA use the same account/family authorization model.
+3. Parent Android and Parent PWA share account/family authorization.
 4. Parent PWA targets full parent feature parity.
-5. Privileged actions are server-authorized through Supabase Edge Functions.
-6. High-risk parent actions require server-enforced recent AAL2.
+5. Privileged actions use Supabase Edge Functions.
+6. High-risk actions require server-enforced recent AAL2.
 7. Child devices never reuse parent credentials.
-8. Protected child operations require JWT plus P-256 proof-of-possession.
-9. Revocation is checked against current backend state.
-10. Replayed signed requests are rejected.
-11. Child policy enforcement works offline from the last valid Room state.
-12. FCM and Web Push are transports, not sources of truth.
-13. VAPID private key exists only in backend secrets.
+8. Protected child operations require JWT + P-256 proof.
+9. Revocation checks current backend state.
+10. Replays are rejected.
+11. Child policy works offline from last valid Room state.
+12. FCM/Web Push are transports, not truth.
+13. VAPID private key is backend-only.
 14. Cross-family isolation is release-blocking.
-15. Safety surfaces remain available during restrictions.
-16. Harbor does not intentionally disable Android emergency calling.
+15. Safety surfaces remain available.
+16. Android emergency calling is not intentionally disabled.
 17. Harbor does not use TLS MITM.
-18. Monitoring remains visible and disclosed.
+18. Monitoring remains visible/disclosed.
 
 ## Implementation-plan impact
 
@@ -626,6 +330,6 @@ The replacement Subproject 1 plan is:
 
 `docs/superpowers/plans/2026-10-03-harbor-vercel-supabase-platform-foundation.md`
 
-It covers Web Push subscription/delivery support, shared parent contract foundations, recent-AAL2 enforcement, environment mapping, and the existing Supabase/device-security foundation. It does not implement the full Next.js PWA.
+It covers Web Push subscription/delivery support, shared-contract foundations, recent-AAL2 enforcement, environment mapping, and the existing Supabase/device-security foundation. It does not implement the full Next.js PWA.
 
-Native execution remains the user's selected execution method. Implementation begins only after that replacement plan is explicitly approved.
+Native (`superpowers:executing-plans`) remains the selected execution method. Implementation starts only after the replacement plan is explicitly approved.
