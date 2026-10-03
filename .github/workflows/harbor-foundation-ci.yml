@@ -1,0 +1,81 @@
+name: Harbor Foundation CI
+
+on:
+  push:
+    branches:
+      - feat/vercel-supabase-platform-foundation
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Discover Supabase CLI
+        run: |
+          supabase --version
+          supabase --help >/tmp/supabase-help.txt
+          supabase auth --help >/tmp/supabase-auth-help.txt 2>&1 || true
+          supabase start --help >/tmp/supabase-start-help.txt
+          supabase db reset --help >/tmp/supabase-db-reset-help.txt
+          supabase db lint --help >/tmp/supabase-db-lint-help.txt
+          supabase test db --help >/tmp/supabase-test-db-help.txt
+
+      - name: Verify bootstrap files exist
+        run: |
+          test -f supabase/config.toml
+          test -f supabase/seed.sql
+          test -f docs/runbooks/supabase-development.md
+          test -f docs/runbooks/environment-mapping.md
+
+      - name: Reject obvious committed secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|sb_secret_[A-Za-z0-9_-]{20,}|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=[[:space:]]*["'"']?[^$[:space:]"'"']{12,}|VAPID_PRIVATE_KEY[[:space:]]*=[[:space:]]*["'"']?[^$[:space:]"'"']{12,}' -- ':!docs/**' ':!**/*.md'; then
+            echo 'Potential committed secret detected.' >&2
+            exit 1
+          fi
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Reset local database
+        run: supabase db reset
+
+      - name: Lint local database
+        run: supabase db lint --level error
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run Edge Function tests when present
+        run: |
+          if [ -d tests/functions ]; then
+            deno test tests/functions
+          fi
+
+      - name: Run shared-contract tests when present
+        run: |
+          if [ -f packages/contracts/test/contracts.test.ts ]; then
+            deno test packages/contracts/test/contracts.test.ts
+            deno check packages/contracts/src/index.ts
+          fi
