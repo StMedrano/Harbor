@@ -50,8 +50,10 @@ jobs:
             exit 1
           fi
 
-      - name: Start local Supabase
-        run: supabase start --runtime native --exclude studio,mail,storage,realtime,functions,analytics,pooler
+      - name: Start local Supabase database
+        run: >-
+          supabase start
+          --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       - name: Reset local database
         run: supabase db reset
