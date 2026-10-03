@@ -1,97 +1,64 @@
 # Harbor
 
-Harbor is an Android-first family-safety platform. This repository contains the current frontend prototype plus the approved product architecture and Superpowers planning documents.
+Harbor is an Android-first family-safety platform with three first-class clients:
 
-## Current frontend prototype
+- Native Parent Android app
+- Native Child Android app
+- Full-parity Parent PWA hosted on Vercel
 
-`index.html` is a lightweight loader for the exact current Harbor demo stored in `frontend-bundle/part-00.txt` through `part-05.txt`. The bundle reconstructs the verified browser demo byte-for-byte and keeps the prototype isolated from future production code.
+## Current architecture
 
-The prototype includes parent onboarding/dashboard, Sofia and Mateo child-device views, hard screen-time limits, bonus-time requests/approval, parent-controlled Kid Space lockdown, parent-PIN exit, child Get Help, check-ins, schedules, app access, Lost Mode, and sample activity data.
+The controlling design is:
 
-The frontend demo is a **behavior/design reference only**. It does not create real accounts, pair real Android devices, enforce Android DevicePolicyManager policies, contact emergency services, or provide production monitoring.
+`docs/superpowers/specs/2026-10-03-harbor-vercel-supabase-production-architecture-design.md`
 
-## Current production architecture
+Harbor uses a strict platform split:
 
-The current controlling backend architecture is:
+- **Vercel = frontend hosting/delivery** for one Next.js web app (`apps/web`) containing the Parent PWA plus public/account/help pages.
+- **Supabase = backend/source of truth** for Auth, PostgreSQL/RLS, Edge Functions, Realtime, Storage, device security, desired state, commands, notification outbox, FCM dispatch, and Web Push/VAPID dispatch.
+- **Native Android = device enforcement** for Parent/Child apps, including DevicePolicyManager, Lock Task/Kid Space, VpnService, WorkManager, Android Keystore, local policy enforcement, and FCM.
 
-- `docs/superpowers/specs/2026-10-03-harbor-supabase-production-architecture-design.md`
-- GitHub Issue #1 — **Complete Harbor production app — 12-subproject roadmap**
+The previous .NET/Azure architecture and pre-Vercel Supabase-only implementation plans are superseded.
 
-The previous `.NET/Azure` backend architecture and `2026-10-03-harbor-platform-foundation.md` implementation plan are **superseded** and must not be used for new implementation work.
+## Current implementation gate
 
-Current production stack:
+Subproject 1 is **Supabase Platform Foundation**. Its replacement implementation plan is:
 
-- Native Kotlin + Jetpack Compose Parent Android app
-- Native Kotlin + Jetpack Compose Child/DPC Android app
-- Android 10 / API 29 minimum for V1
-- Supabase Auth for parent identity and separate child-device session transport
-- Supabase PostgreSQL + RLS for family-scoped data
-- Supabase Edge Functions for privileged/security-sensitive application logic
-- Supabase Realtime for authorized parent-session updates
-- Supabase Storage for private export/support artifacts
-- Room for Android local/offline state
-- Android Keystore ECDSA P-256 proof-of-possession for child devices
-- Firebase Cloud Messaging for child-device wake-up/notifications
-- Android DevicePolicyManager + Lock Task for Full-Supervision Kid Space
-- Android VpnService + Harbor Browser for web protection
+`docs/superpowers/plans/2026-10-03-harbor-vercel-supabase-platform-foundation.md`
 
-The currently connected development Supabase project is `bfvybxkjxilntjgndsrm`. Production must use an appropriately isolated production environment/project before launch.
+The plan is written and awaiting explicit user approval before Native execution begins.
 
-## Planned repository structure
+The full Parent PWA is **not** part of Subproject 1. It will be implemented as Parent Client track **2B — Parent PWA Foundation**, coordinated with **2A — Parent Android Foundation** through shared contracts and acceptance tests.
 
-```text
-Harbor/
-├── apps/
-│   ├── android-parent/
-│   ├── android-child/
-│   └── admin-web/
-├── supabase/
-│   ├── config.toml
-│   ├── migrations/
-│   ├── seed.sql
-│   └── functions/
-├── packages/
-│   ├── contracts/
-│   ├── policy-engine-spec/
-│   └── test-fixtures/
-├── docs/
-└── tests/
-    ├── database/
-    ├── functions/
-    └── end-to-end/
-```
+## Locked platform/security decisions
 
-## Ordered build roadmap
+- Minimum Android version: Android 10 / API 29.
+- Parent Android and Child Android are native Kotlin + Jetpack Compose.
+- Parent PWA is a full-parity Next.js client hosted on Vercel.
+- Parent Android and Parent PWA share the same Supabase Auth tenant/account and family authorization model.
+- Parent Auth supports email/password, email verification, password recovery, and TOTP MFA.
+- High-risk parent actions require server-enforced AAL2 with a 15-minute step-up window.
+- Child devices use a separate Supabase Auth device identity plus Android Keystore ECDSA P-256 proof-of-possession.
+- Every exposed Harbor table uses tested RLS and least-privilege grants.
+- Vercel does not host Harbor business authorization or privileged device logic.
+- FCM and Web Push are transports, not sources of truth.
+- VAPID private keys, Supabase secret/service credentials, Firebase service credentials, pairing peppers, and child private keys never ship to clients.
+- Supabase Realtime is for parent UX; child enforcement uses authenticated sync and local Room state.
+- Monitoring remains visible/disclosed; Harbor does not use TLS MITM and does not intentionally disable Android emergency calling.
 
-1. Supabase platform foundation
-2. Parent Android foundation
-3. Child Android foundation
-4. Screen-time and policy engine
-5. Kid Space / DPC
-6. Location and family safety
-7. Web protection
-8. Digital activity
-9. Safety monitoring
-10. Security/privacy/compliance hardening
-11. Commercial platform
-12. Production hardening and staged launch
+## Development Supabase project
 
-Each subproject gets its own Superpowers design/spec/plan cycle. **Subproject 1 requires a new Supabase Platform Foundation implementation plan after the current written architecture spec is reviewed and approved.**
+Current development project ref:
 
-## Core safety/security decisions
+`bfvybxkjxilntjgndsrm`
 
-- Kid Space is parent controlled. In Full Supervision it becomes real managed-device kiosk/Lock Task behavior with parent-approved apps only.
-- Allowed Kid Space apps still obey screen-time, schedule, block, and per-app rules.
-- The child cannot grant themselves bonus time.
-- Get Help is a deliberate press-and-hold urgent alert to parents; Harbor does not automatically call 911/emergency services.
-- Harbor must not interfere with Android's own emergency-call capability.
-- Monitoring is transparent to the child; Harbor is not intended to be hidden surveillance software.
-- Parent family reads may use the Data API only behind tested Row Level Security.
-- Child devices never receive parent credentials or direct family-table access.
-- Protected child operations require both a separate Supabase Auth session and Android Keystore ECDSA proof-of-possession.
-- Revoked devices are checked against current backend state rather than relying only on access-token expiry.
-- Secret/service-role credentials never ship in mobile apps or source control.
+This project is development-only. Production must use a separately isolated Supabase environment/project or another explicitly approved equivalent isolation strategy.
 
-## Master task
+## Roadmap
 
-Track the complete production build in GitHub Issue #1. Do not close it until all 12 subprojects are implemented, tested, merged, and have passed staging, security, privacy/compliance, and store-release gates.
+Harbor remains divided into 12 production subprojects. Parent Client Foundations now has two separately planned tracks:
+
+- **2A — Parent Android Foundation**
+- **2B — Parent PWA Foundation**
+
+GitHub Issue #1 is the master roadmap and execution tracker.
