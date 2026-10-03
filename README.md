@@ -8,7 +8,7 @@ Harbor is an Android-first family-safety platform with three first-class clients
 
 ## Current architecture
 
-The controlling design is:
+The approved controlling design is:
 
 `docs/superpowers/specs/2026-10-03-harbor-vercel-supabase-production-architecture-design.md`
 
@@ -18,7 +18,7 @@ Harbor uses a strict platform split:
 - **Supabase = backend/source of truth** for Auth, PostgreSQL/RLS, Edge Functions, Realtime, Storage, device security, desired state, commands, notification outbox, FCM dispatch, and Web Push/VAPID dispatch.
 - **Native Android = device enforcement** for Parent/Child apps, including DevicePolicyManager, Lock Task/Kid Space, VpnService, WorkManager, Android Keystore, local policy enforcement, and FCM.
 
-The previous .NET/Azure architecture and pre-Vercel Supabase-only implementation plans are superseded.
+The previous .NET/Azure architecture, the earlier Supabase-only architecture, and their old implementation plans are superseded.
 
 ## Current implementation gate
 
@@ -26,7 +26,7 @@ Subproject 1 is **Supabase Platform Foundation**. Its replacement implementation
 
 `docs/superpowers/plans/2026-10-03-harbor-vercel-supabase-platform-foundation.md`
 
-The plan is written and awaiting explicit user approval before Native execution begins.
+The plan is written and awaiting explicit user approval before the selected **Native** execution begins.
 
 The full Parent PWA is **not** part of Subproject 1. It will be implemented as Parent Client track **2B — Parent PWA Foundation**, coordinated with **2A — Parent Android Foundation** through shared contracts and acceptance tests.
 
