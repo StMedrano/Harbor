@@ -51,7 +51,7 @@ jobs:
           fi
 
       - name: Start local Supabase
-        run: supabase start
+        run: supabase start --runtime native --exclude studio,mail,storage,realtime,functions,analytics,pooler
 
       - name: Reset local database
         run: supabase db reset
