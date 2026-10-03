@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-03-harbor-vercel-supabase-production-architecture-design.md`
 
+**Selected execution method:** Native (`superpowers:executing-plans`) after explicit approval of this plan.
+
 ## Global Constraints
 
 - Native Parent Android and Child Android remain Kotlin + Jetpack Compose; minimum Android 10 / API 29.
