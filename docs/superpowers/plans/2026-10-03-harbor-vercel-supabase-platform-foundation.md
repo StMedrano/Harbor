@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build Harbor Subproject 1: the secure Supabase backend and shared-contract foundation consumed by both native Parent Android and the later full-parity Parent PWA, including Auth/MFA, family isolation, child-device trust, desired state, Android FCM, PWA Web Push, Realtime authorization, and release-blocking security tests.
+**Goal:** Build Harbor Subproject 1: the secure Supabase backend and shared-contract foundation used by native Parent Android and the later full-parity Parent PWA, including Auth/MFA, family isolation, child-device trust, desired state, Android FCM, PWA Web Push, Realtime authorization, and release-blocking security tests.
 
 **Architecture:** Supabase is Harbor's backend source of truth. Parent clients use the same Supabase Auth tenant, direct Data API access only where RLS fully expresses authorization, and Edge Functions for privileged/security-sensitive work; child devices use a separate Supabase Auth identity plus Android Keystore ECDSA P-256 proof-of-possession. Vercel remains frontend-only and the full Next.js Parent PWA is deferred to Subproject 2B; this plan creates only the backend interfaces, shared contracts, Web Push support, and environment boundaries that PWA work will consume.
 
@@ -15,10 +15,10 @@
 - Native Parent Android and Child Android remain Kotlin + Jetpack Compose; minimum Android 10 / API 29.
 - Parent PWA is a later full-parity client hosted on one Vercel project rooted at `apps/web`; Vercel is frontend-only for Harbor business architecture.
 - Supabase project `bfvybxkjxilntjgndsrm` is development-only unless the user explicitly changes that designation.
-- Parent Android and Parent PWA use the same Supabase Auth tenant/account and the same family authorization model.
+- Parent Android and Parent PWA use the same Supabase Auth tenant/account and family authorization model.
 - Parent Auth baseline is email/password + email verification + password recovery + TOTP MFA.
-- Sensitive parent actions require server-enforced AAL2; the approved high-risk step-up window is 15 minutes.
-- Child-device transport identity uses a separate Supabase Auth anonymous/device account; it never reuses parent credentials.
+- Sensitive parent actions require server-enforced AAL2; the high-risk step-up window is exactly 15 minutes / 900 seconds.
+- Child-device transport identity uses a separate Supabase Auth anonymous/device account and never reuses parent credentials.
 - Protected child operations require both a valid bound device session and ECDSA P-256/SHA-256 proof-of-possession.
 - Every exposed Harbor table has RLS enabled before client access is granted; `TO authenticated` is never the complete authorization rule.
 - Authorization never trusts editable `raw_user_meta_data` / `user_metadata`.
@@ -30,17 +30,17 @@
 - Delivery is at-least-once; commands and notifications must be idempotent.
 - Full child policy enforcement remains local/offline and is outside this subproject except for desired-state transport foundations.
 - Migration filenames are created with `supabase migration new <name>`; do not invent timestamped migration filenames.
-- Run database tests, `supabase db lint`, Supabase security advisors, and Supabase performance advisors after DDL/RLS changes.
+- Run database tests, `supabase db lint`, Supabase security advisors, and Supabase performance advisors after intentional DDL/RLS application.
 - Development, staging, and production mappings must be explicit; production must not silently point at the development Supabase project.
 - This plan does **not** build the full Next.js Parent PWA; that work belongs to Subproject 2B.
 
 ## Review Focus
 
-- **Cross-family IDOR/BOLA:** a valid Parent A session using a known Family B/Child B/device UUID must still receive no unauthorized data or mutation capability.
-- **Stale MFA:** a high-risk operation with `aal2` but a most-recent MFA event older than 15 minutes must return `MFA_REQUIRED` rather than succeeding.
+- **Cross-family IDOR/BOLA:** Parent A using a known Family B/Child B/device UUID must still receive no unauthorized data or mutation capability.
+- **Stale MFA:** a high-risk operation with `aal2` but a most-recent MFA event older than 900 seconds must return `MFA_REQUIRED`.
 - **Device credential theft:** a copied child Auth JWT without the enrolled P-256 private key must fail every protected device operation.
 - **Replay/revocation race:** a reused signed nonce or a newly revoked device with an otherwise-valid JWT/signature must be rejected immediately.
-- **Duplicate/invalid push delivery:** repeated outbox attempts must not duplicate domain effects, and permanently invalid Web Push subscriptions must be disabled/removed without blocking other transports.
+- **Duplicate/invalid push delivery:** repeated outbox attempts must not duplicate domain effects, and permanently invalid Web Push subscriptions must be disabled without blocking other transports.
 
 ---
 
@@ -116,9 +116,7 @@ tests/functions/
 ├── dispatch-outbox.test.ts
 └── security-regression.test.ts
 
-tests/end-to-end/
-└── platform-foundation.test.ts
-
+tests/end-to-end/platform-foundation.test.ts
 .github/workflows/harbor-foundation-ci.yml
 docs/runbooks/supabase-development.md
 docs/runbooks/environment-mapping.md
@@ -140,35 +138,35 @@ docs/runbooks/notifications.md
 
 **Interfaces:**
 - Consumes: development project ref `bfvybxkjxilntjgndsrm`.
-- Produces: repeatable local Supabase start/reset/test workflow; documented Auth configuration; CI entrypoint; explicit dev/staging/prod mapping contract.
+- Produces: repeatable local start/reset/test workflow; documented Auth configuration; CI entrypoint; explicit dev/staging/prod mapping contract.
 
-- [ ] **Step 1: Discover the installed Supabase CLI before configuration**
+- [ ] **Step 1: Discover the installed Supabase CLI**
 
-Run `supabase --version`, `supabase --help`, `supabase auth --help` when present, and the relevant subcommand `--help`. Record the tested CLI version and commands in `docs/runbooks/supabase-development.md`.
+Run `supabase --version`, `supabase --help`, `supabase auth --help` when present, and each relevant subcommand `--help`. Record the tested CLI version in `docs/runbooks/supabase-development.md`.
 
-- [ ] **Step 2: Initialize/link without overwriting an existing project config**
+- [ ] **Step 2: Initialize/link without overwriting an existing config**
 
-Run `supabase init` only when `supabase/config.toml` is absent, then `supabase link --project-ref bfvybxkjxilntjgndsrm` and `supabase migration list`.
+Run `supabase init` only if `supabase/config.toml` is absent, then `supabase link --project-ref bfvybxkjxilntjgndsrm` and `supabase migration list`.
 
-Expected: Harbor has no application migrations in the linked development project before this plan begins.
+Expected: no Harbor application migrations before implementation begins.
 
 - [ ] **Step 3: Configure the local Auth baseline**
 
-Using current Supabase CLI/config support, enable email/password flows, email confirmation/recovery behavior appropriate for local testing, TOTP MFA capability, and anonymous sign-in for child-device transport identities. Document dashboard-only production settings instead of inventing unsupported `config.toml` keys.
+Using only supported current Supabase settings, enable parent email/password, email confirmation/recovery behavior for local testing, TOTP MFA capability, and anonymous sign-in for child-device transport identities. Document dashboard-only production settings instead of inventing `config.toml` keys.
 
 - [ ] **Step 4: Document environment boundaries**
 
-`docs/runbooks/environment-mapping.md` must define the required mapping fields: Vercel environment, Supabase project/ref, Supabase URL, publishable key identifier, allowed redirect/callback origins, Web Push VAPID configuration identifier, and FCM credential identifier. It must state that the development ref is forbidden for production.
+`environment-mapping.md` must define: Vercel environment, Supabase project/ref, Supabase URL, publishable-key identifier, allowed redirect/callback origins, VAPID configuration identifier, and FCM credential identifier. It must explicitly forbid development ref `bfvybxkjxilntjgndsrm` in production.
 
 - [ ] **Step 5: Add CI baseline**
 
-`.github/workflows/harbor-foundation-ci.yml` starts local Supabase, applies migrations, runs `supabase db lint --level error`, runs `supabase test db`, runs Deno function tests, runs shared-contract tests, and runs secret scanning. PR CI must not require remote production credentials.
+CI starts local Supabase, applies migrations, runs `supabase db lint --level error`, `supabase test db`, `deno test tests/functions`, `deno test packages/contracts/test/contracts.test.ts`, `deno check packages/contracts/src/index.ts`, and secret scanning. PR CI must not require remote production credentials.
 
 - [ ] **Step 6: Verify clean local startup/reset**
 
 Run `supabase start` then `supabase db reset`.
 
-Expected: clean reset succeeds with Auth enabled and no Harbor schema errors.
+Expected: reset succeeds with Auth enabled and no Harbor schema errors.
 
 - [ ] **Step 7: Commit**
 
@@ -194,24 +192,26 @@ git commit -m "chore: bootstrap Harbor Supabase foundation"
 
 **Interfaces:**
 - Produces `FamilyV1`, `FamilyMemberV1`, `ChildV1`, `DevicePublicStateV1`, `AalLevel`, `HarborErrorCode`, `NotificationRouteRefV1`, and `ContractVersion = 1`.
-- `HarborErrorCode` includes `AUTH_REQUIRED | MFA_REQUIRED | FORBIDDEN | VALIDATION_FAILED | DEVICE_REVOKED | DEVICE_OFFLINE | STALE_VERSION | REPLAY_REJECTED`.
-- `NotificationRouteRefV1` contains only `{ version: 1, kind: string, familyId?: string, childId?: string, deviceId?: string, resourceId?: string }` and no sensitive message body.
+- `HarborErrorCode`: `AUTH_REQUIRED | MFA_REQUIRED | FORBIDDEN | VALIDATION_FAILED | DEVICE_REVOKED | DEVICE_OFFLINE | STALE_VERSION | REPLAY_REJECTED`.
+- `NotificationRouteRefV1`: `{ version: 1, kind: string, familyId?: string, childId?: string, deviceId?: string, resourceId?: string }`; no sensitive message body.
 
-- [ ] **Step 1: Write failing contract tests**
+- [ ] **Step 1: Write the failing contract tests**
 
-Tests assert `ContractVersion === 1`, enum/string literal stability for the error codes above, and that the notification route-reference type contains identifiers/routes only and no location/message-content field.
+Assert `ContractVersion === 1`, exact error-code literals, and that route-reference fixtures contain identifiers only and no location/message-content field.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run tests to verify failure**
 
-Run the repository's chosen TypeScript test command for `packages/contracts/test/contracts.test.ts`.
+Run `deno test packages/contracts/test/contracts.test.ts`.
 
-Expected: FAIL because the contract exports do not yet exist.
+Expected: FAIL because exports do not yet exist.
 
-- [ ] **Step 3: Implement the V1 contract package**
+- [ ] **Step 3: Implement the V1 contracts**
 
-Keep each file focused on one domain. Do not encode authorization decisions in the contract package; it defines shapes and stable semantic names only.
+Keep authorization out of the package; it defines stable data shapes and semantics only.
 
-- [ ] **Step 4: Run contract tests and typecheck**
+- [ ] **Step 4: Verify contracts**
+
+Run `deno test packages/contracts/test/contracts.test.ts && deno check packages/contracts/src/index.ts`.
 
 Expected: PASS.
 
@@ -234,33 +234,31 @@ git commit -m "feat: add Harbor shared contract foundation"
 - Test: `supabase/tests/staff_authorization.test.sql`
 
 **Interfaces:**
-- Produces public tables: `profiles`, `families`, `family_members`, `children`, `devices_public`.
-- Produces private table: `private.staff_authorizations`.
-- `family_members.role`: `owner | parent` for V1.
-- `family_members.status`: `active | invited | removed`.
-- `devices_public.supervision_mode`: `unknown | standard | full`.
-- `devices_public.status`: `active | revoked`.
+- Public: `profiles`, `families`, `family_members`, `children`, `devices_public`.
+- Private: `private.staff_authorizations`.
+- `family_members.role`: `owner | parent`; `status`: `active | invited | removed`.
+- `devices_public.supervision_mode`: `unknown | standard | full`; `status`: `active | revoked`.
 - `private.staff_authorizations.role`: `support | admin`; no client grants.
 
 - [ ] **Step 1: Write failing schema tests**
 
-Assert PK/FK constraints, unique `(family_id,user_id)`, family-scoped children, same-family child/device integrity, and no `anon`/`authenticated` privileges on `private.staff_authorizations`.
+Assert required PK/FK constraints, unique `(family_id,user_id)`, family-scoped children, same-family child/device integrity, and no `anon`/`authenticated` privileges on staff authorization state.
 
-- [ ] **Step 2: Create the core migration with `supabase migration new core_family_schema`**
+- [ ] **Step 2: Create `core_family_schema` migration**
 
-Use UUID PKs, `timestamptz`, explicit check constraints for the values above, and indexes on foreign keys used by normal lookups or RLS.
+Run `supabase migration new core_family_schema`. Use UUID PKs, `timestamptz`, explicit checks for the values above, and indexes on lookup/RLS FKs.
 
-- [ ] **Step 3: Create the staff-authorization migration with `supabase migration new staff_authorization`**
+- [ ] **Step 3: Create `staff_authorization` migration**
 
-Create the `private` schema if not already present, revoke default client access, and create the minimal staff authorization record without exposing cross-family data.
+Run `supabase migration new staff_authorization`. Create `private` if needed, revoke client access, and create minimal staff authorization without implicit family visibility.
 
-- [ ] **Step 4: Add safe profile creation behavior**
+- [ ] **Step 4: Add safe profile creation**
 
-`profiles.id` references `auth.users(id)`. Display/profile fields may be copied from signup metadata, but family/staff roles are never derived from editable metadata.
+`profiles.id` references `auth.users(id)`. Profile display data may come from signup metadata, but family/staff roles never do.
 
-- [ ] **Step 5: Run DB reset/tests/lint**
+- [ ] **Step 5: Verify**
 
-Run `supabase db reset`, `supabase test db`, and `supabase db lint --level error`.
+Run `supabase db reset && supabase test db && supabase db lint --level error`.
 
 Expected: PASS.
 
@@ -281,31 +279,29 @@ git commit -m "feat: add Harbor family and staff authorization schema"
 - Modify: `supabase/tests/staff_authorization.test.sql`
 
 **Interfaces:**
-- Produces parent-safe direct-read policies for approved public resources.
+- Produces parent-safe direct-read policies only for approved public resources.
 - Direct writes reserved for Edge Functions remain denied.
-- Anonymous child-device Auth identities and normal parents receive no staff/private-table access.
+- Device Auth identities and normal parents receive no private/staff-table access.
 
 - [ ] **Step 1: Write failing pgTAP tests for Parent A, Parent B, a device anonymous Auth user, and a non-staff parent**
 
-Assert Parent A can read Family A/Child A; Parent A cannot read Family B/Child B by known UUID; Parent A cannot mutate Family B; device Auth cannot directly read family resources merely because it has the `authenticated` Postgres role; and a normal parent cannot read `private.staff_authorizations`.
+Assert Parent A can read Family A/Child A; Parent A cannot read or mutate Family B/Child B by known UUID; device Auth cannot read family resources merely because it has the `authenticated` role; normal parents cannot read staff state.
 
-- [ ] **Step 2: Enable RLS on every exposed Harbor table before grants**
+- [ ] **Step 2: Enable RLS and least-privilege grants**
 
-Policies use `(select auth.uid())`, active family membership, and role checks. `TO authenticated` alone is never accepted.
+Policies use `(select auth.uid())`, active membership, and role checks. No policy uses `TO authenticated` as the complete rule.
 
 - [ ] **Step 3: Add policy-performance indexes**
 
-At minimum index `family_members(user_id,family_id)` and every family/child foreign key used by policy predicates.
+At minimum index `family_members(user_id,family_id)` and every family/child FK used by policy predicates.
 
-- [ ] **Step 4: Run DB tests and lint**
+- [ ] **Step 4: Verify locally**
 
-Expected: all cross-family/cross-principal tests pass.
+Run `supabase test db && supabase db lint --level error`.
 
-- [ ] **Step 5: Run Supabase security/performance advisors against the linked development project after the migration is intentionally applied**
+Expected: all isolation tests PASS.
 
-Expected: no exposed Harbor table missing RLS; review all Harbor-relevant advisor findings before continuing.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations supabase/tests
@@ -326,33 +322,35 @@ git commit -m "feat: enforce Harbor family row level security"
 - Test: `tests/functions/aal.test.ts`
 
 **Interfaces:**
-- `requireParent(req: Request): Promise<ParentContext>` returns `{ userId: string, accessToken: string, aal: "aal1" | "aal2", amr: readonly AuthMethodRef[] }`.
-- `requireFamilyRole(ctx: ParentContext, familyId: string, allowedRoles: readonly ("owner" | "parent")[]): Promise<void>`.
-- `requireRecentAal2(ctx: ParentContext, nowEpochSeconds: number, maxAgeSeconds?: number): void` defaults `maxAgeSeconds` to `900`.
-- `requireStaffRole(ctx: ParentContext, allowedRoles: readonly ("support" | "admin")[]): Promise<void>` requires server-controlled staff state plus recent AAL2.
+- `requireParent(req: Request): Promise<ParentContext>` -> `{ userId, accessToken, aal, amr }`.
+- `requireFamilyRole(ctx, familyId, allowedRoles): Promise<void>` for `owner | parent`.
+- `requireRecentAal2(ctx, nowEpochSeconds, maxAgeSeconds = 900): void`.
+- `requireStaffRole(ctx, allowedRoles): Promise<void>` for `support | admin`, always requiring recent AAL2.
 - `jsonError(code: HarborErrorCode, status: number, message: string): Response`.
 
-- [ ] **Step 1: Write failing tests for missing/invalid Auth and anonymous-device caller masquerading as parent**
+- [ ] **Step 1: Write failing parent-auth tests**
 
-Expected error: `AUTH_REQUIRED` or `FORBIDDEN` as appropriate.
+Cover missing/invalid Auth, anonymous-device caller masquerading as parent, inactive membership, and non-staff caller.
 
-- [ ] **Step 2: Write failing tests for AAL2 recency**
+- [ ] **Step 2: Write failing AAL2-recency tests**
 
-Assert `aal1` fails; `aal2` with most-recent MFA `amr` event at 899 seconds succeeds; 901 seconds fails with `MFA_REQUIRED`; missing verifiable MFA timestamp fails closed for high-risk operations.
+Assert `aal1` fails; `aal2` with most-recent MFA `amr` event age 899 seconds succeeds; age 901 seconds fails `MFA_REQUIRED`; missing verifiable MFA timestamp fails closed.
 
-- [ ] **Step 3: Implement request-scoped Supabase Auth validation**
+- [ ] **Step 3: Implement request-scoped user validation**
 
-Use the caller Authorization header for user-context queries; never reuse a global user-scoped client across requests.
+Use the caller Authorization header for the user-scoped Supabase client; never reuse a global user-scoped client across requests.
 
 - [ ] **Step 4: Implement database-backed family/staff role checks**
 
-Authorization comes from current database state, not caller-supplied metadata.
+Read current application state; never authorize from editable metadata.
 
-- [ ] **Step 5: Implement `requireRecentAal2` against verified JWT `aal` + most-recent MFA `amr` timestamp**
+- [ ] **Step 5: Implement 900-second step-up enforcement**
 
-The maximum accepted age is exactly 900 seconds for the approved high-risk window.
+Require verified JWT `aal2` plus a most-recent MFA `amr` event no older than 900 seconds.
 
-- [ ] **Step 6: Run function tests**
+- [ ] **Step 6: Verify**
+
+Run `deno test tests/functions/shared-auth.test.ts tests/functions/aal.test.ts`.
 
 Expected: PASS.
 
@@ -370,7 +368,7 @@ git commit -m "feat: add Harbor auth and AAL2 enforcement"
 **Files:**
 - Create: `supabase/functions/create-family/index.ts`
 - Test: `tests/functions/create-family.test.ts`
-- Create via CLI if required: service-only transactional helper migration
+- Create via CLI if required: service-only transaction helper migration
 
 **Interfaces:**
 - Request: `{ name: string, idempotencyKey: string }`.
@@ -378,19 +376,21 @@ git commit -m "feat: add Harbor auth and AAL2 enforcement"
 
 - [ ] **Step 1: Write failing tests**
 
-Cover unauthenticated caller, anonymous-device caller, blank/oversized family name, duplicate idempotency key, and successful family + owner membership + audit creation.
+Cover unauthenticated caller, device caller, blank name, name longer than 100 Unicode code points, duplicate idempotency key, and successful family + owner membership + audit creation.
 
-- [ ] **Step 2: Implement parent validation and normalized input constraints**
+- [ ] **Step 2: Implement parent/input validation**
 
-Do not require AAL2 for ordinary family creation unless later threat-model work changes the spec.
+Normalize surrounding whitespace; accepted name length is 1–100 Unicode code points after trimming.
 
-- [ ] **Step 3: Make family creation atomic and idempotent**
+- [ ] **Step 3: Make creation atomic and idempotent**
 
 If a DB helper is required, keep it service-only, revoke `EXECUTE` from `PUBLIC`, `anon`, and `authenticated`, and prefer `SECURITY INVOKER` with backend privileges.
 
-- [ ] **Step 4: Run function + RLS regression tests**
+- [ ] **Step 4: Verify**
 
-Expected: repeated idempotency key returns/reuses the original domain result and does not create a second family.
+Run `deno test tests/functions/create-family.test.ts` plus the family RLS tests.
+
+Expected: repeated idempotency key reuses the original result and creates no second family.
 
 - [ ] **Step 5: Commit**
 
@@ -414,31 +414,35 @@ git commit -m "feat: add secure family creation"
 **Interfaces:**
 - Private tables: `private.device_security`, `private.device_enrollment_tokens`; Task 8 adds `private.device_request_nonces`.
 - Pairing request: `{ childId: string }`.
-- Pairing response: `{ code: string, expiresAt: string }`; code is exactly six digits, lifetime exactly 10 minutes.
-- Claim request: `{ code: string, publicKeySpki: string, device: { displayName: string, model: string, androidVersion: string, supervisionMode: "unknown" | "standard" | "full" } }`.
-- Claim response: `{ deviceId: string, familyId: string, childId: string }`.
+- Pairing response: `{ code: string, expiresAt: string }`; code exactly six digits, lifetime exactly 10 minutes.
+- Only one unconsumed pairing token may be active per child; issuing a new code invalidates the old one.
+- Each token allows at most 5 failed claim attempts; the fifth failure invalidates it.
+- Claim request: `{ code, publicKeySpki, device: { displayName, model, androidVersion, supervisionMode } }`.
+- Claim response: `{ deviceId, familyId, childId }`.
 
-- [ ] **Step 1: Write failing tests for pairing/claim invariants**
+- [ ] **Step 1: Write failing pairing/claim tests**
 
-Cover six-digit format, 10-minute expiry, single use, wrong family/child, repeated claim, brute-force attempt accounting/lockout policy chosen in the migration, malformed SPKI, and already-bound device Auth identity.
+Cover six-digit format, 10-minute expiry, new-code invalidation of the old code, single use, wrong family/child, five-failure invalidation, malformed SPKI, repeated claim, and already-bound Auth identity.
 
-- [ ] **Step 2: Create private device-security schema objects**
+- [ ] **Step 2: Create private device-security objects**
 
-Revoke `PUBLIC`, `anon`, and `authenticated` access to private tables.
+Run `supabase migration new device_security`; revoke `PUBLIC`, `anon`, and `authenticated` access.
 
 - [ ] **Step 3: Store only keyed pairing-code digests**
 
-Use HMAC-SHA-256 with a server-side pairing pepper secret; never persist the raw six-digit code.
+Use HMAC-SHA-256 with a server-side pairing pepper secret; never store the raw code.
 
 - [ ] **Step 4: Require the caller's separate child-device Supabase Auth identity**
 
-The device Auth principal still receives no direct family Data API authorization.
+The device principal receives no direct family Data API access.
 
-- [ ] **Step 5: Atomically bind Auth subject + P-256 SPKI public key + public device row and consume the token**
+- [ ] **Step 5: Atomically bind Auth subject + P-256 SPKI + device row and consume the token**
 
-Write the enrollment audit event in the same logical operation.
+Write the enrollment audit event in the same logical transaction.
 
-- [ ] **Step 6: Run DB/function tests**
+- [ ] **Step 6: Verify**
+
+Run DB tests and `deno test tests/functions/device-claim.test.ts`.
 
 Expected: PASS.
 
@@ -462,36 +466,33 @@ git commit -m "feat: add Harbor device enrollment"
 
 **Interfaces:**
 - Canonical signature input: `METHOD + "\n" + OPERATION + "\n" + DEVICE_ID + "\n" + BODY_SHA256 + "\n" + UNIX_TIMESTAMP + "\n" + NONCE`.
-- Required headers: `X-Harbor-Device-Id`, `X-Harbor-Timestamp`, `X-Harbor-Nonce`, `X-Harbor-Signature`.
-- `requireDeviceProof(req: Request, operation: string): Promise<DeviceContext>` returns `{ deviceId: string, familyId: string, childId: string, authUserId: string }`.
-- Accepted timestamp skew: 5 minutes.
+- Headers: `X-Harbor-Device-Id`, `X-Harbor-Timestamp`, `X-Harbor-Nonce`, `X-Harbor-Signature`.
+- `requireDeviceProof(req, operation): Promise<DeviceContext>` -> `{ deviceId, familyId, childId, authUserId }`.
+- Accepted timestamp skew: ±5 minutes.
 
 - [ ] **Step 1: Write failing proof tests**
 
-Cover valid signature, wrong key, modified body, wrong device ID, timestamp outside ±5 minutes, reused nonce, copied JWT without signature, and revoked device.
+Cover valid signature, wrong key, modified body, wrong device ID, ±5-minute boundary, stale timestamp, reused nonce, copied JWT without signature, and revoked device.
 
-- [ ] **Step 2: Bind JWT `sub` to `private.device_security.auth_user_id`**
+- [ ] **Step 2: Bind JWT `sub` to `device_security.auth_user_id`**
 
-Reject a valid JWT belonging to any other device/user.
+Reject any other valid user/device token.
 
-- [ ] **Step 3: Verify ECDSA P-256/SHA-256 against stored SPKI public key**
+- [ ] **Step 3: Verify ECDSA P-256/SHA-256 against stored SPKI**
 
-Reject malformed/unsupported key material without falling back to token-only authorization.
+Malformed/unsupported key material fails closed.
 
-- [ ] **Step 4: Atomically claim nonce before accepting the protected operation**
+- [ ] **Step 4: Atomically claim nonce**
 
-A duplicate `(device_id, nonce)` maps to `REPLAY_REJECTED`.
+Duplicate `(device_id, nonce)` returns `REPLAY_REJECTED`.
 
-- [ ] **Step 5: Read current `revoked_at` on every protected request**
+- [ ] **Step 5: Check current `revoked_at` on every protected request**
 
-Revocation wins even when JWT/signature/timestamp are otherwise valid.
+Revocation wins over an otherwise-valid JWT/signature.
 
-- [ ] **Step 6: Run tests and commit**
+- [ ] **Step 6: Verify and commit**
 
-```bash
-git add supabase/functions/_shared/crypto.ts supabase/functions/_shared/device-proof.ts supabase/migrations supabase/tests/device_security.test.sql tests/functions/device-proof.test.ts
-git commit -m "feat: enforce Harbor device proof of possession"
-```
+Run `deno test tests/functions/device-proof.test.ts` plus device DB tests, then commit `feat: enforce Harbor device proof of possession`.
 
 ---
 
@@ -508,39 +509,36 @@ git commit -m "feat: enforce Harbor device proof of possession"
 - Test: `tests/functions/revoke-device.test.ts`
 
 **Interfaces:**
-- Private tables: `device_desired_state`, `device_commands`, `device_fcm_registrations`.
-- Desired-state version is monotonically increasing per device.
-- Device sync request may include `{ acknowledgedDesiredStateVersion?: number, appliedCommandIds?: string[] }`.
-- Device sync response: `{ desiredState: unknown, desiredStateVersion: number, commands: DeviceCommandV1[] }`.
-- `DeviceCommandV1` contains stable `id`, `kind`, `idempotencyKey`, `createdAt`, optional `expiresAt`, and minimal payload.
-- `revoke-device` requires owner/authorized-parent role plus `requireRecentAal2(..., 900)`.
+- Private: `device_desired_state`, `device_commands`, `device_fcm_registrations`.
+- Desired-state version increases monotonically per device.
+- Sync request: `{ acknowledgedDesiredStateVersion?: number, appliedCommandIds?: string[] }`.
+- Sync response: `{ desiredState: unknown, desiredStateVersion: number, commands: DeviceCommandV1[] }`.
+- `DeviceCommandV1`: stable `id`, `kind`, `idempotencyKey`, `createdAt`, optional `expiresAt`, minimal payload.
+- `revoke-device` requires family authorization plus `requireRecentAal2(..., 900)`.
 
-- [ ] **Step 1: Write failing DB/function tests**
+- [ ] **Step 1: Write failing tests**
 
-Cover monotonic desired-state versions, stale version update rejection, duplicate command idempotency key, duplicate acknowledgement, private FCM token visibility, signed sync, and revoked-device denial.
+Cover monotonic versions, stale version rejection, duplicate command idempotency, duplicate acknowledgement, private FCM token visibility, signed sync, and revoked-device denial.
 
-- [ ] **Step 2: Implement signed `device-sync` with `requireDeviceProof`**
+- [ ] **Step 2: Implement signed `device-sync`**
 
-Expired commands are omitted; acknowledgement updates are idempotent.
+Use `requireDeviceProof`; omit expired commands and make acknowledgements idempotent.
 
 - [ ] **Step 3: Implement signed FCM registration**
 
-FCM tokens live only in private backend state and can rotate without exposing previous tokens.
+Tokens remain private and can rotate without exposing old values.
 
 - [ ] **Step 4: Implement parent-authorized desired-state update**
 
-Each accepted state change increments version exactly once and records wake intent for later outbox dispatch.
+Each accepted state change increments the version exactly once and records wake intent.
 
-- [ ] **Step 5: Implement AAL2-protected device revocation**
+- [ ] **Step 5: Implement recent-AAL2 device revocation**
 
-Revocation invalidates private FCM registration/desired-state access and writes audit state; the next device call fails immediately.
+Revoke private FCM/desired-state access and audit the action; the next child call fails immediately.
 
-- [ ] **Step 6: Run tests and commit**
+- [ ] **Step 6: Verify and commit**
 
-```bash
-git add supabase/migrations supabase/functions/device-sync supabase/functions/register-fcm supabase/functions/revoke-device supabase/functions/update-device-state supabase/tests/desired_state.test.sql tests/functions/device-sync.test.ts tests/functions/revoke-device.test.ts
-git commit -m "feat: add Harbor desired state and device revocation"
-```
+Run DB/function tests and commit `feat: add Harbor desired state and device revocation`.
 
 ---
 
@@ -553,42 +551,39 @@ git commit -m "feat: add Harbor desired state and device revocation"
 - Create: `supabase/functions/_shared/web-push.ts`
 - Test: `supabase/tests/web_push.test.sql`
 - Test: `tests/functions/web-push.test.ts`
-- Modify: `docs/runbooks/notifications.md`
+- Create/modify: `docs/runbooks/notifications.md`
 
 **Interfaces:**
 - Private table: `private.parent_web_push_subscriptions`.
-- Subscription identity: `(user_id, client_installation_id, endpoint_hash)` with multiple installations allowed per parent.
-- Register request: `{ clientInstallationId: string, endpoint: string, keys: { p256dh: string, auth: string } }`.
-- Remove request: `{ clientInstallationId: string, endpoint?: string }`.
-- `sendWebPush(subscription: WebPushSubscriptionRecord, route: NotificationRouteRefV1): Promise<PushDeliveryResult>`.
-- VAPID public key is browser-safe; VAPID private key is read only from Supabase backend secrets.
+- Subscription identity: `(user_id, client_installation_id, endpoint_hash)`; multiple installations per parent allowed.
+- Register request: `{ clientInstallationId, endpoint, keys: { p256dh, auth } }`.
+- Remove request: `{ clientInstallationId, endpoint?: string }`.
+- `sendWebPush(subscription, route: NotificationRouteRefV1): Promise<PushDeliveryResult>`.
+- VAPID public key is browser-safe; private key exists only in Supabase secrets.
 
-- [ ] **Step 1: Write failing subscription tests**
+- [ ] **Step 1: Write failing lifecycle tests**
 
-Cover unauthenticated caller, another user's installation ID, multiple subscriptions for one parent, endpoint/key rotation, duplicate registration idempotency, explicit removal, and absence of client grants on the private table.
+Cover unauthenticated caller, another user's installation ID, multiple installations, endpoint/key rotation, duplicate registration idempotency, explicit removal, and no client grants on the private table.
 
-- [ ] **Step 2: Create the Web Push schema migration**
+- [ ] **Step 2: Create the Web Push migration**
 
-Do not expose raw subscriptions through the parent Data API. Persist only fields needed for delivery/lifecycle and timestamps/status.
+Run `supabase migration new parent_web_push`. Persist only delivery/lifecycle fields and status/timestamps.
 
-- [ ] **Step 3: Implement authenticated register/remove Edge Functions**
+- [ ] **Step 3: Implement authenticated register/remove functions**
 
-The caller may mutate only subscriptions attached to `auth.uid()`.
+A caller may mutate only subscriptions attached to `auth.uid()`.
 
 - [ ] **Step 4: Implement the server-only Web Push adapter**
 
-Use a standards-compatible NPM Web Push/VAPID implementation supported by the current Supabase Edge Runtime, pinned through the repository's Deno dependency configuration/lockfile. Keep `VAPID_PRIVATE_KEY` server-only.
+Use `npm:web-push` through Supabase Edge Runtime NPM compatibility; do not hand-roll Web Push encryption. Pin the resolved package version/lockfile used by the implementation. Read `VAPID_PRIVATE_KEY` only from Edge Function secrets.
 
-- [ ] **Step 5: Write delivery adapter tests with network mocked**
+- [ ] **Step 5: Write mocked delivery tests**
 
-Assert payload contains only `NotificationRouteRefV1`; 404/410 invalid-subscription responses are classified as permanent; transient 5xx/network failures are retryable.
+Assert payload is only `NotificationRouteRefV1`; HTTP 404/410 is permanent-invalid-subscription; 429/5xx/network error is retryable.
 
-- [ ] **Step 6: Run tests and commit**
+- [ ] **Step 6: Verify and commit**
 
-```bash
-git add supabase/migrations supabase/functions/register-web-push supabase/functions/remove-web-push supabase/functions/_shared/web-push.ts supabase/tests/web_push.test.sql tests/functions/web-push.test.ts docs/runbooks/notifications.md
-git commit -m "feat: add Harbor parent web push foundation"
-```
+Run DB tests and `deno test tests/functions/web-push.test.ts`; commit `feat: add Harbor parent web push foundation`.
 
 ---
 
@@ -603,37 +598,34 @@ git commit -m "feat: add Harbor parent web push foundation"
 - Modify: `docs/runbooks/notifications.md`
 
 **Interfaces:**
-- Outbox transports: `fcm | web_push`.
-- Delivery statuses: `pending | processing | sent | retry | dead_letter`.
-- Each row has stable event/idempotency identity, target reference, minimal route payload, attempt count, next-attempt time, last error category, and timestamps.
-- `dispatchOne(outboxId: string): Promise<DeliveryOutcome>` is idempotent with respect to already-sent rows.
+- Transports: `fcm | web_push`.
+- Statuses: `pending | processing | sent | retry | dead_letter`.
+- Each row has stable event/idempotency identity, target reference, minimal route payload, attempt count, next-attempt time, last error category, timestamps.
+- `dispatchOne(outboxId: string): Promise<DeliveryOutcome>` is idempotent for already-sent rows.
 
-- [ ] **Step 1: Write failing DB tests for durable outbox state transitions**
+- [ ] **Step 1: Write failing DB state-machine tests**
 
-Cover duplicate event/idempotency key, safe claiming, retry scheduling, already-sent no-op, and dead-letter transition.
+Cover duplicate event key, safe claiming, retry scheduling, already-sent no-op, and dead-letter transition.
 
-- [ ] **Step 2: Write failing dispatcher tests for FCM + Web Push fanout**
+- [ ] **Step 2: Write failing dual-transport dispatcher tests**
 
-A single logical event may produce separate transport rows; one transport failure must not roll back a successful other transport after durable outbox creation.
+One logical event may create separate FCM/Web Push rows; one transport failure does not undo another successful transport.
 
-- [ ] **Step 3: Implement transactional outbox helpers**
+- [ ] **Step 3: Implement durable outbox helpers**
 
-Domain changes record push intent before external delivery is considered successful.
+Domain changes record delivery intent before external delivery counts as successful.
 
-- [ ] **Step 4: Implement dispatch/retry classification**
+- [ ] **Step 4: Implement retry/permanent-failure classification**
 
-Permanent Web Push 404/410 disables the invalid subscription; transient errors schedule retry; duplicate dispatcher invocation does not duplicate domain effects.
+Web Push 404/410 disables the subscription; transient failures schedule retry; duplicate dispatcher invocation does not duplicate domain effects.
 
-- [ ] **Step 5: Verify minimal payload policy**
+- [ ] **Step 5: Enforce minimal push payloads in tests**
 
-Tests reject outbox route payload fixtures that include raw location/message content when a route/reference is sufficient.
+Reject raw location/message content when a route/reference is sufficient.
 
-- [ ] **Step 6: Run tests and commit**
+- [ ] **Step 6: Verify and commit**
 
-```bash
-git add supabase/migrations supabase/functions/_shared/notification.ts supabase/functions/dispatch-outbox supabase/tests/outbox.test.sql tests/functions/dispatch-outbox.test.ts docs/runbooks/notifications.md
-git commit -m "feat: add Harbor durable notification outbox"
-```
+Run DB/function tests and commit `feat: add Harbor durable notification outbox`.
 
 ---
 
@@ -644,32 +636,25 @@ git commit -m "feat: add Harbor durable notification outbox"
 - Test: `supabase/tests/realtime_authorization.test.sql`
 
 **Interfaces:**
-- Topic format: `family:{family_id}`.
-- Parent clients may receive approved family broadcasts only when `auth.uid()` is an active member of that family.
-- Device anonymous Auth users and parents from other families cannot join/read another family's private topic.
+- Topic: `family:{family_id}`.
+- Only active family members may receive Harbor family broadcasts.
+- Device Auth users and other-family parents cannot join/read the topic.
 
 - [ ] **Step 1: Write failing authorization tests**
 
-Cover active Parent A on Family A, removed Parent A, Parent B on Family A topic, device anonymous Auth on Family A topic, malformed topic, and family UUID not found.
+Cover active Parent A, removed Parent A, Parent B, device Auth, malformed topic, and nonexistent family UUID.
 
-- [ ] **Step 2: Implement `realtime.messages` RLS for private family topics**
+- [ ] **Step 2: Implement `realtime.messages` RLS**
 
-Use the current Supabase Realtime authorization model and `realtime.topic()`; constrain the permitted extension(s) to only those Harbor uses.
+Use current Supabase private-channel authorization with `realtime.topic()` and constrain allowed Realtime extensions to Harbor's chosen broadcast use.
 
-- [ ] **Step 3: Do not make Realtime authoritative state**
+- [ ] **Step 3: Keep broadcasts non-authoritative**
 
-Database events/broadcast payloads contain only non-sensitive change notification fields sufficient for clients to refresh authoritative data.
+Broadcast payloads contain only non-sensitive change notifications sufficient to trigger refresh.
 
-- [ ] **Step 4: Run DB tests and advisors**
+- [ ] **Step 4: Verify and commit**
 
-Expected: only active family members can subscribe to their own family topic.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add supabase/migrations supabase/tests/realtime_authorization.test.sql
-git commit -m "feat: authorize Harbor family realtime channels"
-```
+Run DB tests and commit `feat: authorize Harbor family realtime channels`.
 
 ---
 
@@ -683,38 +668,38 @@ git commit -m "feat: authorize Harbor family realtime channels"
 - Modify: `docs/runbooks/supabase-development.md`
 
 **Interfaces:**
-- Acceptance harness represents two logical parent clients using the same Parent A Supabase account/session model (`parent-android-sim`, `parent-pwa-sim`) plus Parent B and one child-device Auth identity.
-- No full Android or Next.js UI is built in this task; the harness exercises the common backend interfaces those clients will later consume.
+- Harness represents two logical clients for Parent A (`parent-android-sim`, `parent-pwa-sim`), Parent B, and one child-device Auth identity.
+- No full Android or Next.js UI is built; tests exercise the common backend interfaces those clients later consume.
 
 - [ ] **Step 1: Write the failing cross-cutting security suite**
 
-Tests must prove: Parent A cannot access Parent B known IDs; device Auth cannot access parent family Data API; copied child JWT without signature fails; replayed nonce fails; revoked device fails with unexpired JWT; stale (>900s) AAL2 high-risk action fails; current AAL2 high-risk action succeeds; private staff state is not client-readable; invalid Web Push subscription cleanup does not block FCM delivery.
+Prove: Parent A cannot access Parent B known IDs; device Auth cannot access family Data API; copied child JWT without signature fails; replayed nonce fails; revoked device fails with unexpired JWT; stale (>900s) AAL2 high-risk action fails; fresh AAL2 succeeds; private staff state is not client-readable; invalid Web Push cleanup does not block FCM delivery.
 
 - [ ] **Step 2: Write the failing foundation acceptance path**
 
-Exercise: create Parent A family/child → create pairing code → claim device with P-256 key → signed device sync → register FCM → register parent Web Push subscription as the same parent identity → update desired state → create/dispatch dual-transport outbox intent → authorize Family A Realtime → verify Parent B denial → replay rejection → AAL2-protected revocation → immediate device denial → audit verification.
+Exercise: create Parent A family/child → pairing code → P-256 device claim → signed sync → FCM registration → parent Web Push registration using the same parent identity → desired-state update → dual-transport outbox intent → Family A Realtime authorization → Parent B denial → replay rejection → AAL2-protected revocation → immediate child denial → audit verification.
 
-- [ ] **Step 3: Run the full local suite until green**
+- [ ] **Step 3: Run the full clean local suite**
 
-Run clean `supabase db reset`, database tests/lint, Deno function tests, contract tests, and the end-to-end foundation harness.
+Run `supabase db reset`, `supabase test db`, `supabase db lint --level error`, `deno test tests/functions`, `deno test tests/end-to-end/platform-foundation.test.ts`, `deno test packages/contracts/test/contracts.test.ts`, and `deno check packages/contracts/src/index.ts`.
 
 Expected: all PASS from a clean reset.
 
-- [ ] **Step 4: Apply intentional migrations to the designated development environment and run Supabase security + performance advisors**
+- [ ] **Step 4: Intentionally apply the reviewed migration set to the designated development project**
 
-Do not use production. Record/remediate Harbor-relevant findings before declaring the task complete.
+Do not use production. Verify `supabase migration list` matches repository history.
 
-- [ ] **Step 5: Verify the linked migration list matches repository history**
+- [ ] **Step 5: Run Supabase security and performance advisors against the development project**
 
-Expected: every applied Harbor migration is represented in `supabase/migrations/` and no dashboard-only production schema drift exists.
+Expected: no unreviewed Harbor security findings; remediate relevant findings before completion.
 
-- [ ] **Step 6: Add CI gates for the full foundation suite and environment-mapping check**
+- [ ] **Step 6: Finalize CI gates**
 
-CI fails if a production web mapping references development project `bfvybxkjxilntjgndsrm`, if contract tests fail, or if any backend/security suite fails.
+CI fails on backend/security/contract tests, secret scanning, or any production environment mapping that references development ref `bfvybxkjxilntjgndsrm`.
 
-- [ ] **Step 7: Update runbooks with the verified commands and non-secret configuration checklist**
+- [ ] **Step 7: Finalize non-secret runbooks**
 
-Include Supabase Auth configuration, pairing pepper secret name, FCM secret identifiers, VAPID public/private secret placement, redirect-origin checklist, and rollback/reset cautions without recording secret values.
+Document Auth settings, secret names/placement for pairing pepper, FCM, and VAPID, redirect-origin checklist, migration commands, and reset/rollback cautions without secret values.
 
 - [ ] **Step 8: Commit**
 
@@ -727,23 +712,23 @@ git commit -m "test: gate Harbor platform foundation release"
 
 ## Subproject 1 Definition of Done
 
-Subproject 1 is complete only when all of the following are true:
+Subproject 1 is complete only when:
 
-- The development Supabase project is linked through reproducible CLI/runbook steps and all Harbor DDL exists in migrations.
-- Parent Auth/TOTP MFA capability is configured and recent-AAL2 enforcement is proven server-side for high-risk foundation actions.
-- Family/child/device public data is RLS-isolated and cross-family known-ID tests pass.
-- Staff authorization state is private, server-controlled, and not implied by parent Auth/profile metadata.
-- Child pairing is six-digit, one-time, keyed-digest-only, and expires after 10 minutes.
-- Protected device calls require bound Auth identity + P-256 proof; replay and immediate revocation tests pass.
-- Desired state is versioned, commands are idempotent, FCM registration is private, and revocation takes effect immediately.
-- Parent Web Push subscriptions are private, per-user/per-installation, and VAPID private operations occur only in Supabase.
-- Notification outbox is durable, at-least-once, idempotent, and supports both FCM and Web Push independently.
-- Private family Realtime authorization allows only active family members.
-- Shared V1 contracts exist for the parent/backend foundation and stable backend error semantics.
-- Clean-reset database tests, Edge Function tests, contract tests, security regression, and the foundation end-to-end harness are green.
-- Supabase security/performance advisors have been reviewed after intentional DDL application.
-- Environment mapping prevents Vercel production from silently using the development Supabase project.
-- No full Next.js PWA UI has been smuggled into this subproject; Subproject 2B remains independently spec'd/planned.
+- all Harbor DDL is migration-backed and reproducible from a clean reset;
+- Auth/TOTP capability is configured and recent-AAL2 enforcement is proven server-side;
+- family/child/device public data is RLS-isolated with cross-family known-ID tests;
+- staff authorization is private/server-controlled;
+- pairing is six-digit, one-time, 10-minute, keyed-digest-only, one-active-token-per-child, and invalidates after five failed claims;
+- device calls require bound Auth + P-256 proof, replay rejection, and immediate revocation;
+- desired state is versioned, commands idempotent, and FCM registrations private;
+- Web Push subscriptions are private/per-installation and VAPID private operations stay in Supabase;
+- the outbox supports independent idempotent FCM + Web Push delivery;
+- private family Realtime allows only active family members;
+- shared V1 contracts and stable backend error semantics exist;
+- the clean-reset DB/function/contract/security/end-to-end suites are green;
+- Supabase security/performance advisors are reviewed after intentional DDL application;
+- environment mapping blocks Vercel production from using the development Supabase project;
+- the full Next.js Parent PWA remains deferred to Subproject 2B.
 
 ## Deferred to Later Subprojects
 
