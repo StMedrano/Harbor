@@ -2,10 +2,6 @@ import { requireRecentAal2 } from "../../supabase/functions/_shared/aal.ts";
 import { HarborAuthError } from "../../supabase/functions/_shared/errors.ts";
 import type { ParentContext } from "../../supabase/functions/_shared/auth.ts";
 
-function assert(condition: unknown, message = "assertion failed"): asserts condition {
-  if (!condition) throw new Error(message);
-}
-
 function assertEquals<T>(actual: T, expected: T, message?: string) {
   if (actual !== expected) {
     throw new Error(message ?? `expected ${String(expected)}, got ${String(actual)}`);
@@ -19,7 +15,9 @@ function assertThrowsCode(
   try {
     fn();
   } catch (error) {
-    assert(error instanceof HarborAuthError, `expected HarborAuthError, got ${String(error)}`);
+    if (!(error instanceof HarborAuthError)) {
+      throw new Error(`expected HarborAuthError, got ${String(error)}`);
+    }
     assertEquals(error.code, code);
     return;
   }

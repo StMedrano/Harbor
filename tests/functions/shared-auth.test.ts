@@ -8,10 +8,6 @@ import {
 import { HarborAuthError } from "../../supabase/functions/_shared/errors.ts";
 import { jsonError } from "../../supabase/functions/_shared/responses.ts";
 
-function assert(condition: unknown, message = "assertion failed"): asserts condition {
-  if (!condition) throw new Error(message);
-}
-
 function assertEquals<T>(actual: T, expected: T, message?: string) {
   if (actual !== expected) {
     throw new Error(message ?? `expected ${String(expected)}, got ${String(actual)}`);
@@ -25,7 +21,9 @@ async function assertRejectsCode(
   try {
     await fn();
   } catch (error) {
-    assert(error instanceof HarborAuthError, `expected HarborAuthError, got ${String(error)}`);
+    if (!(error instanceof HarborAuthError)) {
+      throw new Error(`expected HarborAuthError, got ${String(error)}`);
+    }
     assertEquals(error.code, code);
     return;
   }
