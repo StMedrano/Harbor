@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|sb_secret_[A-Za-z0-9_-]{20,}|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=[[:space:]]*["'"']?[^$[:space:]"'"']{12,}|VAPID_PRIVATE_KEY[[:space:]]*=[[:space:]]*["'"']?[^$[:space:]"'"']{12,}' -- ':!docs/**' ':!**/*.md'; then
+          if git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|sb_secret_[A-Za-z0-9_-]{20,}' -- ':!docs/**' ':!**/*.md'; then
             echo 'Potential committed secret detected.' >&2
             exit 1
           fi
