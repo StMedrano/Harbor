@@ -1,9 +1,6 @@
 name: Harbor Foundation CI
 
 on:
-  push:
-    branches:
-      - feat/vercel-supabase-platform-foundation
   pull_request:
   workflow_dispatch:
 
