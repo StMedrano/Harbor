@@ -1,0 +1,55 @@
+name: Platform Foundation
+
+on:
+  pull_request:
+    paths:
+      - 'Harbor.slnx'
+      - 'services/**'
+      - 'tests/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/platform-foundation.yml'
+  push:
+    branches:
+      - feat/platform-foundation-task-1
+    paths:
+      - 'Harbor.slnx'
+      - 'services/**'
+      - 'tests/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/platform-foundation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: harbor
+          POSTGRES_USER: harbor
+          POSTGRES_PASSWORD: harbor-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harbor -d harbor"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ConnectionStrings__Harbor: Host=localhost;Port=5432;Database=harbor;Username=harbor;Password=harbor-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore Harbor.slnx
+      - name: Build
+        run: dotnet build Harbor.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test Harbor.slnx --configuration Release --no-build --logger "console;verbosity=normal"
