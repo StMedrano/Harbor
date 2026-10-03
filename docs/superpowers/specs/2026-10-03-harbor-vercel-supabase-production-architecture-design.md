@@ -1,6 +1,6 @@
 # Harbor Vercel + Supabase Production Architecture Design
 
-> **Status:** Written design for user review. Do not implement until this spec is approved and a new implementation plan is written and approved.
+> **Status:** Written design for user review. Do not implement until this spec is approved and a replacement implementation plan is written and approved.
 >
 > This document supersedes `docs/superpowers/specs/2026-10-03-harbor-supabase-production-architecture-design.md` where this document changes client/frontend architecture. All unchanged Android supervision, safety, privacy, device-security, policy-engine, and Supabase backend requirements remain in force.
 
@@ -169,6 +169,8 @@ Its V1 parent-facing scope matches the native Parent Android app wherever browse
 
 Browser limitations do not change Harbor's backend capabilities. For example, the PWA may issue an authorized device command even though the Android-specific effect executes only on the Child app.
 
+The PWA never performs child-device enforcement itself. It is a parent control and monitoring surface.
+
 ## Single Vercel web application
 
 Harbor uses one Vercel project for the web surface.
@@ -271,7 +273,7 @@ Privileged, security-sensitive, destructive, or multi-record operations go throu
 
 ## Step-up MFA / AAL2
 
-Sensitive parent actions require recent AAL2/MFA regardless of whether the request comes from Android or the PWA.
+Sensitive parent actions require AAL2/MFA regardless of whether the request comes from Android or the PWA.
 
 At minimum, require AAL2 for:
 
@@ -284,6 +286,8 @@ At minimum, require AAL2 for:
 - staff/admin elevation or privileged support action
 
 Routine parent actions such as changing bedtime, updating screen-time limits, approving ordinary bonus time, or pausing an app do not require an MFA prompt on every action unless later threat-model work elevates them.
+
+High-risk actions use a 15-minute step-up window. If current Supabase session claims expose a verifiable MFA event timestamp, Edge Functions reject challenges older than 15 minutes. If the platform cannot reliably prove the challenge time from the current session, the client performs a fresh MFA challenge immediately before the operation and the Edge Function validates the strongest current-session AAL2 signal supported by the current Supabase Auth implementation.
 
 AAL2 is enforced server-side in Edge Functions, not only in frontend UI guards.
 
@@ -445,7 +449,7 @@ Push payloads remain minimal and do not carry unnecessary sensitive family data.
 
 ## Web Push / VAPID
 
-The PWA registers a browser PushSubscription through the service worker.
+The PWA registers a browser PushSubscription through the service worker only after the parent explicitly opts in to browser notifications.
 
 The subscription is sent to a Supabase Edge Function and stored in `private.parent_web_push_subscriptions`, associated with the authenticated parent and a logical client installation record.
 
@@ -511,7 +515,7 @@ Policy precedence must preserve the previously approved behavior:
 
 1. safety/control surfaces remain available
 2. parent Pause denies regular use
-3. active Kid Space deny unless app/control is allowed
+3. active Kid Space denies use unless the app/control is allowed
 4. explicit blocked state denies
 5. restrictive schedule denies
 6. Unlimited bypasses time quota only, not unrelated blocks/safety rules
@@ -596,7 +600,7 @@ Production must use a separately isolated Supabase environment/project or anothe
 
 The PWA may cache its application shell and non-sensitive static assets for installability/resilience.
 
-The PWA must not imply that a stale cached parent dashboard is authoritative. Sensitive family/device state should be refreshed from Supabase when connectivity returns.
+The PWA must not imply that a stale cached parent dashboard is authoritative. Sensitive family/device state is refreshed from Supabase when connectivity returns.
 
 Offline PWA behavior must not allow privileged changes to appear committed when the backend did not accept them.
 
@@ -604,7 +608,7 @@ Child device policy enforcement is independent of PWA connectivity.
 
 ## Error handling
 
-Parent Android and Parent PWA should map the same stable backend error categories to equivalent user-facing behavior.
+Parent Android and Parent PWA map the same stable backend error categories to equivalent user-facing behavior.
 
 Examples:
 
@@ -653,7 +657,7 @@ Clients may present platform-native UI, but the backend semantics remain consist
 - Realtime refresh behavior
 - manifest/installability
 - service-worker registration
-- Web Push subscription lifecycle
+- Web Push opt-in/subscription lifecycle
 - deep-link handling from notifications
 - browser offline/stale-state UX
 
@@ -761,6 +765,17 @@ Still deferred unless separately approved:
 - automatic emergency-service calling
 - production remote wipe until separate high-risk review
 
+## Roadmap impact
+
+The 12-subproject decomposition remains, but Subproject 2 changes from a single Parent Android foundation into **Parent Client Foundations** with two separately planned tracks:
+
+- **2A — Parent Android Foundation**
+- **2B — Parent PWA Foundation**
+
+Both tracks consume the same Supabase backend, shared contracts, authorization rules, Realtime semantics, notification semantics, and parent-feature acceptance matrix. Each track receives its own dedicated Superpowers implementation plan because Android and Next.js/Vercel are independent implementation subsystems.
+
+Subproject 1 remains **Supabase Platform Foundation**. It may create the backend interfaces required by both parent clients, including web-push subscription storage/Edge Function boundaries and shared contract foundations, but it does not build the full Parent PWA.
+
 ## Architecture invariants
 
 Harbor implementation must preserve all of the following:
@@ -788,9 +803,8 @@ Harbor implementation must preserve all of the following:
 
 The existing `docs/superpowers/plans/2026-10-03-harbor-supabase-platform-foundation.md` was written before the Parent PWA/Vercel architecture was approved and must not be executed unchanged.
 
-After this written spec is approved, the next step is to write a replacement implementation plan that includes both:
+After this written spec is approved, the next step is a replacement **Subproject 1 — Supabase Platform Foundation** implementation plan. That plan includes the backend interfaces now required by the PWA—especially Web Push subscription/delivery support, shared parent contract foundations, AAL2 enforcement, and environment mapping—but it does not implement the full Next.js PWA.
 
-- Supabase Platform Foundation work
-- the Vercel/Next.js Parent PWA foundation and the shared-contract/web-push integration points required for Subproject 1
+The Parent PWA is implemented later through its own **Subproject 2B** spec and implementation plan, coordinated with the Parent Android 2A track through shared acceptance tests.
 
-Native execution remains the user's selected execution method, but implementation does not begin until the replacement plan is written and explicitly approved.
+Native execution remains the user's selected execution method, but implementation does not begin until the replacement Subproject 1 plan is written and explicitly approved.
