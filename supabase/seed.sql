@@ -1,0 +1,2 @@
+-- Harbor local seed baseline.
+-- Domain fixtures are added alongside migration-backed tests.
