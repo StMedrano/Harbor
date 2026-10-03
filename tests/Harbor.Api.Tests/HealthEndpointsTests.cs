@@ -1,6 +1,6 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Harbor.Api.Tests;
@@ -39,6 +39,16 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
+    public async Task Readiness_returns_ok_when_postgres_is_available()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Api_root_reports_v1()
     {
         using var client = _factory.CreateClient();
@@ -53,13 +63,10 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
     {
         return _factory.WithWebHostBuilder(builder =>
         {
-            builder.ConfigureAppConfiguration((_, configuration) =>
-            {
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:Harbor"] = connectionString
-                });
-            });
+            // UseSetting is host configuration and therefore wins over the CI
+            // environment variable. This lets the negative readiness test prove
+            // that the API is actually checking the configured database.
+            builder.UseSetting("ConnectionStrings:Harbor", connectionString);
         });
     }
 }
