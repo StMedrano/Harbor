@@ -17,6 +17,17 @@ export type DeviceClaimAtomicResult = { deviceId: string; familyId: string; chil
 export type DeviceClaimFailureResult = { failedAttempts: number; invalidated: boolean };
 export type DeviceSecurityResult = { deviceId: string; familyId: string; childId: string; authUserId: string; publicKeySpki: string; revokedAt: string | null };
 
+export type DeviceSyncAtomicInput = { deviceId: string; acknowledgedDesiredStateVersion: number | null; appliedCommandIds: string[] };
+export type DeviceSyncAtomicRow = { desired_state: Record<string, unknown>; desired_state_version: number; commands: unknown[] };
+export type DeviceSyncAtomicQuery = (input: DeviceSyncAtomicInput) => Promise<DeviceSyncAtomicRow[]>;
+export type DeviceSyncAtomicResult = { desiredState: Record<string, unknown>; desiredStateVersion: number; commands: unknown[] };
+export type DesiredStateAtomicInput = { deviceId: string; desiredState: Record<string, unknown>; expectedVersion: number };
+export type DesiredStateAtomicQuery = (input: DesiredStateAtomicInput) => Promise<Array<{ desired_state_version: number }>>;
+export type RegisterDeviceFcmAtomicInput = { deviceId: string; token: string };
+export type RegisterDeviceFcmAtomicQuery = (input: RegisterDeviceFcmAtomicInput) => Promise<Array<{ registered: boolean }>>;
+export type RevokeDeviceAtomicInput = { deviceId: string; familyId: string; actorUserId: string };
+export type RevokeDeviceAtomicQuery = (input: RevokeDeviceAtomicInput) => Promise<Array<{ revoked: boolean }>>;
+
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -112,4 +123,65 @@ export async function claimDeviceRequestNonceAtomic(deviceId: string, nonce: str
   const rows = await getPrivateSql()<Array<{ claimed: boolean }>>`
     select private.claim_device_request_nonce(${deviceId}::uuid, ${nonce}::text, ${timestamp}::bigint) as claimed`;
   return rows[0]?.claimed === true;
+}
+
+async function queryDeviceSyncAtomic(input: DeviceSyncAtomicInput): Promise<DeviceSyncAtomicRow[]> {
+  return await getPrivateSql()<DeviceSyncAtomicRow[]>`
+    select desired_state, desired_state_version, commands
+    from private.harbor_sync_device(${input.deviceId}::uuid, ${input.acknowledgedDesiredStateVersion}::bigint, ${input.appliedCommandIds}::uuid[])`;
+}
+
+export async function syncDeviceAtomicWithQuery(input: DeviceSyncAtomicInput, query: DeviceSyncAtomicQuery): Promise<DeviceSyncAtomicResult> {
+  const row = (await query(input))[0];
+  if (!row) throw new Error("Device sync returned no result");
+  return { desiredState: row.desired_state, desiredStateVersion: row.desired_state_version, commands: row.commands };
+}
+
+export async function syncDeviceAtomic(input: DeviceSyncAtomicInput): Promise<DeviceSyncAtomicResult> {
+  return await syncDeviceAtomicWithQuery(input, queryDeviceSyncAtomic);
+}
+
+async function queryUpdateDeviceDesiredStateAtomic(input: DesiredStateAtomicInput) {
+  return await getPrivateSql()<Array<{ desired_state_version: number }>>`
+    select desired_state_version from private.harbor_update_device_desired_state(${input.deviceId}::uuid, ${getPrivateSql().json(input.desiredState)}::jsonb, ${input.expectedVersion}::bigint)`;
+}
+
+export async function updateDeviceDesiredStateAtomicWithQuery(input: DesiredStateAtomicInput, query: DesiredStateAtomicQuery) {
+  const row = (await query(input))[0];
+  if (!row) throw new Error("Desired-state update returned no result");
+  return { desiredStateVersion: row.desired_state_version };
+}
+
+export async function updateDeviceDesiredStateAtomic(input: DesiredStateAtomicInput) {
+  return await updateDeviceDesiredStateAtomicWithQuery(input, queryUpdateDeviceDesiredStateAtomic);
+}
+
+async function queryRegisterDeviceFcmAtomic(input: RegisterDeviceFcmAtomicInput) {
+  return await getPrivateSql()<Array<{ registered: boolean }>>`
+    select private.harbor_register_device_fcm(${input.deviceId}::uuid, ${input.token}::text) as registered`;
+}
+
+export async function registerDeviceFcmAtomicWithQuery(input: RegisterDeviceFcmAtomicInput, query: RegisterDeviceFcmAtomicQuery): Promise<boolean> {
+  const row = (await query(input))[0];
+  if (!row?.registered) throw new Error("FCM registration was not confirmed");
+  return true;
+}
+
+export async function registerDeviceFcmAtomic(input: RegisterDeviceFcmAtomicInput): Promise<boolean> {
+  return await registerDeviceFcmAtomicWithQuery(input, queryRegisterDeviceFcmAtomic);
+}
+
+async function queryRevokeDeviceAtomic(input: RevokeDeviceAtomicInput) {
+  return await getPrivateSql()<Array<{ revoked: boolean }>>`
+    select private.harbor_revoke_device(${input.deviceId}::uuid, ${input.familyId}::uuid, ${input.actorUserId}::uuid) as revoked`;
+}
+
+export async function revokeDeviceAtomicWithQuery(input: RevokeDeviceAtomicInput, query: RevokeDeviceAtomicQuery): Promise<boolean> {
+  const row = (await query(input))[0];
+  if (!row?.revoked) throw new Error("Device revocation was not confirmed");
+  return true;
+}
+
+export async function revokeDeviceAtomic(input: RevokeDeviceAtomicInput): Promise<boolean> {
+  return await revokeDeviceAtomicWithQuery(input, queryRevokeDeviceAtomic);
 }
