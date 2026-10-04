@@ -1,4 +1,5 @@
 import java.util.Properties
+import groovy.json.JsonSlurper
 plugins { id("com.android.application") }
 
 val ciFixture = providers.gradleProperty("acceptanceCiFixture").orNull == "true"
@@ -7,8 +8,19 @@ require(configFile.isFile) { "Supply development acceptance.properties (see exam
 val config = Properties().apply { configFile.inputStream().use { load(it) } }
 require(config.getProperty("supabaseUrl") == "https://bfvybxkjxilntjgndsrm.supabase.co") { "Wrong backend environment" }
 require(config.getProperty("publishableKey", "").matches(Regex("sb_publishable_[A-Za-z0-9_-]+"))) { "Use a publishable client key" }
-require(config.getProperty("firebaseProjectId", "").isNotBlank()) { "Supply matching development Firebase project ID" }
+require(config.getProperty("firebaseProjectId", "").matches(Regex("[a-z][a-z0-9-]{4,62}"))) { "Supply matching development Firebase project ID" }
 require(config.getProperty("applicationId") == "dev.stmedrano.harbor.acceptance") { "Wrong acceptance application ID" }
+val firebaseFile = rootProject.file(if (ciFixture) "config/ci-fixture-google-services.json" else "app/google-services.json")
+require(firebaseFile.isFile) { "Supply the matching development Firebase Android app google-services.json" }
+val firebase = JsonSlurper().parse(firebaseFile) as Map<*, *>
+val projectInfo = firebase["project_info"] as? Map<*, *>
+require(projectInfo?.get("project_id") == config.getProperty("firebaseProjectId")) { "Firebase project does not match acceptance configuration" }
+val clients = firebase["client"] as? List<*> ?: emptyList<Any>()
+require(clients.any { client ->
+    val clientInfo = (client as? Map<*, *>)?.get("client_info") as? Map<*, *>
+    val androidInfo = clientInfo?.get("android_client_info") as? Map<*, *>
+    androidInfo?.get("package_name") == "dev.stmedrano.harbor.acceptance"
+}) { "Firebase Android application ID mismatch" }
 
 android {
     namespace = "dev.stmedrano.harbor.acceptance"
@@ -19,7 +31,12 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1-test"
+        buildConfigField("boolean", "CI_FIXTURE", ciFixture.toString())
+        buildConfigField("String", "SUPABASE_URL", "\"${config.getProperty("supabaseUrl")}\"")
+        buildConfigField("String", "PUBLISHABLE_KEY", "\"${config.getProperty("publishableKey")}\"")
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"${config.getProperty("firebaseProjectId")}\"")
     }
+    buildFeatures { buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

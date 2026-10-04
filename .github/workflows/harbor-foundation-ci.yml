@@ -29,6 +29,13 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew -PacceptanceCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
+      - name: Refuse absent live configuration
+        run: |
+          if ./gradlew --no-daemon --dependency-verification=strict help >/tmp/harbor-android-config-guard.log 2>&1; then
+            echo 'Build incorrectly accepted missing live configuration.' >&2
+            exit 1
+          fi
+          grep -F 'Supply development acceptance.properties' /tmp/harbor-android-config-guard.log
       - name: Retain pinned dependency evidence
         if: always()
         uses: actions/upload-artifact@v4

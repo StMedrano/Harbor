@@ -59,6 +59,7 @@ class AndroidChildStore(context: Context) {
 }
 
 fun androidTransport(request: HarborRequest): HarborReply {
+    check(!BuildConfig.CI_FIXTURE) { "CI fixture APK cannot call the hosted development backend" }
     val uri = URI(request.url)
     require(uri.scheme == "https" && uri.host == "bfvybxkjxilntjgndsrm.supabase.co" && uri.port == -1)
     val connection = uri.toURL().openConnection() as HttpURLConnection
