@@ -17,6 +17,48 @@
 
 Harbor began this implementation with no application migrations in the linked development project.
 
+## Hosted development checkpoint — 2026-10-04
+
+The reviewed migration set through `20261004185554_realtime_authorization.sql`
+was applied to development project `bfvybxkjxilntjgndsrm` using CLI 2.119.0
+after a successful dry run. All 13 remote migration versions and names match
+the repository. Source revision `dfc3b1374584eb2e01e430ed755827b9b25cdbb9`
+passed foundation CI run `37230379057` before application.
+
+Read-only hosted checks confirmed RLS on all five Harbor public tables and the
+family broadcast receive policy. Both `anon` and `authenticated` lack private
+schema usage and SELECT on device security and parent Web Push subscriptions.
+
+Post-application advisors reported no warning/error findings. Informational
+findings were reviewed as follows:
+
+- Web Push RLS without policies is intentional: this private table has no client
+  grants and is accessed only through server helpers. Do not add client policies
+  merely to silence this notice.
+- Eleven unused indexes are expected on the newly initialized database. Preserve
+  them until representative usage provides evidence for removal.
+- Three foreign keys lack covering indexes: enrollment-token family and issuer,
+  and the public device `(family_id, child_id)` relationship. Assess these with
+  representative queries/deletion workload and a tested migration before marking
+  performance readiness complete.
+
+References: [RLS without policies](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy),
+[foreign-key indexes](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys),
+[unused indexes](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
+
+Live acceptance remains blocked: the hosted custom-secret inventory is empty and
+no Edge Functions are deployed. Configure the server-only database connection
+`SUPABASE_DB_URL`, pairing pepper, FCM credentials, VAPID configuration, worker
+key, and exact allowed frontend origins in the appropriate Supabase secret store.
+Never put their values in GitHub comments or this document. Built-in runtime
+credentials are separate from the custom-secret inventory. Review hosted Auth
+settings and Realtime public-channel configuration before live acceptance; local
+config and database policy checks do not verify those hosted settings.
+
+Then deploy the reviewed functions and verify live Auth/MFA, private Realtime,
+and actual FCM/Web Push delivery. The schema deployment alone does not establish
+Subproject 1 completion or production readiness.
+
 ## Daily local workflow
 
 ```bash
