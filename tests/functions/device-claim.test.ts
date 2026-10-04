@@ -243,3 +243,15 @@ Deno.test("device-claim rejects an already-bound Auth identity without creating 
   assertEquals(response.status, 403);
   assertEquals((await jsonBody(response)).code, "FORBIDDEN");
 });
+
+Deno.test("device-claim counts metadata and rejected identity failures for a matched code", async () => {
+  let failures = 0;
+  const persistence = { recordClaimFailure: async () => ({ failedAttempts: ++failures, invalidated: failures >= 5 }) };
+  for (let attempt = 0; attempt < 5; attempt++) {
+    assertEquals((await handleDeviceClaim(claimRequest({ device: { displayName: "", supervisionMode: "full" } }), claimDependencies(persistence))).status, 400);
+  }
+  assertEquals(failures, 5);
+  const response = await handleDeviceClaim(claimRequest(), claimDependencies({ ...persistence, claimDeviceAtomic: async () => { throw new HarborAuthError("FORBIDDEN",403,"identity already bound"); } }));
+  assertEquals(response.status, 403);
+  assertEquals(failures, 6);
+});
