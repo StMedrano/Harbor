@@ -1,5 +1,8 @@
+import { createUpdateDeviceStateHandler } from "../../supabase/functions/update-device-state/index.ts";
+import { handleDeviceClaim } from "../../supabase/functions/device-claim/index.ts";
+import { withCors } from "../../supabase/functions/_shared/http.ts";
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import { getPrivateSql, createFamilyAtomic, issueDevicePairingAtomic, claimDeviceAtomic, loadDeviceSecurity, claimDeviceRequestNonceAtomic, syncDeviceAtomic, registerDeviceFcmAtomic, registerParentWebPushAtomic, updateDeviceDesiredStateAtomic, revokeDeviceAtomic } from "../../supabase/functions/_shared/clients.ts";
+import { getPrivateSql, createFamilyAtomic, issueDevicePairingAtomic, claimDeviceAtomic, loadDeviceSecurity, recordDeviceClaimFailure, claimDeviceRequestNonceAtomic, syncDeviceAtomic, registerDeviceFcmAtomic, registerParentWebPushAtomic, updateDeviceDesiredStateAtomic, revokeDeviceAtomic } from "../../supabase/functions/_shared/clients.ts";
 import { requireDeviceProof } from "../../supabase/functions/_shared/device-proof.ts";
 import { sha256Hex, verifyP256Sha256 } from "../../supabase/functions/_shared/crypto.ts";
 import { createRevokeDeviceHandler } from "../../supabase/functions/revoke-device/index.ts";
@@ -52,6 +55,22 @@ Deno.test("two parent clients share durable device lifecycle with database autho
     assertEquals(synced.desiredState, desired);
     assertEquals(synced.desiredStateVersion, 1);
     assertEquals(version.desiredStateVersion, 1);
+    const stateEndpoint = withCors(createUpdateDeviceStateHandler({ requireParent: async () => parentPwa, requireFamilyRole: async () => {}, updateDesiredState: updateDeviceDesiredStateAtomic }), () => ["https://parent.test"]);
+    const staleState = await stateEndpoint(new Request("https://harbor.test/functions/v1/update-device-state", { method: "POST", headers: { Origin: "https://parent.test" }, body: JSON.stringify({ deviceId: device.deviceId, familyId: family.familyId, desiredState: desired, expectedVersion: 0 }) }));
+    assertEquals(staleState.status, 409);
+    assertEquals((await staleState.json()).code, "STALE_VERSION");
+    assertEquals(staleState.headers.get("access-control-allow-origin"), "https://parent.test");
+    const lockoutChild = crypto.randomUUID();
+    const lockoutDigest = await sha256Hex(`lockout-${crypto.randomUUID()}`);
+    await sql`insert into public.children(id,family_id,display_name) values (${lockoutChild}::uuid,${family.familyId}::uuid,'Lockout fixture')`;
+    await issueDevicePairingAtomic({ parentUserId: parentA, childId: lockoutChild, codeDigest: lockoutDigest, expiresAt: new Date(now.getTime() + 600000).toISOString() });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const rejectedClaim = await handleDeviceClaim(new Request("https://harbor.test/functions/v1/device-claim", { method: "POST", body: JSON.stringify({ code: "123456", publicKeySpki: encode(await crypto.subtle.exportKey("spki", keys.publicKey)), device: { displayName: "", supervisionMode: "full" } }) }), { requireDeviceIdentity: proofDependencies.requireDeviceIdentity, digestPairingCode: async () => lockoutDigest, validateP256Spki: async () => true, recordClaimFailure: recordDeviceClaimFailure, claimDeviceAtomic });
+      assertEquals(rejectedClaim.status, 400);
+    }
+    const lockout = (await sql`select failed_attempts, invalidated_at from private.device_enrollment_tokens where code_digest = ${lockoutDigest}`)[0];
+    assertEquals(lockout.failed_attempts, 5);
+    assertEquals(lockout.invalidated_at !== null, true);
     const intents = await sql`select id, transport from private.notification_outbox where route_payload->>'deviceId' = ${device.deviceId} order by transport`;
     assertEquals(intents.map((row) => row.transport), ["fcm", "web_push"]);
     const dispatch = createPersistentDispatchOne(privateOutboxStore, { sendFcm: async () => ({ status: "sent" }), sendWebPush: async () => ({ status: "permanent_failure", reason: "invalid_subscription" }) });

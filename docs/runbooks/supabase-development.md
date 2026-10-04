@@ -67,3 +67,36 @@ Never commit `.env` files, Supabase secret/service credentials, database passwor
 ## Remote migration discipline
 
 Do not apply experimental DDL directly to the hosted development project. Build and test migrations locally first. Intentional remote migration application happens only at the plan step that explicitly calls for it, followed by migration-history verification and Supabase security/performance advisors.
+
+## Foundation acceptance scope
+
+CI now runs `tests/end-to-end/platform-foundation.test.ts` against its clean local
+PostgreSQL database. It exercises shared Parent Android/PWA subjects, durable
+family creation/pairing, real P-256 device proof and persisted nonce rejection,
+FCM/Web Push registration, desired-state round trips, independent transport
+outcomes, family Data API RLS, Realtime policy reads, private staff-table denial,
+stale/fresh MFA through the revocation handler, immediate proof denial after
+revocation, and audit persistence.
+
+The harness supplies verified identity fixtures at the Auth seam and controlled
+push transports. It does not establish live JWT issuance/validation, an actual
+WebSocket handshake, MFA enrollment/challenge against hosted Auth, or external
+push delivery. Those hosted checks remain required before foundation completion.
+CI uses a disposable local database; do not run reset commands against hosted
+projects. Migration application requires reviewed changes and history comparison.
+
+Hosted server secrets include `HARBOR_PAIRING_PEPPER`, `FCM_SERVICE_ACCOUNT_JSON`,
+`VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and
+`HARBOR_OUTBOX_WORKER_KEY`; store values in Supabase secrets, never this runbook.
+Review allowed Auth redirect origins and TOTP/anonymous Auth settings before
+live acceptance. Production remains separately unassigned.
+
+## Browser function boundary
+
+Configure `HARBOR_ALLOWED_ORIGINS` as a comma-separated list of exact approved
+parent frontend origins (scheme, host, port; no trailing slash). Requests with an
+Origin header outside that list are denied. Native/server calls without Origin
+continue through normal authentication. Browser preflight does not authenticate;
+actual calls always do. No wildcard or cookie credential allowance is enabled.
+The shared HTTP wrapper adds CORS to successful and error responses and converts
+known SQL domain errors into sanitized stable Harbor error codes.
