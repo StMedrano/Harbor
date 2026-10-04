@@ -1,8 +1,13 @@
-function base64ToBytes(value: string): Uint8Array {
+function base64ToArrayBuffer(value: string): ArrayBuffer {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   const binary = atob(padded);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return buffer;
 }
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -22,7 +27,7 @@ export async function verifyP256Sha256(
   try {
     const key = await crypto.subtle.importKey(
       "spki",
-      base64ToBytes(publicKeySpki),
+      base64ToArrayBuffer(publicKeySpki),
       { name: "ECDSA", namedCurve: "P-256" },
       false,
       ["verify"],
@@ -30,7 +35,7 @@ export async function verifyP256Sha256(
     return await crypto.subtle.verify(
       { name: "ECDSA", hash: "SHA-256" },
       key,
-      base64ToBytes(signature),
+      base64ToArrayBuffer(signature),
       new TextEncoder().encode(canonical),
     );
   } catch {
