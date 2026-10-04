@@ -1,3 +1,9 @@
+import {
+  claimDeviceRequestNonceAtomic,
+  loadDeviceSecurity,
+} from "./clients.ts";
+import { sha256Hex, verifyP256Sha256 } from "./crypto.ts";
+import { requireDeviceIdentity } from "./auth.ts";
 import { HarborAuthError } from "./errors.ts";
 
 export type DeviceSecurityRecord = {
@@ -23,6 +29,15 @@ export type DeviceProofDependencies = {
   sha256: (body: string) => Promise<string>;
   verifyP256Signature: (publicKeySpki: string, signature: string, canonical: string) => Promise<boolean>;
   claimNonceAtomic: (deviceId: string, nonce: string, timestamp: number) => Promise<boolean>;
+};
+
+export const defaultDeviceProofDependencies: DeviceProofDependencies = {
+  now: () => new Date(),
+  requireDeviceIdentity,
+  loadDeviceSecurity,
+  sha256: sha256Hex,
+  verifyP256Signature: verifyP256Sha256,
+  claimNonceAtomic: claimDeviceRequestNonceAtomic,
 };
 
 function forbidden(message: string): never {
