@@ -26,4 +26,8 @@ android {
     }
 }
 androidComponents.beforeVariants { variant -> variant.enable = variant.buildType == "debug" }
-dependencies { testImplementation("junit:junit:4.13.2") }
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    // Android supplies JSONObject at runtime; JVM tests need its real parser.
+    testImplementation("org.json:json:20240303")
+}
