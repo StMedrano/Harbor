@@ -8,6 +8,28 @@ export type StaffAuthorizationRow = {
   role: "support" | "admin";
 };
 
+export type CreateFamilyAtomicInput = {
+  userId: string;
+  name: string;
+  idempotencyKey: string;
+};
+
+export type CreateFamilyAtomicRow = {
+  family_id: string;
+  name: string;
+  role: "owner";
+};
+
+export type CreateFamilyAtomicResult = {
+  familyId: string;
+  name: string;
+  role: "owner";
+};
+
+export type CreateFamilyAtomicQuery = (
+  input: CreateFamilyAtomicInput,
+) => Promise<CreateFamilyAtomicRow[]>;
+
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -78,4 +100,42 @@ export async function queryStaffAuthorization(
     limit 1
   `;
   return rows[0] ?? null;
+}
+
+async function queryCreateFamilyAtomic(
+  input: CreateFamilyAtomicInput,
+): Promise<CreateFamilyAtomicRow[]> {
+  const sql = getPrivateSql();
+  return await sql<CreateFamilyAtomicRow[]>`
+    select family_id, name, role
+    from private.create_family_atomic(
+      ${input.userId}::uuid,
+      ${input.name}::text,
+      ${input.idempotencyKey}::text
+    )
+  `;
+}
+
+export async function createFamilyAtomicWithQuery(
+  input: CreateFamilyAtomicInput,
+  query: CreateFamilyAtomicQuery,
+): Promise<CreateFamilyAtomicResult> {
+  const rows = await query(input);
+  const row = rows[0];
+  if (!row) throw new Error("Atomic family creation returned no result");
+  if (row.role !== "owner") {
+    throw new Error("Atomic family creation returned an invalid role");
+  }
+
+  return {
+    familyId: row.family_id,
+    name: row.name,
+    role: "owner",
+  };
+}
+
+export async function createFamilyAtomic(
+  input: CreateFamilyAtomicInput,
+): Promise<CreateFamilyAtomicResult> {
+  return await createFamilyAtomicWithQuery(input, queryCreateFamilyAtomic);
 }
