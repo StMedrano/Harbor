@@ -92,3 +92,12 @@ jobs:
           --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
           --allow-net=127.0.0.1:54322
           tests/integration/outbox-persistence.test.ts
+
+      - name: Verify shared backend platform acceptance
+        env:
+          SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+        run: >-
+          deno test --frozen
+          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
+          --allow-net=127.0.0.1:54322
+          tests/end-to-end/platform-foundation.test.ts
