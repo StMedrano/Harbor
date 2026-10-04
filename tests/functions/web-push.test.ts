@@ -67,6 +67,22 @@ Deno.test("register-web-push binds installation and endpoint to authenticated us
   assertEquals(actual, { userId: parent.userId, ...subscription });
 });
 
+Deno.test("register-web-push ignores a client supplied user id", async () => {
+  let actual: unknown;
+  const deps = {
+    requireParent: async () => parent,
+    registerSubscription: async (input: unknown) => { actual = input; },
+  } as RegisterWebPushDeps;
+
+  const response = await createRegisterWebPushHandler(deps)(registerRequest({
+    ...subscription,
+    userId: "22222222-2222-4222-8222-222222222222",
+  }));
+
+  assertEquals(response.status, 204);
+  assertEquals(actual, { userId: parent.userId, ...subscription });
+});
+
 Deno.test("duplicate web-push registration is accepted idempotently", async () => {
   let calls = 0;
   const deps = {
