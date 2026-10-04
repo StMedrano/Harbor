@@ -76,3 +76,17 @@ Deno.test("dispatcher rejects location and message content before either transpo
     }
   }
 });
+
+Deno.test("dispatcher carries claim attempt into completion and invalid cleanup", async () => {
+  const h = harness();
+  let completion: unknown;
+  let cleanup: unknown;
+  h.deps.complete = async (...args) => { completion = args; };
+  h.deps.disableWebPush = async (...args) => { cleanup = args; };
+  const dispatch = createDispatchOne(h.deps);
+  await dispatch("fcm");
+  assertEquals(completion, ["fcm", 1]);
+  h.deps.sendWebPush = async () => ({ status: "permanent_failure", reason: "invalid_subscription" });
+  await dispatch("web");
+  assertEquals(cleanup, ["subscription-1", "web", 1]);
+});
