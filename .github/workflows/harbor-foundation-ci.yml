@@ -31,6 +31,12 @@ jobs:
           supabase db lint --help >/tmp/supabase-db-lint-help.txt
           supabase test db --help >/tmp/supabase-test-db-help.txt
 
+      - name: Generate Task 6 migration name
+        run: |
+          supabase migration new family_creation_atomic
+          find supabase/migrations -maxdepth 1 -type f -name '*_family_creation_atomic.sql' -printf '%f\n' | sort
+          exit 1
+
       - name: Verify bootstrap files exist
         run: |
           test -f supabase/config.toml
