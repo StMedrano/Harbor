@@ -68,3 +68,14 @@ Deno.test("persistent dispatcher preserves empty claim as no-op without resolvin
   assertEquals(await createPersistentDispatchOne(h.persistence, { sendFcm: async () => { throw new Error("must not send"); } })("row-1"), { status: "no_op" });
   assertEquals(h.changes, []);
 });
+
+Deno.test("family notification resolves subscription with current family authorization", async () => {
+  const h = store();
+  const familyId = "62000000-0000-4000-8000-000000000001";
+  h.persistence.claim = async (id) => [{ id, transport: "web_push", target_ref: { subscriptionId: "subscription-1" }, route_payload: { ...route, familyId }, attempt_count: 1 }];
+  let resolution: unknown;
+  h.persistence.readWebPush = async (...args) => { resolution = args; return null; };
+  assertEquals(await createPersistentDispatchOne(h.persistence, { sendFcm: async () => { throw new Error("wrong transport"); } })("row-1"), { status: "dead_letter" });
+  assertEquals(resolution, ["subscription-1", familyId]);
+  assertEquals(h.changes.some((change) => Object.hasOwn(change as object, "disable")), false);
+});
