@@ -48,6 +48,8 @@ grant select, insert, update, delete on table private.device_fcm_registrations t
 
 create or replace function private.harbor_update_device_desired_state(
   p_device_id uuid,
+  p_family_id uuid,
+  p_actor_user_id uuid,
   p_desired_state jsonb,
   p_expected_version bigint
 )
@@ -60,24 +62,49 @@ declare
   v_current_version bigint;
   v_next_version bigint;
 begin
-  if p_device_id is null or p_desired_state is null or p_expected_version is null or p_expected_version < 0 then
+  if p_device_id is null
+     or p_family_id is null
+     or p_actor_user_id is null
+     or p_desired_state is null
+     or p_expected_version is null
+     or p_expected_version < 0 then
     raise exception 'desired state input is invalid' using errcode = '22023';
   end if;
 
-  perform pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended('desired-state:' || p_device_id::text, 0)
-  );
+  if not exists (
+    select 1
+    from public.family_members fm
+    where fm.family_id = p_family_id
+      and fm.user_id = p_actor_user_id
+      and fm.status = 'active'
+      and fm.role in ('owner', 'parent')
+  ) then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
 
   if not exists (
     select 1
     from public.devices_public d
     join private.device_security ds on ds.device_id = d.id
     where d.id = p_device_id
-      and d.status = 'active'
-      and d.revoked_at is null
+      and d.family_id = p_family_id
+  ) then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1
+    from public.devices_public d
+    where d.id = p_device_id
+      and d.family_id = p_family_id
+      and (d.status <> 'active' or d.revoked_at is not null)
   ) then
     raise exception 'DEVICE_REVOKED' using errcode = '42501';
   end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('desired-state:' || p_device_id::text, 0)
+  );
 
   select s.desired_state_version
     into v_current_version
@@ -380,7 +407,7 @@ begin
 end;
 $$;
 
-revoke all on function private.harbor_update_device_desired_state(uuid, jsonb, bigint)
+revoke all on function private.harbor_update_device_desired_state(uuid, uuid, uuid, jsonb, bigint)
   from public, anon, authenticated;
 revoke all on function private.harbor_enqueue_device_command(uuid, text, text, jsonb, timestamptz)
   from public, anon, authenticated;
@@ -391,7 +418,7 @@ revoke all on function private.harbor_sync_device(uuid, bigint, uuid[])
 revoke all on function private.harbor_revoke_device(uuid, uuid, uuid)
   from public, anon, authenticated;
 
-grant execute on function private.harbor_update_device_desired_state(uuid, jsonb, bigint)
+grant execute on function private.harbor_update_device_desired_state(uuid, uuid, uuid, jsonb, bigint)
   to service_role;
 grant execute on function private.harbor_enqueue_device_command(uuid, text, text, jsonb, timestamptz)
   to service_role;
