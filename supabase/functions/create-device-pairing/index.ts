@@ -1,6 +1,7 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { requireParent, type ParentContext } from "../_shared/auth.ts";
 import { issueDevicePairingAtomic } from "../_shared/clients.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type PairingPersistenceInput = { parentUserId: string; childId: string; codeDigest: string; expiresAt: string };
@@ -38,9 +39,9 @@ export async function handleCreateDevicePairing(req: Request, deps: CreateDevice
     const codeDigest = await deps.digestPairingCode(code);
     const result = await deps.issuePairingAtomic({ parentUserId: parent.userId, childId: body.childId.trim(), codeDigest, expiresAt });
     return new Response(JSON.stringify({ code, expiresAt: result.expiresAt }), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } });
-  } catch (error) {
+  } catch (error) { error = databaseError(error) ?? error;
     if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message);
     throw error;
   }
 }
-if (import.meta.main) Deno.serve((req) => handleCreateDevicePairing(req, defaults));
+if (import.meta.main) serveHarbor((req) => handleCreateDevicePairing(req, defaults));

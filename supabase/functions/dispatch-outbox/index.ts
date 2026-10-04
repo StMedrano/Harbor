@@ -1,3 +1,4 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { timingSafeEqual } from "node:crypto";
 import type { DeliveryOutcome } from "../_shared/outbox-dispatch.ts";
 export { createDispatchOne, type DeliveryOutcome, type OutboxFailure, type OutboxNotification, type DispatchDependencies } from "../_shared/outbox-dispatch.ts";
@@ -28,5 +29,5 @@ if (import.meta.main) {
   const { createPersistentDispatchOne, privateOutboxStore } = await import("../_shared/outbox.ts");
   const { sendFcm } = await import("../_shared/fcm.ts");
   const handler = createOutboxWorkerHandler(createPersistentDispatchOne(privateOutboxStore, { sendFcm }), () => Deno.env.get("HARBOR_OUTBOX_WORKER_KEY"));
-  Deno.serve(handler);
+  serveHarbor(handler);
 }

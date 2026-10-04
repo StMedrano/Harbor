@@ -1,5 +1,6 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { createRequestClient, claimDeviceAtomic, recordDeviceClaimFailure } from "../_shared/clients.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type DeviceClaimPersistenceInput = { authUserId: string; codeDigest: string; publicKeySpki: string; displayName: string; model: string | null; androidVersion: string | null; supervisionMode: string };
@@ -39,6 +40,6 @@ export async function handleDeviceClaim(req: Request, deps: DeviceClaimDependenc
     if (!displayName || !["unknown", "standard", "full"].includes(supervisionMode)) return jsonError("VALIDATION_FAILED", 400, "Valid device metadata is required");
     const result = await deps.claimDeviceAtomic({ authUserId: identity.userId, codeDigest, publicKeySpki: spki, displayName, model: typeof device?.model === "string" ? device.model : null, androidVersion: typeof device?.androidVersion === "string" ? device.androidVersion : null, supervisionMode });
     return new Response(JSON.stringify(result), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } });
-  } catch (error) { if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message); throw error; }
+  } catch (error) { error = databaseError(error) ?? error; if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message); throw error; }
 }
-if (import.meta.main) Deno.serve((req) => handleDeviceClaim(req, defaults));
+if (import.meta.main) serveHarbor((req) => handleDeviceClaim(req, defaults));

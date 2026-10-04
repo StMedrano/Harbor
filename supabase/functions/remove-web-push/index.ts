@@ -1,6 +1,7 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { requireParent, type ParentContext } from "../_shared/auth.ts";
 import { removeParentWebPushAtomic } from "../_shared/clients.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type RemoveWebPushDeps = {
@@ -46,10 +47,10 @@ export const defaultRemoveWebPushDeps: RemoveWebPushDeps = {
 
 if (import.meta.main) {
   const handler = createRemoveWebPushHandler(defaultRemoveWebPushDeps);
-  Deno.serve(async (request) => {
+  serveHarbor(async (request) => {
     try {
       return await handler(request);
-    } catch (error) {
+    } catch (error) { error = databaseError(error) ?? error;
       if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message);
       console.error("remove-web-push failed");
       return jsonError("FORBIDDEN", 500, "Internal server error");

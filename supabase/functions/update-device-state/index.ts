@@ -1,3 +1,4 @@
+import { serveHarbor } from "../_shared/http.ts";
 import {
   updateDeviceDesiredStateAtomic,
   type DesiredStateAtomicInput,
@@ -8,7 +9,7 @@ import {
   type FamilyRole,
   type ParentContext,
 } from "../_shared/auth.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type UpdateDeviceStateDeps = {
@@ -73,10 +74,10 @@ export const defaultUpdateDeviceStateDeps: UpdateDeviceStateDeps = {
 
 if (import.meta.main) {
   const handler = createUpdateDeviceStateHandler(defaultUpdateDeviceStateDeps);
-  Deno.serve(async (request) => {
+  serveHarbor(async (request) => {
     try {
       return await handler(request);
-    } catch (error) {
+    } catch (error) { error = databaseError(error) ?? error;
       if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message);
       console.error("update-device-state failed");
       return new Response(JSON.stringify({ message: "Internal server error" }), {

@@ -1,10 +1,11 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { registerDeviceFcmAtomic } from "../_shared/clients.ts";
 import {
   defaultDeviceProofDependencies,
   requireDeviceProof,
   type DeviceProofContext,
 } from "../_shared/device-proof.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type RegisterFcmDeps = {
@@ -41,10 +42,10 @@ export const defaultRegisterFcmDeps: RegisterFcmDeps = {
 
 if (import.meta.main) {
   const handler = createRegisterFcmHandler(defaultRegisterFcmDeps);
-  Deno.serve(async (request) => {
+  serveHarbor(async (request) => {
     try {
       return await handler(request);
-    } catch (error) {
+    } catch (error) { error = databaseError(error) ?? error;
       if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message);
       console.error("register-fcm failed");
       return jsonError("FORBIDDEN", 500, "Internal server error");

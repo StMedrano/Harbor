@@ -1,7 +1,8 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { requireRecentAal2 } from "../_shared/aal.ts";
 import { requireFamilyRole, requireParent, type ParentContext } from "../_shared/auth.ts";
 import { revokeDeviceAtomic } from "../_shared/clients.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type RevokeDeviceDeps = {
@@ -45,10 +46,10 @@ export function createRevokeDeviceHandler(deps: RevokeDeviceDeps) {
 
 if (import.meta.main) {
   const handler = createRevokeDeviceHandler(defaultRevokeDeviceDeps);
-  Deno.serve(async (request) => {
+  serveHarbor(async (request) => {
     try {
       return await handler(request);
-    } catch (error) {
+    } catch (error) { error = databaseError(error) ?? error;
       if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message);
       console.error("revoke-device failed");
       return new Response(JSON.stringify({ message: "Internal server error" }), {

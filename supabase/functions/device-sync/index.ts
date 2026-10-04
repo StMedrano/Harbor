@@ -1,10 +1,11 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { syncDeviceAtomic } from "../_shared/clients.ts";
 import {
   defaultDeviceProofDependencies,
   requireDeviceProof,
   type DeviceProofContext,
 } from "../_shared/device-proof.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type DeviceSyncInput = {
@@ -63,10 +64,10 @@ export const defaultDeviceSyncDeps: DeviceSyncDeps = {
 
 if (import.meta.main) {
   const handler = createDeviceSyncHandler(defaultDeviceSyncDeps);
-  Deno.serve(async (request) => {
+  serveHarbor(async (request) => {
     try {
       return await handler(request);
-    } catch (error) {
+    } catch (error) { error = databaseError(error) ?? error;
       if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message);
       console.error("device-sync failed");
       return new Response(JSON.stringify({ message: "Internal server error" }), {

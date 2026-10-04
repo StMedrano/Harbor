@@ -1,6 +1,7 @@
+import { serveHarbor } from "../_shared/http.ts";
 import { requireParent, type ParentContext } from "../_shared/auth.ts";
 import { createFamilyAtomic } from "../_shared/clients.ts";
-import { HarborAuthError } from "../_shared/errors.ts";
+import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
 export type CreateFamilyPersistenceInput = {
@@ -50,7 +51,7 @@ export async function handleCreateFamily(
   let parent: ParentContext;
   try {
     parent = await dependencies.requireParent(req);
-  } catch (error) {
+  } catch (error) { error = databaseError(error) ?? error;
     const response = mapKnownError(error);
     if (response) return response;
     throw error;
@@ -93,7 +94,7 @@ export async function handleCreateFamily(
       idempotencyKey,
     });
     return jsonResult(result);
-  } catch (error) {
+  } catch (error) { error = databaseError(error) ?? error;
     const response = mapKnownError(error);
     if (response) return response;
     throw error;
@@ -101,5 +102,5 @@ export async function handleCreateFamily(
 }
 
 if (import.meta.main) {
-  Deno.serve((req) => handleCreateFamily(req, defaultCreateFamilyDependencies));
+  serveHarbor((req) => handleCreateFamily(req, defaultCreateFamilyDependencies));
 }
