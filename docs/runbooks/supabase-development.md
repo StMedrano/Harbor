@@ -114,12 +114,27 @@ device denial. One initial owner join failed; two subsequent runs passed without
 a policy change. Treat this initial join failure as unresolved intermittent
 behavior until a clean full rerun after configuration repair.
 
-The final gate failed consistently because a public-channel probe subscribed.
-Disable **Allow public access** in the development project's Realtime settings
-and rerun the harness. The dashboard browser currently requires sign-in; CLI
-configuration push does not expose this hosted Realtime switch. This acceptance
-run remains RED until public access is disabled and a clean run passes. Actual
-FCM/Web Push delivery and email callback acceptance also remain pending.
+The initial final gate failed consistently because a public-channel probe
+subscribed. After the user disabled **Allow public access** in development
+Realtime settings, a clean full harness run passed with exit code zero on
+2026-10-04 at source revision `d5fa97aa433f6b297baf63f6ac3000d144a8eee9`.
+The public probe was rejected with `PrivateOnly`; the owner private join passed,
+other-parent/child private joins were denied, and fresh MFA authorized revocation
+followed by immediate device denial. Read-only checks confirmed enrollment and
+revocation audit events and zero remaining users for this fixture run.
+The run identifier was `6d65239e-50e1-4153-b975-bd2390e324db`.
+Existing foundation CI run `37235885153` passed on the same source revision.
+The initial intermittent owner-join rejection has not reproduced in the next
+three runs; retain that observation for investigation if it returns.
+
+Actual FCM/Web Push delivery and email callback acceptance remain pending.
+The development database currently has zero FCM registrations and zero active
+Web Push subscriptions, so there are no real delivery targets to verify. Native
+Android and Parent PWA clients are not implemented in this foundation checkout.
+Notification acceptance needs a development Android FCM test recipient and a
+browser service worker/PushSubscription created with this environment's VAPID
+public key and explicit user notification permission. Do not substitute fake
+tokens or synthetic subscription keys and call provider delivery verified.
 
 ## Daily local workflow
 
