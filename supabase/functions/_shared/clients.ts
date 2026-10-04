@@ -15,6 +15,7 @@ export type DevicePairingAtomicResult = { familyId: string; childId: string; exp
 export type DeviceClaimAtomicInput = { authUserId: string; codeDigest: string; publicKeySpki: string; displayName: string; model: string | null; androidVersion: string | null; supervisionMode: string };
 export type DeviceClaimAtomicResult = { deviceId: string; familyId: string; childId: string };
 export type DeviceClaimFailureResult = { failedAttempts: number; invalidated: boolean };
+export type DeviceSecurityResult = { deviceId: string; familyId: string; childId: string; authUserId: string; publicKeySpki: string; revokedAt: string | null };
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -94,4 +95,21 @@ export async function claimDeviceAtomic(input: DeviceClaimAtomicInput): Promise<
   const row = rows[0];
   if (!row) throw new Error("Device claim returned no result");
   return { deviceId: row.device_id, familyId: row.family_id, childId: row.child_id };
+}
+
+export async function loadDeviceSecurity(deviceId: string): Promise<DeviceSecurityResult | null> {
+  const rows = await getPrivateSql()<Array<{ device_id: string; family_id: string; child_id: string; auth_user_id: string; public_key_spki: string; revoked_at: string | null }>>`
+    select ds.device_id, d.family_id, d.child_id, ds.auth_user_id, ds.public_key_spki, d.revoked_at
+    from private.device_security ds
+    join public.devices_public d on d.id = ds.device_id
+    where ds.device_id = ${deviceId}::uuid
+    limit 1`;
+  const row = rows[0];
+  return row ? { deviceId: row.device_id, familyId: row.family_id, childId: row.child_id, authUserId: row.auth_user_id, publicKeySpki: row.public_key_spki, revokedAt: row.revoked_at } : null;
+}
+
+export async function claimDeviceRequestNonceAtomic(deviceId: string, nonce: string, timestamp: number): Promise<boolean> {
+  const rows = await getPrivateSql()<Array<{ claimed: boolean }>>`
+    select private.claim_device_request_nonce(${deviceId}::uuid, ${nonce}::text, ${timestamp}::bigint) as claimed`;
+  return rows[0]?.claimed === true;
 }
