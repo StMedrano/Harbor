@@ -41,7 +41,7 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
     const retry = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-retry'}, 'fcm', '{}'::jsonb, ${sql.json(route)}::jsonb) as id`;
     await privateOutboxStore.claim(retry[0].id, new Date().toISOString());
     assertEquals(await privateOutboxStore.fail(retry[0].id, { retryable: true, errorCategory: "rate_limited", nextAttemptAt: "2099-01-01T00:00:00Z" }), "retry");
-    assertEquals(await privateOutboxStore.claim(retry[0].id, new Date().toISOString()), []);
+    assertEquals((await privateOutboxStore.claim(retry[0].id, new Date().toISOString())).length, 0);
   } finally {
     await sql`delete from private.notification_outbox where event_key in (${eventKey}, ${eventKey + '-invalid'}, ${eventKey + '-retry'})`;
     await sql`delete from auth.users where id = ${userId}::uuid`;
