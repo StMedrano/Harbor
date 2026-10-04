@@ -2,8 +2,8 @@
 
 ## Status and intent
 
-The user approved the toolkit scope on 2026-10-04. This written spec awaits
-review and approval; scope approval does not authorize implementation.
+The user approved the toolkit scope and this written spec on 2026-10-04.
+The written implementation plan still requires review before implementation.
 
 The toolkit provides real browser and Android notification recipients so the
 existing Harbor notification backend can be verified end to end. Success means
