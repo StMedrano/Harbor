@@ -4,6 +4,7 @@ import {
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2.105.0";
 import { parsePublicConfig } from "./config.ts";
+import { listReceipts } from "./receipts.ts";
 import {
   enablePush,
   installationStore,
@@ -13,6 +14,19 @@ import {
 } from "./lifecycle.ts";
 
 let client: SupabaseClient | undefined;
+async function renderReceipts() {
+  const output = document.querySelector("#receipts")!;
+  try {
+    output.textContent = JSON.stringify(await listReceipts(), null, 2);
+  } catch {
+    output.textContent =
+      "Local receipts unavailable. Delivery remains unverified.";
+  }
+}
+void renderReceipts();
+navigator.serviceWorker.addEventListener("message", (event) => {
+  if (event.data?.type === "receipts-changed") void renderReceipts();
+});
 let deps: PushLifecycleDependencies | undefined;
 const status = document.querySelector<HTMLElement>("#status")!;
 const form = document.querySelector<HTMLFormElement>("form")!;
