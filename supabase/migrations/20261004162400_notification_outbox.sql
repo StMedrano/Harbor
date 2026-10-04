@@ -50,7 +50,7 @@ create or replace function private.harbor_claim_notification(
   p_outbox_id uuid,
   p_now timestamptz
 )
-returns private.notification_outbox
+returns setof private.notification_outbox
 language plpgsql
 security definer
 set search_path = ''
@@ -69,7 +69,8 @@ begin
     )
   returning * into v_row;
 
-  return v_row;
+  if found then return next v_row; end if;
+  return;
 end;
 $$;
 
