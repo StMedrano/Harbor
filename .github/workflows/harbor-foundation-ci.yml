@@ -29,8 +29,13 @@ jobs:
         run: |
           chmod +x gradlew
           cp config/ci-fixture-google-services.json app/google-services.json
-          ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 :app:dependencies
-          ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 testDebugUnitTest lintDebug assembleDebug
+          ./gradlew -PacceptanceCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
+      - name: Inspect debug acceptance manifest
+        run: |
+          apkanalyzer manifest print app/build/outputs/apk/debug/app-debug.apk > app/build/reports/acceptance-manifest.xml
+          grep -F 'android:allowBackup="false"' app/build/reports/acceptance-manifest.xml
+          grep -F 'android:usesCleartextTraffic="false"' app/build/reports/acceptance-manifest.xml
+          grep -F 'dev.stmedrano.harbor.acceptance.AcceptanceMessagingService' app/build/reports/acceptance-manifest.xml
       - name: Refuse absent live configuration
         run: |
           if ./gradlew --no-daemon --dependency-verification=strict help >/tmp/harbor-android-config-guard.log 2>&1; then
