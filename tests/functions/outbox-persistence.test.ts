@@ -6,8 +6,11 @@ const subscription = { endpoint: "https://push.example.test/1", p256dh: "public"
 
 function store(transport: "fcm" | "web_push" = "web_push") {
   const changes: unknown[] = [];
+  const target: Record<string, string> = {};
+  if (transport === "fcm") target.deviceId = "device-1";
+  else target.subscriptionId = "subscription-1";
   const persistence: OutboxStore = {
-    async claim(id, now) { changes.push({ claim: id, now }); return [{ id, transport, target_ref: transport === "fcm" ? { deviceId: "device-1" } : { subscriptionId: "subscription-1" }, route_payload: route, attempt_count: 1 }]; },
+    async claim(id, now) { changes.push({ claim: id, now }); return [{ id, transport, target_ref: target, route_payload: route, attempt_count: 1 }]; },
     async complete(id) { changes.push({ complete: id }); return "sent"; },
     async fail(id, failure) { changes.push({ fail: id, ...failure }); return failure.retryable ? "retry" : "dead_letter"; },
     async readWebPush(id) { changes.push({ readWebPush: id }); return subscription; },
