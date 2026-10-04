@@ -37,6 +37,7 @@ jobs:
           test -f supabase/seed.sql
           test -f docs/runbooks/supabase-development.md
           test -f docs/runbooks/environment-mapping.md
+          test -f deno.lock
 
       - name: Reject obvious committed secrets
         shell: bash
@@ -66,22 +67,15 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Run Edge Function tests and capture lockfile
+      - name: Run Edge Function tests when present
         run: |
           if [ -d tests/functions ]; then
-            set +e
-            deno test tests/functions
-            test_status=$?
-            set -e
-            echo 'HARBOR_DENO_LOCK_BEGIN'
-            cat deno.lock
-            echo 'HARBOR_DENO_LOCK_END'
-            exit "$test_status"
+            deno test --frozen --allow-env=ECE_KEYLOG tests/functions
           fi
 
       - name: Run shared-contract tests when present
         run: |
           if [ -f packages/contracts/test/contracts.test.ts ]; then
-            deno test packages/contracts/test/contracts.test.ts
-            deno check packages/contracts/src/index.ts
+            deno test --frozen packages/contracts/test/contracts.test.ts
+            deno check --frozen packages/contracts/src/index.ts
           fi
