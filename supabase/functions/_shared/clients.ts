@@ -71,7 +71,7 @@ export function createRequestClient(accessToken: string): SupabaseClient {
 }
 
 let privateSql: ReturnType<typeof postgres> | undefined;
-function getPrivateSql() {
+export function getPrivateSql() {
   if (!privateSql) privateSql = postgres(requiredEnv("SUPABASE_DB_URL"), { prepare: false, max: 3, idle_timeout: 20 });
   return privateSql;
 }
