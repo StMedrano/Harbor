@@ -50,8 +50,8 @@ Deno.test("two parent clients share durable device lifecycle with database autho
     const version = await updateDeviceDesiredStateAtomic({ deviceId: device.deviceId, familyId: family.familyId, actorUserId: parentAndroid.userId, desiredState: desired, expectedVersion: 0 });
     const synced = await syncDeviceAtomic({ deviceId: device.deviceId, acknowledgedDesiredStateVersion: null, appliedCommandIds: [] });
     assertEquals(synced.desiredState, desired);
-    assertEquals(Number(synced.desiredStateVersion), 1);
-    assertEquals(Number(version.desiredStateVersion), 1);
+    assertEquals(synced.desiredStateVersion, 1);
+    assertEquals(version.desiredStateVersion, 1);
     const intents = await sql`select id, transport from private.notification_outbox where route_payload->>'deviceId' = ${device.deviceId} order by transport`;
     assertEquals(intents.map((row) => row.transport), ["fcm", "web_push"]);
     const dispatch = createPersistentDispatchOne(privateOutboxStore, { sendFcm: async () => ({ status: "sent" }), sendWebPush: async () => ({ status: "permanent_failure", reason: "invalid_subscription" }) });

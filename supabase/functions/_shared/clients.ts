@@ -143,10 +143,17 @@ async function queryDeviceSyncAtomic(input: DeviceSyncAtomicInput): Promise<Devi
     from private.harbor_sync_device(${input.deviceId}::uuid, ${input.acknowledgedDesiredStateVersion}::bigint, ${input.appliedCommandIds}::uuid[])`;
 }
 
+function apiVersion(value: unknown): number {
+  const version = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+  if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 0) {
+    throw new Error("Database returned an unsafe desired-state version");
+  }
+  return version;
+}
 export async function syncDeviceAtomicWithQuery(input: DeviceSyncAtomicInput, query: DeviceSyncAtomicQuery): Promise<DeviceSyncAtomicResult> {
   const row = (await query(input))[0];
   if (!row) throw new Error("Device sync returned no result");
-  return { desiredState: row.desired_state, desiredStateVersion: row.desired_state_version, commands: row.commands };
+  return { desiredState: row.desired_state, desiredStateVersion: apiVersion(row.desired_state_version), commands: row.commands };
 }
 
 export async function syncDeviceAtomic(input: DeviceSyncAtomicInput): Promise<DeviceSyncAtomicResult> {
@@ -161,7 +168,7 @@ async function queryUpdateDeviceDesiredStateAtomic(input: DesiredStateAtomicInpu
 export async function updateDeviceDesiredStateAtomicWithQuery(input: DesiredStateAtomicInput, query: DesiredStateAtomicQuery) {
   const row = (await query(input))[0];
   if (!row) throw new Error("Desired-state update returned no result");
-  return { desiredStateVersion: row.desired_state_version };
+  return { desiredStateVersion: apiVersion(row.desired_state_version) };
 }
 
 export async function updateDeviceDesiredStateAtomic(input: DesiredStateAtomicInput) {
