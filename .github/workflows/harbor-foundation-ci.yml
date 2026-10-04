@@ -79,3 +79,8 @@ jobs:
             deno test --frozen packages/contracts/test/contracts.test.ts
             deno check --frozen packages/contracts/src/index.ts
           fi
+
+      - name: Verify private dispatcher persistence against local PostgreSQL
+        env:
+          SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+        run: deno test --frozen --allow-env=SUPABASE_DB_URL,ECE_KEYLOG --allow-net=127.0.0.1:54322 tests/integration/outbox-persistence.test.ts
