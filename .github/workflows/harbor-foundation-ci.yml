@@ -67,6 +67,10 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Verify production environment separation
+        run: |
+          deno test --frozen tests/release
+          deno run --frozen --allow-read=docs/runbooks/environment-mapping.md scripts/check-environment-mapping.ts
       - name: Run Edge Function tests when present
         run: |
           if [ -d tests/functions ]; then

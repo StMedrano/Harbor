@@ -36,3 +36,22 @@ Before any production deployment, CI/release checks must fail if a production Ve
 - Redirect/callback origins must be reviewed whenever a Vercel domain changes; preview origins must not silently become production-allowed origins.
 
 Staging and production remain `UNASSIGNED` until separately provisioned. Do not invent project refs or secret values to fill those cells.
+
+## Enforced repository and release checks
+
+PR CI runs `tests/release` and `scripts/check-environment-mapping.ts`. The current
+production record may remain explicitly `UNASSIGNED`, but missing/duplicate records,
+inconsistent project URLs, and the development project in the production record fail.
+This checks repository mapping; it does not inspect remote Vercel settings.
+
+Before any production build/deployment, run the strict check in that environment:
+
+```sh
+deno run --frozen --allow-read=docs/runbooks/environment-mapping.md --allow-env=HARBOR_SUPABASE_PROJECT_REF,NEXT_PUBLIC_SUPABASE_URL scripts/check-environment-mapping.ts --production
+```
+
+Set `HARBOR_SUPABASE_PROJECT_REF` and `NEXT_PUBLIC_SUPABASE_URL` to the reviewed
+production backend. The strict check refuses unassigned or development configuration.
+Production is currently unassigned, so this gate intentionally blocks a production
+release. Integration into the future Parent PWA build is required when `apps/web`
+is implemented; no production deployment is enabled by this foundation change.
