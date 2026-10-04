@@ -1,5 +1,8 @@
 project_id = "harbor"
 
+[functions.dispatch-outbox]
+verify_jwt = false
+
 [api]
 enabled = true
 port = 54321

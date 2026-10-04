@@ -1,5 +1,5 @@
 import type { NotificationRouteRefV1 } from "../../../packages/contracts/src/v1/notifications.ts";
-import { createDispatchOne, type OutboxFailure } from "../dispatch-outbox/index.ts";
+import { createDispatchOne, type OutboxFailure } from "./outbox-dispatch.ts";
 import { getPrivateSql } from "./clients.ts";
 import { sendWebPush, type PushDeliveryResult, type WebPushSubscription } from "./web-push.ts";
 

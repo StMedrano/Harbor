@@ -62,7 +62,15 @@ Retry delay starts at 60 seconds and doubles per attempt, capped at one hour. A 
 
 `createPersistentDispatchOne(privateOutboxStore, transports)` connects the dispatcher to the existing private SQL helpers. It reads only active Web Push subscriptions and FCM registrations for active, non-revoked devices. Queued target references contain IDs; credentials and tokens are resolved privately at delivery time. The existing server-only Web Push adapter is the default Web Push transport. The FCM sender must be supplied by the worker.
 
-This module is currently a dispatcher library, not a deployed HTTP endpoint or scheduled worker. Authenticated worker invocation, FCM credential/transport integration, and crash recovery for processing claims remain required before enabling delivery. CI tests exercise real local PostgreSQL persistence and controlled transport boundaries; they do not claim real provider delivery.
+The `dispatch-outbox` Edge Function now accepts a server-only worker call and wires private persistence to FCM and Web Push. It is not deployed or scheduled yet. Crash recovery for processing claims and domain-event enqueue integration remain required before enabling delivery. CI tests exercise real local PostgreSQL persistence and controlled transport boundaries; they do not claim real provider delivery.
+
+## FCM and worker secrets
+
+Configure `FCM_SERVICE_ACCOUNT_JSON` only in Supabase Edge Function secrets. It must contain a Firebase service account with `type: service_account`, `project_id`, `client_email`, and `private_key`. Harbor uses pinned `google-auth-library@10.5.0` to obtain and refresh OAuth access tokens with the `https://www.googleapis.com/auth/firebase.messaging` scope. FCM sends use HTTP v1, data-only route references, and a 15-second send timeout. Credential failures and HTTP 401/403 remain retryable configuration/provider errors; provider response bodies are not logged or persisted.
+
+Configure an independent random `HARBOR_OUTBOX_WORKER_KEY` of at least 32 random bytes in Supabase secrets and the trusted scheduler. Send it in the `apikey` header with `POST {"outboxId":"<durable-outbox-uuid>"}`. The worker never accepts client-supplied delivery content. Parent/child credentials, missing keys, and incorrect keys cannot trigger dispatch. Key comparison uses constant-time comparison of SHA-256 digests.
+
+`verify_jwt = false` applies only to this worker because it authenticates its dedicated server key itself before parsing or accessing outbox state. Missing server configuration returns 503; wrong credentials return 403; invalid IDs return 400. Keep the worker key out of all browser/Android configuration and logs. Do not enable scheduling until claim recovery and complete Task 11 acceptance are verified.
 
 ## Production checks
 
