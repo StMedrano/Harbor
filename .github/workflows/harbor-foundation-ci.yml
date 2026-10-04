@@ -29,7 +29,6 @@ jobs:
         run: |
           chmod +x gradlew
           cp config/ci-fixture-google-services.json app/google-services.json
-          ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 testDebugUnitTest lintDebug assembleDebug
           ./gradlew -PacceptanceCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
       - name: Inspect debug acceptance manifest
         run: |
