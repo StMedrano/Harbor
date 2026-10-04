@@ -5,3 +5,4 @@ supabase/.temp/
 supabase/.branches/
 node_modules/
 .DS_Store
+tools/notification-acceptance/web/dist/

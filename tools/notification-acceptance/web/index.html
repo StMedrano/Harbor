@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Harbor notification acceptance</title>
+  <body>
+    <main>
+      <h1>Harbor development notification check</h1>
+      <p>Local acceptance recipient. Sign-in lasts only for this page session. Use the temporary test parent account and public development keys.</p>
+      <form autocomplete="off">
+<p><label>Development URL <input name="url" type="url" required value="https://bfvybxkjxilntjgndsrm.supabase.co" size="55"></label></p>
+<p><label>Publishable key <input name="key" required size="55"></label></p>
+<p><label>Public VAPID key <input name="vapid" required size="55"></label></p>
+<p><label>Test parent email <input name="email" type="email" required autocomplete="off"></label></p>
+<p><label>Password <input name="password" type="password" required autocomplete="off"></label></p>
+<button>Sign in</button></form>
+      <p><button id="enable" type="button">Enable notifications</button> <button id="remove" type="button">Remove registration</button></p>
+      <p id="status"
+        role="status">Sign in to begin. Delivery has not been verified.</p>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
