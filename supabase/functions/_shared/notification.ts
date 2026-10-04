@@ -11,5 +11,5 @@ export function notificationRoute(value: unknown): NotificationRouteRefV1 | null
     if (!routeKeys.has(key)) return null;
     if (key !== "version" && key !== "kind" && (typeof route[key] !== "string" || !uuid.test(route[key] as string))) return null;
   }
-  return route as NotificationRouteRefV1;
+  return { ...route, version: 1, kind: route.kind };
 }
