@@ -158,7 +158,7 @@ begin
 
   insert into private.device_commands (device_id, kind, idempotency_key, payload, expires_at)
   values (p_device_id, v_kind, v_idempotency_key, p_payload, p_expires_at)
-  on conflict (device_id, idempotency_key) do nothing;
+  on conflict on constraint device_commands_device_id_idempotency_key_key do nothing;
 
   return query
   select c.id, c.kind, c.idempotency_key, c.created_at, c.expires_at, c.payload
