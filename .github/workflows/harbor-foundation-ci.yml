@@ -28,6 +28,7 @@ jobs:
       - name: Run Android proof acceptance
         run: |
           chmod +x gradlew
+          ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 :app:dependencies
           ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 testDebugUnitTest lintDebug assembleDebug
       - name: Retain dependency bootstrap evidence
         if: always()
@@ -37,6 +38,14 @@ jobs:
           path: |
             tools/notification-acceptance/android/gradle/verification-metadata.xml
             tools/notification-acceptance/android/**/gradle.lockfile
+      - name: Retain Android test and lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results
+          path: |
+            tools/notification-acceptance/android/app/build/test-results/
+            tools/notification-acceptance/android/app/build/reports/
       - uses: actions/upload-artifact@v4
         with:
           name: harbor-acceptance-ci-fixture-apk
