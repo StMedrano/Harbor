@@ -8,6 +8,8 @@ import {
 } from "../../supabase/functions/_shared/clients.ts";
 
 const deviceId = "11111111-1111-4111-8111-111111111111";
+const familyId = "22222222-2222-4222-8222-222222222222";
+const actorUserId = "33333333-3333-4333-8333-333333333333";
 
 Deno.test("device sync persistence maps private SQL row to the signed-sync response", async () => {
   const input: DeviceSyncAtomicInput = {
@@ -54,11 +56,17 @@ Deno.test("device sync persistence fails closed when the private helper returns 
   );
 });
 
-Deno.test("desired-state persistence returns the new monotonic version", async () => {
+Deno.test("desired-state persistence binds family and actor and returns the new monotonic version", async () => {
   const result = await updateDeviceDesiredStateAtomicWithQuery(
-    { deviceId, desiredState: { paused: true }, expectedVersion: 4 },
+    { deviceId, familyId, actorUserId, desiredState: { paused: true }, expectedVersion: 4 },
     async (actual) => {
-      assertEquals(actual.expectedVersion, 4);
+      assertEquals(actual, {
+        deviceId,
+        familyId,
+        actorUserId,
+        desiredState: { paused: true },
+        expectedVersion: 4,
+      });
       return [{ desired_state_version: 5 }];
     },
   );
@@ -79,7 +87,7 @@ Deno.test("FCM persistence reports successful private token rotation", async () 
 Deno.test("revocation persistence fails closed unless the private helper confirms revocation", async () => {
   await assertRejects(
     () => revokeDeviceAtomicWithQuery(
-      { deviceId, familyId: "22222222-2222-4222-8222-222222222222", actorUserId: "33333333-3333-4333-8333-333333333333" },
+      { deviceId, familyId, actorUserId },
       async () => [{ revoked: false }],
     ),
     Error,
