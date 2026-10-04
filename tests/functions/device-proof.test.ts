@@ -69,6 +69,15 @@ Deno.test("device proof accepts a valid P-256 signature and returns bound contex
   assertEquals(context.authUserId, device.authUserId);
 });
 
+Deno.test("device proof canonical payload matches the approved METHOD/operation/device/body/timestamp/nonce order", async () => {
+  let canonical = "";
+  const timestamp = Math.floor(now.getTime() / 1000);
+  await requireDeviceProof(request(), "device-sync", dependencies({
+    verifyP256Signature: async (_spki, _signature, input) => { canonical = input; return true; },
+  }));
+  assertEquals(canonical, `POST\ndevice-sync\n${device.deviceId}\nbody-sha256\n${timestamp}\nnonce-001`);
+});
+
 Deno.test("device proof rejects a signature made by the wrong key", async () => {
   await assertRejectsCode(requireDeviceProof(request(), "device-sync", dependencies({ verifyP256Signature: async () => false })), "FORBIDDEN");
 });
