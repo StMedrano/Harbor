@@ -1,6 +1,6 @@
 import java.util.Properties
 import groovy.json.JsonSlurper
-plugins { id("com.android.application") }
+plugins { id("com.android.application"); id("com.google.gms.google-services") }
 
 val ciFixture = providers.gradleProperty("acceptanceCiFixture").orNull == "true"
 val configFile = rootProject.file(if (ciFixture) "config/ci-fixture.properties" else "acceptance.properties")
@@ -44,6 +44,8 @@ android {
 }
 androidComponents.beforeVariants { variant -> variant.enable = variant.buildType == "debug" }
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-messaging")
     testImplementation("junit:junit:4.13.2")
     // Android supplies JSONObject at runtime; JVM tests need its real parser.
     testImplementation("org.json:json:20240303")
