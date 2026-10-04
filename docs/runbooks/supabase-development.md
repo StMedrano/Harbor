@@ -83,6 +83,44 @@ Then deploy the reviewed functions and verify live Auth/MFA, private Realtime,
 and actual FCM/Web Push delivery. The schema deployment alone does not establish
 Subproject 1 completion or production readiness.
 
+## Repeatable hosted acceptance
+
+`tests/hosted/platform-acceptance.ts` is opt-in and hardcodes the development
+project. It receives CLI key JSON on stdin, keeps credentials in memory, creates
+two confirmed fixture parents plus an anonymous child, and removes its created
+families/accounts in `finally`. Confirmation uses the admin fixture seam; this
+does not test email delivery or a user's email-confirmation flow. Real password
+login, MFA enrollment/challenge, deployed functions, Data API RLS, device P-256
+proof, and WebSocket joins use hosted services. Audit evidence is retained.
+
+From the repository, using installed CLI/Deno executables:
+
+```powershell
+$harborKeyJson = supabase projects api-keys --project-ref bfvybxkjxilntjgndsrm --output json
+if ($LASTEXITCODE -ne 0) { throw 'Could not obtain acceptance credentials' }
+$harborKeyJson | deno run --frozen --allow-net=bfvybxkjxilntjgndsrm.supabase.co --allow-env=ECE_KEYLOG tests/hosted/platform-acceptance.ts
+Remove-Variable harborKeyJson
+```
+
+Do not print or persist the key JSON. The harness currently requires legacy
+anon/service-role credentials for its fixture setup; it is not a production
+client integration. PR CI must not run this hosted workflow or require its keys.
+
+On 2026-10-04, live acceptance passed parent/child login, family creation and
+idempotency, cross-family/child isolation, pairing, signed sync, replay denial,
+TOTP/AAL2 verification, owner private-channel join, other-parent/child private
+join denial, AAL1 revocation denial, fresh-AAL2 revocation, and immediate revoked
+device denial. One initial owner join failed; two subsequent runs passed without
+a policy change. Treat this initial join failure as unresolved intermittent
+behavior until a clean full rerun after configuration repair.
+
+The final gate failed consistently because a public-channel probe subscribed.
+Disable **Allow public access** in the development project's Realtime settings
+and rerun the harness. The dashboard browser currently requires sign-in; CLI
+configuration push does not expose this hosted Realtime switch. This acceptance
+run remains RED until public access is disabled and a clean run passes. Actual
+FCM/Web Push delivery and email callback acceptance also remain pending.
+
 ## Daily local workflow
 
 ```bash
