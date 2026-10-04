@@ -62,7 +62,7 @@ Retry delay starts at 60 seconds and doubles per attempt, capped at one hour. A 
 
 `createPersistentDispatchOne(privateOutboxStore, transports)` connects the dispatcher to the existing private SQL helpers. It reads only active Web Push subscriptions and FCM registrations for active, non-revoked devices. Queued target references contain IDs; credentials and tokens are resolved privately at delivery time. The existing server-only Web Push adapter is the default Web Push transport. The FCM sender must be supplied by the worker.
 
-The `dispatch-outbox` Edge Function now accepts a server-only worker call and wires private persistence to FCM and Web Push. It is not deployed or scheduled yet. Crash recovery for processing claims and domain-event enqueue integration remain required before enabling delivery. CI tests exercise real local PostgreSQL persistence and controlled transport boundaries; they do not claim real provider delivery.
+The `dispatch-outbox` Edge Function now accepts a server-only worker call and wires private persistence to FCM and Web Push. It is not deployed or scheduled yet. Processing claims have bounded recovery leases, and device desired-state/command writes persist delivery intent in their database transaction. Production scheduling and the cross-cutting foundation acceptance gate remain required before enabling delivery. CI tests exercise real local PostgreSQL persistence and controlled transport boundaries; they do not claim real provider delivery.
 
 ## FCM and worker secrets
 
@@ -70,7 +70,7 @@ Configure `FCM_SERVICE_ACCOUNT_JSON` only in Supabase Edge Function secrets. It 
 
 Configure an independent random `HARBOR_OUTBOX_WORKER_KEY` of at least 32 random bytes in Supabase secrets and the trusted scheduler. Send it in the `apikey` header with `POST {"outboxId":"<durable-outbox-uuid>"}`. The worker never accepts client-supplied delivery content. Parent/child credentials, missing keys, and incorrect keys cannot trigger dispatch. Key comparison uses constant-time comparison of SHA-256 digests.
 
-`verify_jwt = false` applies only to this worker because it authenticates its dedicated server key itself before parsing or accessing outbox state. Missing server configuration returns 503; wrong credentials return 403; invalid IDs return 400. Keep the worker key out of all browser/Android configuration and logs. Do not enable scheduling until claim recovery and complete Task 11 acceptance are verified.
+`verify_jwt = false` applies only to this worker because it authenticates its dedicated server key itself before parsing or accessing outbox state. Missing server configuration returns 503; wrong credentials return 403; invalid IDs return 400. Keep the worker key out of all browser/Android configuration and logs. Do not enable production scheduling until complete foundation acceptance is verified.
 
 ## Production checks
 
@@ -81,5 +81,21 @@ claim by dispatching its existing outbox ID; recovery increments `attempt_count`
 Completion, failure, and invalid Web Push cleanup require that attempt and a live
 lease. Old processing rows without a lease are also recoverable. Delivery remains
 at least once: interruption after provider acceptance can cause a duplicate send.
-Domain-event enqueue wiring, recipient fanout identity, and automated scheduling
-remain pending Task 11 work.
+Automated production scheduling remains deferred until foundation acceptance.
+
+## Transactional device event intent
+
+Desired-state version changes and new device commands create outbox rows in the
+same database transaction. Stable event identities use the device/version or
+command ID; recipient identity includes the transport and target reference.
+Each event records an FCM device wake and Web Push hints for every active
+installation belonging to an active family parent. Acknowledgments and duplicate
+command insertion do not emit another event. Rolled-back domain mutations leave
+no intent. Payloads contain only version, kind, and route IDs, never desired-state
+or command content.
+
+Family membership is rechecked when resolving a queued Web Push target. Removal
+prevents delivery of already-queued family hints without disabling the parent's
+subscription for other families. Only provider invalid-subscription responses
+perform invalid-subscription cleanup. New domain features must record their own
+stable event intent; these triggers cover the existing desired-state/command path.
