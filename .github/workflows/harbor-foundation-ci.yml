@@ -1,0 +1,103 @@
+name: Harbor Foundation CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+
+      - name: Discover Supabase CLI
+        run: |
+          supabase --version
+          supabase --help >/tmp/supabase-help.txt
+          supabase auth --help >/tmp/supabase-auth-help.txt 2>&1 || true
+          supabase start --help >/tmp/supabase-start-help.txt
+          supabase db reset --help >/tmp/supabase-db-reset-help.txt
+          supabase db lint --help >/tmp/supabase-db-lint-help.txt
+          supabase test db --help >/tmp/supabase-test-db-help.txt
+
+      - name: Verify bootstrap files exist
+        run: |
+          test -f supabase/config.toml
+          test -f supabase/seed.sql
+          test -f docs/runbooks/supabase-development.md
+          test -f docs/runbooks/environment-mapping.md
+          test -f deno.lock
+
+      - name: Reject obvious committed secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|sb_secret_[A-Za-z0-9_-]{20,}' -- ':!docs/**' ':!**/*.md'; then
+            echo 'Potential committed secret detected.' >&2
+            exit 1
+          fi
+
+      - name: Start local Supabase database
+        run: >-
+          supabase start
+          --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Reset local database
+        run: supabase db reset
+
+      - name: Lint local database
+        run: supabase db lint --level error
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify production environment separation
+        run: |
+          deno test --frozen tests/release
+          deno run --frozen --allow-read=docs/runbooks/environment-mapping.md scripts/check-environment-mapping.ts
+      - name: Run Edge Function tests when present
+        run: |
+          if [ -d tests/functions ]; then
+            deno test --frozen --allow-env=ECE_KEYLOG,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY tests/functions
+          fi
+
+      - name: Run shared-contract tests when present
+        run: |
+          if [ -f packages/contracts/test/contracts.test.ts ]; then
+            deno test --frozen packages/contracts/test/contracts.test.ts
+            deno check --frozen packages/contracts/src/index.ts
+          fi
+
+      - name: Verify private dispatcher persistence against local PostgreSQL
+        env:
+          SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+        run: >-
+          deno test --frozen
+          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
+          --allow-net=127.0.0.1:54322
+          tests/integration/outbox-persistence.test.ts
+
+      - name: Verify shared backend platform acceptance
+        env:
+          SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+        run: >-
+          deno test --frozen
+          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
+          --allow-net=127.0.0.1:54322
+          tests/end-to-end/platform-foundation.test.ts
