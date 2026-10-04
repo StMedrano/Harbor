@@ -60,7 +60,9 @@ Only version-1 route references with the approved keys are accepted. Unknown fie
 
 Retry delay starts at 60 seconds and doubles per attempt, capped at one hour. A permanent invalid Web Push subscription is disabled before its outbox row is dead-lettered. Each invocation handles one transport row; it never changes a sibling row for the other transport.
 
-This module is currently a tested dispatcher library, not a deployed HTTP endpoint or scheduled worker. Production SQL adapters, authenticated worker invocation, FCM credential/transport integration, and crash recovery for processing claims remain required before enabling delivery. Tests use controlled external transport and persistence boundaries; they do not claim real provider delivery.
+`createPersistentDispatchOne(privateOutboxStore, transports)` connects the dispatcher to the existing private SQL helpers. It reads only active Web Push subscriptions and FCM registrations for active, non-revoked devices. Queued target references contain IDs; credentials and tokens are resolved privately at delivery time. The existing server-only Web Push adapter is the default Web Push transport. The FCM sender must be supplied by the worker.
+
+This module is currently a dispatcher library, not a deployed HTTP endpoint or scheduled worker. Authenticated worker invocation, FCM credential/transport integration, and crash recovery for processing claims remain required before enabling delivery. CI tests exercise real local PostgreSQL persistence and controlled transport boundaries; they do not claim real provider delivery.
 
 ## Production checks
 
