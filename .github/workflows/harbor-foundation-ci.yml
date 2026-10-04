@@ -28,9 +28,8 @@ jobs:
       - name: Run Android proof acceptance
         run: |
           chmod +x gradlew
-          ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 :app:dependencies
-          ./gradlew -PacceptanceCiFixture=true --no-daemon --write-locks --write-verification-metadata sha256 testDebugUnitTest lintDebug assembleDebug
-      - name: Retain dependency bootstrap evidence
+          ./gradlew -PacceptanceCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
+      - name: Retain pinned dependency evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
