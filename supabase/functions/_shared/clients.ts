@@ -27,6 +27,18 @@ export type RegisterDeviceFcmAtomicInput = { deviceId: string; token: string };
 export type RegisterDeviceFcmAtomicQuery = (input: RegisterDeviceFcmAtomicInput) => Promise<Array<{ registered: boolean }>>;
 export type RevokeDeviceAtomicInput = { deviceId: string; familyId: string; actorUserId: string };
 export type RevokeDeviceAtomicQuery = (input: RevokeDeviceAtomicInput) => Promise<Array<{ revoked: boolean }>>;
+export type RegisterParentWebPushInput = {
+  userId: string;
+  clientInstallationId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+export type RemoveParentWebPushInput = {
+  userId: string;
+  clientInstallationId: string;
+  endpoint?: string;
+};
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -184,4 +196,25 @@ export async function revokeDeviceAtomicWithQuery(input: RevokeDeviceAtomicInput
 
 export async function revokeDeviceAtomic(input: RevokeDeviceAtomicInput): Promise<boolean> {
   return await revokeDeviceAtomicWithQuery(input, queryRevokeDeviceAtomic);
+}
+
+export async function registerParentWebPushAtomic(input: RegisterParentWebPushInput): Promise<void> {
+  const rows = await getPrivateSql()<Array<{ subscription_id: string }>>`
+    select subscription_id from private.harbor_register_parent_web_push(
+      ${input.userId}::uuid,
+      ${input.clientInstallationId}::text,
+      ${input.endpoint}::text,
+      ${input.p256dh}::text,
+      ${input.auth}::text
+    )`;
+  if (!rows[0]?.subscription_id) throw new Error("Web Push registration was not confirmed");
+}
+
+export async function removeParentWebPushAtomic(input: RemoveParentWebPushInput): Promise<void> {
+  await getPrivateSql()`
+    select private.harbor_remove_parent_web_push(
+      ${input.userId}::uuid,
+      ${input.clientInstallationId}::text,
+      ${input.endpoint ?? null}::text
+    )`;
 }
