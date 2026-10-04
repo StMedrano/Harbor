@@ -21,7 +21,7 @@ export type DeviceSyncAtomicInput = { deviceId: string; acknowledgedDesiredState
 export type DeviceSyncAtomicRow = { desired_state: Record<string, unknown>; desired_state_version: number; commands: unknown[] };
 export type DeviceSyncAtomicQuery = (input: DeviceSyncAtomicInput) => Promise<DeviceSyncAtomicRow[]>;
 export type DeviceSyncAtomicResult = { desiredState: Record<string, unknown>; desiredStateVersion: number; commands: unknown[] };
-export type DesiredStateAtomicInput = { deviceId: string; desiredState: Record<string, unknown>; expectedVersion: number };
+export type DesiredStateAtomicInput = { deviceId: string; familyId: string; actorUserId: string; desiredState: Record<string, unknown>; expectedVersion: number };
 export type DesiredStateAtomicQuery = (input: DesiredStateAtomicInput) => Promise<Array<{ desired_state_version: number }>>;
 export type RegisterDeviceFcmAtomicInput = { deviceId: string; token: string };
 export type RegisterDeviceFcmAtomicQuery = (input: RegisterDeviceFcmAtomicInput) => Promise<Array<{ registered: boolean }>>;
@@ -143,7 +143,7 @@ export async function syncDeviceAtomic(input: DeviceSyncAtomicInput): Promise<De
 
 async function queryUpdateDeviceDesiredStateAtomic(input: DesiredStateAtomicInput) {
   return await getPrivateSql()<Array<{ desired_state_version: number }>>`
-    select desired_state_version from private.harbor_update_device_desired_state(${input.deviceId}::uuid, ${JSON.stringify(input.desiredState)}::jsonb, ${input.expectedVersion}::bigint)`;
+    select desired_state_version from private.harbor_update_device_desired_state(${input.deviceId}::uuid, ${input.familyId}::uuid, ${input.actorUserId}::uuid, ${JSON.stringify(input.desiredState)}::jsonb, ${input.expectedVersion}::bigint)`;
 }
 
 export async function updateDeviceDesiredStateAtomicWithQuery(input: DesiredStateAtomicInput, query: DesiredStateAtomicQuery) {
