@@ -1,4 +1,5 @@
-import type { ParentContext } from "../_shared/auth.ts";
+import { requireParent, type ParentContext } from "../_shared/auth.ts";
+import { createFamilyAtomic } from "../_shared/clients.ts";
 import { HarborAuthError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
 
@@ -17,6 +18,11 @@ export type CreateFamilyResult = {
 export type CreateFamilyDependencies = {
   requireParent(req: Request): Promise<ParentContext>;
   createFamilyAtomic(input: CreateFamilyPersistenceInput): Promise<CreateFamilyResult>;
+};
+
+export const defaultCreateFamilyDependencies: CreateFamilyDependencies = {
+  requireParent,
+  createFamilyAtomic,
 };
 
 function validationError(message: string): Response {
@@ -92,4 +98,8 @@ export async function handleCreateFamily(
     if (response) return response;
     throw error;
   }
+}
+
+if (import.meta.main) {
+  Deno.serve((req) => handleCreateFamily(req, defaultCreateFamilyDependencies));
 }
