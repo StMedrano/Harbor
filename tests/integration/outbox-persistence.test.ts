@@ -31,6 +31,18 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
 
     // This second intent exercises real private target resolution and cleanup.
     const invalid = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-invalid'}, 'web_push', ${sql.json({ subscriptionId })}::jsonb, ${sql.json(route)}::jsonb) as id`;
+    // An expired worker cannot remove a target or overwrite a recovered attempt.
+    await privateOutboxStore.claim(invalid[0].id, new Date().toISOString());
+    await sql`update private.notification_outbox set next_attempt_at = now() - interval '1 second' where id = ${invalid[0].id}::uuid`;
+    assertEquals(await privateOutboxStore.complete(invalid[0].id, 1), null);
+    await privateOutboxStore.disableWebPush(subscriptionId, invalid[0].id, 1);
+    assertEquals((await privateOutboxStore.readWebPush(subscriptionId))?.endpoint, "https://push.example.test/integration");
+    assertEquals((await privateOutboxStore.claim(invalid[0].id, new Date().toISOString()))[0].attempt_count, 2);
+    await privateOutboxStore.disableWebPush(subscriptionId, invalid[0].id, 1);
+    assertEquals((await privateOutboxStore.readWebPush(subscriptionId))?.endpoint, "https://push.example.test/integration");
+    assertEquals(await privateOutboxStore.fail(invalid[0].id, { retryable: false, errorCategory: "invalid_subscription", nextAttemptAt: null }, 1), null);
+    // Release the second lease so the normal dispatcher can recover and clean up.
+    await sql`update private.notification_outbox set next_attempt_at = now() - interval '1 second' where id = ${invalid[0].id}::uuid`;
     assertEquals(await createPersistentDispatchOne(privateOutboxStore, {
       sendFcm: async () => { throw new Error("wrong transport"); },
       sendWebPush: async () => ({ status: "permanent_failure", reason: "invalid_subscription" }),
@@ -40,7 +52,7 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
 
     const retry = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-retry'}, 'fcm', '{}'::jsonb, ${sql.json(route)}::jsonb) as id`;
     await privateOutboxStore.claim(retry[0].id, new Date().toISOString());
-    assertEquals(await privateOutboxStore.fail(retry[0].id, { retryable: true, errorCategory: "rate_limited", nextAttemptAt: "2099-01-01T00:00:00Z" }), "retry");
+    assertEquals(await privateOutboxStore.fail(retry[0].id, { retryable: true, errorCategory: "rate_limited", nextAttemptAt: "2099-01-01T00:00:00Z" }, 1), "retry");
     assertEquals((await privateOutboxStore.claim(retry[0].id, new Date().toISOString())).length, 0);
   } finally {
     await sql`delete from private.notification_outbox where event_key in (${eventKey}, ${eventKey + '-invalid'}, ${eventKey + '-retry'})`;
@@ -48,3 +60,4 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
     await sql.end();
   }
 });
+

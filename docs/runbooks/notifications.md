@@ -75,3 +75,11 @@ Configure an independent random `HARBOR_OUTBOX_WORKER_KEY` of at least 32 random
 ## Production checks
 
 Before enabling parent Web Push in an environment, confirm that all three VAPID values are configured in Supabase secrets, `VAPID_PRIVATE_KEY` is absent from public/client configuration, register/remove function tests pass, Web Push delivery tests pass, and the durable notification dispatcher is using only route-reference payloads.
+
+Processing claims expire after five minutes. The server worker can reclaim an expired
+claim by dispatching its existing outbox ID; recovery increments `attempt_count`.
+Completion, failure, and invalid Web Push cleanup require that attempt and a live
+lease. Old processing rows without a lease are also recoverable. Delivery remains
+at least once: interruption after provider acceptance can cause a duplicate send.
+Domain-event enqueue wiring, recipient fanout identity, and automated scheduling
+remain pending Task 11 work.

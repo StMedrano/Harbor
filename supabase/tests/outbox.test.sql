@@ -45,7 +45,7 @@ as $$
 declare
   v_status text;
 begin
-  execute 'select private.harbor_complete_notification($1)'
+  execute 'select private.harbor_complete_notification($1, (select attempt_count from private.notification_outbox where id = $1))'
     into v_status
     using p_outbox_id;
   return v_status;
@@ -66,7 +66,7 @@ as $$
 declare
   v_status text;
 begin
-  execute 'select private.harbor_fail_notification($1, $2, $3, $4)'
+  execute 'select private.harbor_fail_notification($1, (select attempt_count from private.notification_outbox where id = $1), $2, $3, $4)'
     into v_status
     using p_outbox_id, p_retryable, p_error_category, p_next_attempt_at;
   return v_status;
@@ -108,8 +108,8 @@ select ok(
 
 select has_function('private', 'harbor_enqueue_notification', array['text','text','jsonb','jsonb'], 'idempotent enqueue helper exists');
 select has_function('private', 'harbor_claim_notification', array['uuid','timestamp with time zone'], 'atomic claim helper exists');
-select has_function('private', 'harbor_complete_notification', array['uuid'], 'completion helper exists');
-select has_function('private', 'harbor_fail_notification', array['uuid','boolean','text','timestamp with time zone'], 'failure transition helper exists');
+select has_function('private', 'harbor_complete_notification', array['uuid','integer'], 'completion helper exists');
+select has_function('private', 'harbor_fail_notification', array['uuid','integer','boolean','text','timestamp with time zone'], 'failure transition helper exists');
 
 create temporary table task11_ids(name text primary key, id uuid);
 

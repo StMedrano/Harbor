@@ -13,11 +13,11 @@ type OutboxRow = {
 
 export type OutboxStore = {
   claim(id: string, now: string): Promise<OutboxRow[]>;
-  complete(id: string): Promise<string | null>;
-  fail(id: string, failure: OutboxFailure): Promise<string | null>;
+  complete(id: string, attempt: number): Promise<string | null>;
+  fail(id: string, failure: OutboxFailure, attempt: number): Promise<string | null>;
   readWebPush(id: string): Promise<WebPushSubscription | null>;
   readFcmToken(deviceId: string): Promise<string | null>;
-  disableWebPush(id: string): Promise<void>;
+  disableWebPush(id: string, outboxId: string, attempt: number): Promise<void>;
 };
 
 type OutboxTransports = {
@@ -34,11 +34,11 @@ export function createPersistentDispatchOne(store: OutboxStore, transports: Outb
       const row = (await store.claim(id, now().toISOString()))[0];
       return row ? { id: row.id, transport: row.transport, targetRef: row.target_ref, routePayload: row.route_payload, attemptCount: row.attempt_count } : null;
     },
-    async complete(id) {
-      if (await store.complete(id) !== "sent") throw new Error("Outbox completion was not confirmed");
+    async complete(id, attempt) {
+      if (await store.complete(id, attempt) !== "sent") throw new Error("Outbox completion was not confirmed");
     },
-    async fail(id, failure) {
-      if (await store.fail(id, failure) !== (failure.retryable ? "retry" : "dead_letter")) throw new Error("Outbox failure transition was not confirmed");
+    async fail(id, failure, attempt) {
+      if (await store.fail(id, failure, attempt) !== (failure.retryable ? "retry" : "dead_letter")) throw new Error("Outbox failure transition was not confirmed");
     },
     async sendWebPush(target, payload) {
       const subscription = target.subscriptionId ? await store.readWebPush(target.subscriptionId) : null;
@@ -52,7 +52,7 @@ export function createPersistentDispatchOne(store: OutboxStore, transports: Outb
         ? await transports.sendFcm(token, payload)
         : { status: "permanent_failure", reason: "provider_rejected" };
     },
-    async disableWebPush(id) { if (id) await store.disableWebPush(id); },
+    async disableWebPush(id, outboxId, attempt) { if (id) await store.disableWebPush(id, outboxId, attempt); },
   });
 }
 
@@ -60,12 +60,12 @@ export const privateOutboxStore: OutboxStore = {
   async claim(id, now) {
     return await getPrivateSql()<OutboxRow[]>`select id, transport, target_ref, route_payload, attempt_count from private.harbor_claim_notification(${id}::uuid, ${now}::timestamptz)`;
   },
-  async complete(id) {
-    const rows = await getPrivateSql()<Array<{ status: string | null }>>`select private.harbor_complete_notification(${id}::uuid) as status`;
+  async complete(id, attempt) {
+    const rows = await getPrivateSql()<Array<{ status: string | null }>>`select private.harbor_complete_notification(${id}::uuid, ${attempt}::integer) as status`;
     return rows[0]?.status ?? null;
   },
-  async fail(id, failure) {
-    const rows = await getPrivateSql()<Array<{ status: string | null }>>`select private.harbor_fail_notification(${id}::uuid, ${failure.retryable}::boolean, ${failure.errorCategory}::text, ${failure.nextAttemptAt}::timestamptz) as status`;
+  async fail(id, failure, attempt) {
+    const rows = await getPrivateSql()<Array<{ status: string | null }>>`select private.harbor_fail_notification(${id}::uuid, ${attempt}::integer, ${failure.retryable}::boolean, ${failure.errorCategory}::text, ${failure.nextAttemptAt}::timestamptz) as status`;
     return rows[0]?.status ?? null;
   },
   async readWebPush(id) {
@@ -76,7 +76,8 @@ export const privateOutboxStore: OutboxStore = {
     const rows = await getPrivateSql()<Array<{ token: string }>>`select f.token from private.device_fcm_registrations f join public.devices_public d on d.id = f.device_id where f.device_id = ${deviceId}::uuid and d.status = 'active' and d.revoked_at is null`;
     return rows[0]?.token ?? null;
   },
-  async disableWebPush(id) {
-    await getPrivateSql()`update private.parent_web_push_subscriptions set status = 'invalid', disabled_at = now(), updated_at = now() where id = ${id}::uuid and status = 'active'`;
+  async disableWebPush(id, outboxId, attempt) {
+    await getPrivateSql()`update private.parent_web_push_subscriptions set status = 'invalid', disabled_at = now(), updated_at = now() where id = ${id}::uuid and status = 'active' and exists (select 1 from private.notification_outbox o where o.id = ${outboxId}::uuid and o.attempt_count = ${attempt}::integer and o.status = 'processing' and o.next_attempt_at > now() and o.target_ref->>'subscriptionId' = ${id})`;
   },
 };
+

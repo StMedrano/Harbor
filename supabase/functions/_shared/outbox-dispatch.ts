@@ -15,11 +15,11 @@ export type OutboxFailure = { retryable: boolean; errorCategory: string; nextAtt
 export type DispatchDependencies = {
   now(): Date;
   claim(id: string): Promise<OutboxNotification | null>;
-  complete(id: string): Promise<void>;
-  fail(id: string, failure: OutboxFailure): Promise<void>;
+  complete(id: string, attempt: number): Promise<void>;
+  fail(id: string, failure: OutboxFailure, attempt: number): Promise<void>;
   sendFcm(target: Record<string, string>, payload: NotificationRouteRefV1): Promise<PushDeliveryResult>;
   sendWebPush(target: Record<string, string>, payload: NotificationRouteRefV1): Promise<PushDeliveryResult>;
-  disableWebPush(subscriptionId: string): Promise<void>;
+  disableWebPush(subscriptionId: string, outboxId: string, attempt: number): Promise<void>;
 };
 
 export function createDispatchOne(dependencies: DispatchDependencies) {
@@ -28,7 +28,7 @@ export function createDispatchOne(dependencies: DispatchDependencies) {
     if (!row) return { status: "no_op" };
     const payload = notificationRoute(row.routePayload);
     if (!payload) {
-      await dependencies.fail(row.id, { retryable: false, errorCategory: "invalid_payload", nextAttemptAt: null });
+      await dependencies.fail(row.id, { retryable: false, errorCategory: "invalid_payload", nextAttemptAt: null }, row.attemptCount);
       return { status: "dead_letter" };
     }
 
@@ -42,11 +42,11 @@ export function createDispatchOne(dependencies: DispatchDependencies) {
     }
 
     if (result.status === "sent") {
-      await dependencies.complete(row.id);
+      await dependencies.complete(row.id, row.attemptCount);
       return { status: "sent" };
     }
     if (row.transport === "web_push" && result.reason === "invalid_subscription") {
-      await dependencies.disableWebPush(row.targetRef.subscriptionId);
+      await dependencies.disableWebPush(row.targetRef.subscriptionId, row.id, row.attemptCount);
     }
     const retryable = result.status === "retryable_failure";
     const delaySeconds = Math.min(3600, 60 * 2 ** Math.min(6, Math.max(0, row.attemptCount - 1)));
@@ -54,7 +54,8 @@ export function createDispatchOne(dependencies: DispatchDependencies) {
       retryable,
       errorCategory: result.reason,
       nextAttemptAt: retryable ? new Date(dependencies.now().getTime() + delaySeconds * 1000).toISOString() : null,
-    });
+    }, row.attemptCount);
     return { status: retryable ? "retry" : "dead_letter" };
   };
 }
+
