@@ -66,10 +66,17 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Run Edge Function tests when present
+      - name: Run Edge Function tests and capture lockfile
         run: |
           if [ -d tests/functions ]; then
+            set +e
             deno test tests/functions
+            test_status=$?
+            set -e
+            echo 'HARBOR_DENO_LOCK_BEGIN'
+            cat deno.lock
+            echo 'HARBOR_DENO_LOCK_END'
+            exit "$test_status"
           fi
 
       - name: Run shared-contract tests when present
