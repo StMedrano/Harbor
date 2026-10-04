@@ -78,7 +78,7 @@ returns text
 language plpgsql
 security definer
 set search_path = ''
-as $$;
+as $$
 declare
   v_status text;
 begin
