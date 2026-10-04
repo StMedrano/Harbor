@@ -1,5 +1,5 @@
 begin;
-select plan(30);
+select plan(31);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_anonymous
@@ -60,7 +60,7 @@ declare
   v_result jsonb;
 begin
   execute
-    'select to_jsonb(r) from private.harbor_update_device_desired_state($1, $2, $3) as r'
+    'select jsonb_build_object(''desired_state_version'', r.desired_state_version) from private.harbor_update_device_desired_state($1, $2, $3) as r'
     into v_result
     using '64000000-0000-4000-8000-000000000001'::uuid, p_state, p_expected_version;
   return v_result;
