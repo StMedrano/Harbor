@@ -75,11 +75,11 @@ begin
 
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_child_id::text, 0));
 
-  update private.device_enrollment_tokens
+  update private.device_enrollment_tokens as enrollment
   set invalidated_at = pg_catalog.now()
-  where child_id = p_child_id
-    and consumed_at is null
-    and invalidated_at is null;
+  where enrollment.child_id = p_child_id
+    and enrollment.consumed_at is null
+    and enrollment.invalidated_at is null;
 
   insert into private.device_enrollment_tokens (
     family_id, child_id, issued_by_user_id, code_digest, expires_at
@@ -104,15 +104,17 @@ declare
   v_failed_attempts integer;
   v_invalidated_at timestamptz;
 begin
-  update private.device_enrollment_tokens
-  set failed_attempts = least(failed_attempts + 1, 5),
-      invalidated_at = case when failed_attempts + 1 >= 5 then pg_catalog.now() else invalidated_at end
-  where code_digest = btrim(coalesce(p_code_digest, ''))
-    and consumed_at is null
-    and invalidated_at is null
-    and expires_at > pg_catalog.now()
-  returning private.device_enrollment_tokens.failed_attempts,
-            private.device_enrollment_tokens.invalidated_at
+  update private.device_enrollment_tokens as enrollment
+  set failed_attempts = least(enrollment.failed_attempts + 1, 5),
+      invalidated_at = case
+        when enrollment.failed_attempts + 1 >= 5 then pg_catalog.now()
+        else enrollment.invalidated_at
+      end
+  where enrollment.code_digest = btrim(coalesce(p_code_digest, ''))
+    and enrollment.consumed_at is null
+    and enrollment.invalidated_at is null
+    and enrollment.expires_at > pg_catalog.now()
+  returning enrollment.failed_attempts, enrollment.invalidated_at
     into v_failed_attempts, v_invalidated_at;
 
   if v_failed_attempts is null then
@@ -193,9 +195,9 @@ begin
   insert into private.device_security (device_id, auth_user_id, public_key_spki)
   values (v_device_id, p_auth_user_id, btrim(p_public_key_spki));
 
-  update private.device_enrollment_tokens
+  update private.device_enrollment_tokens as enrollment
   set consumed_at = pg_catalog.now()
-  where id = v_token.id;
+  where enrollment.id = v_token.id;
 
   insert into private.audit_events (
     event_kind, family_id, actor_user_id, resource_type, resource_id, metadata
