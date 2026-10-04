@@ -8,7 +8,7 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
   const subscriptionId = crypto.randomUUID();
   const familyId = crypto.randomUUID();
   const eventKey = `integration-${crypto.randomUUID()}`;
-  const route = { version: 1, kind: "device.state.changed", familyId };
+  const route = { version: 1 as const, kind: "device.state.changed", familyId };
   try {
     await sql`insert into auth.users(id, email, raw_app_meta_data, raw_user_meta_data) values (${userId}::uuid, ${`${userId}@harbor.test`}, '{}'::jsonb, '{}'::jsonb)`;
     await sql`insert into private.parent_web_push_subscriptions(id, user_id, client_installation_id, endpoint, endpoint_hash, p256dh, auth) values (${subscriptionId}::uuid, ${userId}::uuid, 'integration', 'https://push.example.test/integration', ${'a'.repeat(64)}, 'public-key', 'auth-key')`;
