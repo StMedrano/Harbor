@@ -75,11 +75,11 @@ function createDefaultAuthDependencies(accessToken: string): AuthDependencies {
   return {
     async validateAccessToken(token: string) {
       const [claimsResult, userResult] = await Promise.all([
-        requestClient.auth.getClaims(),
+        requestClient.auth.getClaims(token),
         requestClient.auth.getUser(token),
       ]);
 
-      if (claimsResult.error || userResult.error || !userResult.data.user) {
+      if (claimsResult.error || !claimsResult.data?.claims || userResult.error || !userResult.data.user) {
         return null;
       }
 

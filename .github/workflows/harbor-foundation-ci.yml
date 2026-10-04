@@ -74,7 +74,7 @@ jobs:
       - name: Run Edge Function tests when present
         run: |
           if [ -d tests/functions ]; then
-            deno test --frozen --allow-env=ECE_KEYLOG tests/functions
+            deno test --frozen --allow-env=ECE_KEYLOG,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY tests/functions
           fi
 
       - name: Run shared-contract tests when present
