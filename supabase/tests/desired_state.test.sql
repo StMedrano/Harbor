@@ -60,9 +60,14 @@ declare
   v_result jsonb;
 begin
   execute
-    'select jsonb_build_object(''desired_state_version'', r.desired_state_version) from private.harbor_update_device_desired_state($1, $2, $3) as r'
+    'select jsonb_build_object(''desired_state_version'', r.desired_state_version) from private.harbor_update_device_desired_state($1, $2, $3, $4, $5) as r'
     into v_result
-    using '64000000-0000-4000-8000-000000000001'::uuid, p_state, p_expected_version;
+    using
+      '64000000-0000-4000-8000-000000000001'::uuid,
+      '62000000-0000-4000-8000-000000000001'::uuid,
+      '61000000-0000-4000-8000-000000000001'::uuid,
+      p_state,
+      p_expected_version;
   return v_result;
 exception when others then
   return null;
@@ -174,7 +179,7 @@ select has_table('private', 'device_commands', 'device commands are private');
 select has_table('private', 'device_fcm_registrations', 'FCM registrations are private');
 select has_column('public', 'devices_public', 'revoked_at', 'public device state records revocation time');
 
-select has_function('private', 'harbor_update_device_desired_state', array['uuid','jsonb','bigint'], 'desired-state update helper exists');
+select has_function('private', 'harbor_update_device_desired_state', array['uuid','uuid','uuid','jsonb','bigint'], 'desired-state update helper binds family and actor');
 select has_function('private', 'harbor_sync_device', array['uuid','bigint','uuid[]'], 'device sync helper exists');
 select has_function('private', 'harbor_register_device_fcm', array['uuid','text'], 'FCM rotation helper exists');
 select has_function('private', 'harbor_enqueue_device_command', array['uuid','text','text','jsonb','timestamp with time zone'], 'idempotent command helper exists');
