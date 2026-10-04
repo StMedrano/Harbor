@@ -18,6 +18,11 @@ export type ParentContext = {
   amr: AmrEntry[];
 };
 
+export type DeviceIdentityContext = {
+  userId: string;
+  accessToken: string;
+};
+
 export type ParentUser = {
   id: string;
   isAnonymous: boolean;
@@ -144,6 +149,28 @@ export async function requireParent(
     accessToken,
     aal: validated.claims.aal ?? "aal1",
     amr: validated.claims.amr ?? [],
+  };
+}
+
+export async function requireDeviceIdentity(
+  req: Request,
+  dependencies?: AuthDependencies,
+): Promise<DeviceIdentityContext> {
+  const accessToken = bearerToken(req);
+  const activeDependencies = dependencies ?? createDefaultAuthDependencies(accessToken);
+  const validated = await activeDependencies.validateAccessToken(accessToken);
+
+  if (!validated) {
+    throw new HarborAuthError("AUTH_REQUIRED", 401, "Authentication is required");
+  }
+
+  if (!validated.user.isAnonymous) {
+    throw new HarborAuthError("FORBIDDEN", 403, "Child-device access is required");
+  }
+
+  return {
+    userId: validated.user.id,
+    accessToken,
   };
 }
 
