@@ -46,9 +46,12 @@ References: [RLS without policies](https://supabase.com/docs/guides/database/dat
 [foreign-key indexes](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys),
 [unused indexes](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
 
-Live acceptance remains blocked: the hosted custom-secret inventory is empty and
-no Edge Functions are deployed. Configure the pairing pepper, FCM credentials, VAPID configuration, worker
-key, and exact allowed frontend origins in the appropriate Supabase secret store.
+The seven required custom-secret names were confirmed present and all ten
+reviewed Edge Functions deployed ACTIVE on 2026-10-04, from source revision
+`1b2ba03` after CI run `37232626522` passed. Secret-name verification does not
+validate provider credentials or successful delivery. Configure the pairing
+pepper, FCM credentials, VAPID configuration, worker key, and exact allowed
+frontend origins in the appropriate Supabase secret store.
 Never put their values in GitHub comments or this document. Built-in runtime
 credentials are separate from the custom-secret inventory. Supabase automatically
 injects `SUPABASE_DB_URL`; do not create a custom secret with that reserved name.
@@ -56,6 +59,25 @@ See [default runtime secrets](https://supabase.com/docs/guides/functions/secrets
 Verify the injected connection when functions are deployed. Review hosted Auth
 settings and Realtime public-channel configuration before live acceptance; local
 config and database policy checks do not verify those hosted settings.
+
+Hosted Auth was compared with the baseline. A scoped configuration preview
+identified three differences; only those declared properties were updated:
+anonymous sign-ins enabled, minimum password length eight, and secure password
+changes enabled. A second comparison reported zero declared-setting differences.
+Hosted email confirmation and TOTP enrollment/verification were already enabled.
+Other settings, including email rate limits, were preserved. Site URL remains
+localhost and the redirect allowlist is empty; configure the reviewed callback
+routes when testing the deployed frontend's email confirmation/recovery flows.
+
+Live smoke checks confirmed allowed-origin preflight returns 204 for the Harbor
+Vercel origin, unapproved-origin preflight returns 403, unauthenticated user
+functions return 401, and the worker rejects a missing key with 403. A temporary
+anonymous Auth identity received a real ES256 JWT: create-family rejected parent
+access (403), device-sync rejected missing proof (403), and device-claim reached
+input validation (400). The temporary identity was removed. These checks confirm
+runtime startup, live Auth token handling and request boundaries; they do not
+verify database access from a successful authenticated operation, parent MFA,
+private WebSocket joins, saved provider credential validity, or push delivery.
 
 Then deploy the reviewed functions and verify live Auth/MFA, private Realtime,
 and actual FCM/Web Push delivery. The schema deployment alone does not establish
