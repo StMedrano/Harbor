@@ -47,11 +47,13 @@ References: [RLS without policies](https://supabase.com/docs/guides/database/dat
 [unused indexes](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
 
 Live acceptance remains blocked: the hosted custom-secret inventory is empty and
-no Edge Functions are deployed. Configure the server-only database connection
-`SUPABASE_DB_URL`, pairing pepper, FCM credentials, VAPID configuration, worker
+no Edge Functions are deployed. Configure the pairing pepper, FCM credentials, VAPID configuration, worker
 key, and exact allowed frontend origins in the appropriate Supabase secret store.
 Never put their values in GitHub comments or this document. Built-in runtime
-credentials are separate from the custom-secret inventory. Review hosted Auth
+credentials are separate from the custom-secret inventory. Supabase automatically
+injects `SUPABASE_DB_URL`; do not create a custom secret with that reserved name.
+See [default runtime secrets](https://supabase.com/docs/guides/functions/secrets).
+Verify the injected connection when functions are deployed. Review hosted Auth
 settings and Realtime public-channel configuration before live acceptance; local
 config and database policy checks do not verify those hosted settings.
 
