@@ -11,7 +11,7 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
   try {
     await sql`insert into auth.users(id, email, raw_app_meta_data, raw_user_meta_data) values (${userId}::uuid, ${`${userId}@harbor.test`}, '{}'::jsonb, '{}'::jsonb)`;
     await sql`insert into private.parent_web_push_subscriptions(id, user_id, client_installation_id, endpoint, endpoint_hash, p256dh, auth) values (${subscriptionId}::uuid, ${userId}::uuid, 'integration', 'https://push.example.test/integration', ${'a'.repeat(64)}, 'public-key', 'auth-key')`;
-    const rows = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey}, 'web_push', ${JSON.stringify({ subscriptionId })}::jsonb, ${JSON.stringify(route)}::jsonb) as id`;
+    const rows = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey}, 'web_push', ${sql.json({ subscriptionId })}::jsonb, ${sql.json(route)}::jsonb) as id`;
     const id = rows[0].id;
     let sends = 0;
     const dispatch = createPersistentDispatchOne(privateOutboxStore, {
@@ -30,7 +30,7 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
     assertEquals(sent[0], { status: "sent", attempt_count: 1 });
 
     // This second intent exercises real private target resolution and cleanup.
-    const invalid = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-invalid'}, 'web_push', ${JSON.stringify({ subscriptionId })}::jsonb, ${JSON.stringify(route)}::jsonb) as id`;
+    const invalid = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-invalid'}, 'web_push', ${sql.json({ subscriptionId })}::jsonb, ${sql.json(route)}::jsonb) as id`;
     assertEquals(await createPersistentDispatchOne(privateOutboxStore, {
       sendFcm: async () => { throw new Error("wrong transport"); },
       sendWebPush: async () => ({ status: "permanent_failure", reason: "invalid_subscription" }),
@@ -38,7 +38,7 @@ Deno.test("private dispatcher SQL persists completion, retry and invalid-subscri
     assertEquals(await privateOutboxStore.readWebPush(subscriptionId), null);
     assertEquals(await privateOutboxStore.readFcmToken(crypto.randomUUID()), null);
 
-    const retry = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-retry'}, 'fcm', '{}'::jsonb, ${JSON.stringify(route)}::jsonb) as id`;
+    const retry = await sql<Array<{ id: string }>>`select private.harbor_enqueue_notification(${eventKey + '-retry'}, 'fcm', '{}'::jsonb, ${sql.json(route)}::jsonb) as id`;
     await privateOutboxStore.claim(retry[0].id, new Date().toISOString());
     assertEquals(await privateOutboxStore.fail(retry[0].id, { retryable: true, errorCategory: "rate_limited", nextAttemptAt: "2099-01-01T00:00:00Z" }), "retry");
     assertEquals(await privateOutboxStore.claim(retry[0].id, new Date().toISOString()), []);
