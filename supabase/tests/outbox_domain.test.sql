@@ -48,8 +48,6 @@ values (
   '61000000-0000-4000-8000-000000000101',
   'task9-p256-spki-fixture'
 );
-insert into private.device_security (device_id, auth_user_id, public_key_spki)
-values ('64000000-0000-4000-8000-000000000001','61000000-0000-4000-8000-000000000101','test-key');
 insert into private.parent_web_push_subscriptions (user_id, client_installation_id, endpoint, endpoint_hash, p256dh, auth)
 values
 ('61000000-0000-4000-8000-000000000001','installation-a','https://push.test/a',repeat('a',64),'key','auth'),
