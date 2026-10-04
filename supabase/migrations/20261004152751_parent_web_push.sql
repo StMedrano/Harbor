@@ -35,7 +35,7 @@ create or replace function private.harbor_register_parent_web_push(
 )
 returns table (
   subscription_id uuid,
-  endpoint_hash text,
+  registered_endpoint_hash text,
   status text
 )
 language plpgsql
