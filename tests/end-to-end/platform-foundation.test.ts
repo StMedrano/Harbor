@@ -2,6 +2,8 @@ import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { getPrivateSql, createFamilyAtomic, issueDevicePairingAtomic, claimDeviceAtomic, loadDeviceSecurity, claimDeviceRequestNonceAtomic, syncDeviceAtomic, registerDeviceFcmAtomic, registerParentWebPushAtomic, updateDeviceDesiredStateAtomic, revokeDeviceAtomic } from "../../supabase/functions/_shared/clients.ts";
 import { requireDeviceProof } from "../../supabase/functions/_shared/device-proof.ts";
 import { sha256Hex, verifyP256Sha256 } from "../../supabase/functions/_shared/crypto.ts";
+import { createRevokeDeviceHandler } from "../../supabase/functions/revoke-device/index.ts";
+import { HarborAuthError } from "../../supabase/functions/_shared/errors.ts";
 import { requireRecentAal2 } from "../../supabase/functions/_shared/aal.ts";
 import { createPersistentDispatchOne, privateOutboxStore } from "../../supabase/functions/_shared/outbox.ts";
 
@@ -65,15 +67,40 @@ Deno.test("two parent clients share durable device lifecycle with database autho
     assertEquals(await familyCount(parentB, false, family.familyId), 0);
     assertEquals(await familyCount(childAuth, true, family.familyId), 0);
     await assertRejects(() => updateDeviceDesiredStateAtomic({ deviceId: device.deviceId, familyId: family.familyId, actorUserId: parentB, desiredState: {}, expectedVersion: 1 }));
-    try { requireRecentAal2({ ...parentPwa, amr: [{ method: "totp", timestamp: epoch - 901 }] }, epoch); throw new Error("stale MFA accepted"); }
-    catch (error) { assertEquals((error as Error & { code: string }).code, "MFA_REQUIRED"); }
-    requireRecentAal2(parentPwa, epoch);
-    await revokeDeviceAtomic({ deviceId: device.deviceId, familyId: family.familyId, actorUserId: parentPwa.userId });
+    const topic = `family:${family.familyId}`;
+    await sql`insert into realtime.messages(topic,extension,payload) values (${topic},'broadcast','{"version":1,"kind":"changed"}'::jsonb)`;
+    const realtimeCount = async (userId: string, anonymous: boolean) => await sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: userId, role: "authenticated", is_anonymous: anonymous })},true),set_config('realtime.topic',${topic},true)`;
+      await tx`set local role authenticated`;
+      return Number((await tx`select count(*) as count from realtime.messages where topic = ${topic} and extension = 'broadcast'`)[0].count);
+    });
+    assertEquals(await realtimeCount(parentA, false), 1);
+    assertEquals(await realtimeCount(parentB, false), 0);
+    assertEquals(await realtimeCount(childAuth, true), 0);
+    await assertRejects(() => sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: parentA, role: "authenticated" })},true)`;
+      await tx`set local role authenticated`;
+      await tx`select * from private.staff_authorizations`;
+    }));
+    const revoke = (stale: boolean) => createRevokeDeviceHandler({
+      requireParent: async () => stale ? { ...parentPwa, amr: [{ method: "totp", timestamp: epoch - 901 }] } : parentPwa,
+      requireFamilyRole: async (ctx, familyId) => {
+        const rows = await sql`select role from public.family_members where user_id = ${ctx.userId}::uuid and family_id = ${familyId}::uuid and status = 'active' and role in ('owner','parent')`;
+        if (!rows.length) throw new HarborAuthError("FORBIDDEN", 403, "membership denied");
+      },
+      requireRecentAal2, nowEpochSeconds: () => epoch,
+      revokeDevice: async (input) => { await revokeDeviceAtomic(input); },
+    })(new Request("https://harbor.test/functions/v1/revoke-device", { method: "POST", body: JSON.stringify({ deviceId: device.deviceId, familyId: family.familyId }) }));
+    const stale = await assertRejects(() => revoke(true));
+    assertEquals((stale as Error & { code: string }).code, "MFA_REQUIRED");
+    assertEquals((await loadDeviceSecurity(device.deviceId))?.revokedAt, null);
+    assertEquals((await revoke(false)).status, 204);
     const revoked = await assertRejects(() => requireDeviceProof(request(), "device-sync", proofDependencies));
     assertEquals((revoked as Error & { code: string }).code, "DEVICE_REVOKED");
     assertEquals(Number((await sql`select count(*) as count from private.audit_events where event_kind = 'device.revoked' and resource_id = ${device.deviceId}::uuid`)[0].count), 1);
   } finally {
     for (const id of familyIds) {
+      await sql`delete from realtime.messages where topic = ${"family:" + id}`;
       await sql`delete from private.notification_outbox where route_payload->>'familyId' = ${id}`;
       await sql`delete from private.audit_events where family_id = ${id}::uuid`;
       await sql`delete from public.families where id = ${id}::uuid`;
