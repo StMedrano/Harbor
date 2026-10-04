@@ -155,7 +155,7 @@ export async function syncDeviceAtomic(input: DeviceSyncAtomicInput): Promise<De
 
 async function queryUpdateDeviceDesiredStateAtomic(input: DesiredStateAtomicInput) {
   return await getPrivateSql()<Array<{ desired_state_version: number }>>`
-    select desired_state_version from private.harbor_update_device_desired_state(${input.deviceId}::uuid, ${input.familyId}::uuid, ${input.actorUserId}::uuid, ${JSON.stringify(input.desiredState)}::jsonb, ${input.expectedVersion}::bigint)`;
+    select desired_state_version from private.harbor_update_device_desired_state(${input.deviceId}::uuid, ${input.familyId}::uuid, ${input.actorUserId}::uuid, ${getPrivateSql().json(input.desiredState)}::jsonb, ${input.expectedVersion}::bigint)`;
 }
 
 export async function updateDeviceDesiredStateAtomicWithQuery(input: DesiredStateAtomicInput, query: DesiredStateAtomicQuery) {
