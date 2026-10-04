@@ -37,8 +37,8 @@ export async function handleDeviceClaim(req: Request, deps: DeviceClaimDependenc
     if (!await deps.validateP256Spki(spki)) { await deps.recordClaimFailure(codeDigest); return jsonError("VALIDATION_FAILED", 400, "A valid P-256 SPKI public key is required"); }
     const device = body.device as Record<string, unknown> | undefined; const displayName = typeof device?.displayName === "string" ? device.displayName.trim() : "";
     const supervisionMode = typeof device?.supervisionMode === "string" ? device.supervisionMode : "unknown";
-    if (!displayName || !["unknown", "standard", "full"].includes(supervisionMode)) return jsonError("VALIDATION_FAILED", 400, "Valid device metadata is required");
-    const result = await deps.claimDeviceAtomic({ authUserId: identity.userId, codeDigest, publicKeySpki: spki, displayName, model: typeof device?.model === "string" ? device.model : null, androidVersion: typeof device?.androidVersion === "string" ? device.androidVersion : null, supervisionMode });
+    if (!displayName || !["unknown", "standard", "full"].includes(supervisionMode)) { await deps.recordClaimFailure(codeDigest); return jsonError("VALIDATION_FAILED", 400, "Valid device metadata is required"); }
+    let result; try { result = await deps.claimDeviceAtomic({ authUserId: identity.userId, codeDigest, publicKeySpki: spki, displayName, model: typeof device?.model === "string" ? device.model : null, androidVersion: typeof device?.androidVersion === "string" ? device.androidVersion : null, supervisionMode }); } catch (error) { const domain = databaseError(error); if (domain && (domain.status === 400 || domain.status === 403)) await deps.recordClaimFailure(codeDigest); throw domain ?? error; }
     return new Response(JSON.stringify(result), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } });
   } catch (error) { error = databaseError(error) ?? error; if (error instanceof HarborAuthError) return jsonError(error.code, error.status, error.message); throw error; }
 }
