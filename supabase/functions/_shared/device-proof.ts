@@ -53,7 +53,7 @@ export async function requireDeviceProof(
 
   const body = await request.clone().text();
   const bodyHash = await dependencies.sha256(body);
-  const canonical = [operation, deviceId, String(timestamp), nonce, bodyHash].join("\n");
+  const canonical = [request.method.toUpperCase(), operation, deviceId, bodyHash, String(timestamp), nonce].join("\n");
   const valid = await dependencies.verifyP256Signature(device.publicKeySpki, signature, canonical);
   if (!valid) forbidden("invalid device signature");
 
