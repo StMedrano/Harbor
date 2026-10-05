@@ -613,23 +613,23 @@ const operatorRoot = new URL(
   import.meta.url,
 );
 const localFile = (name: string) => new URL(name, operatorRoot);
-async function protectDirectory() {
-  await Deno.mkdir(operatorRoot, { recursive: true, mode: 0o700 });
+export async function protectDirectory(directory: URL = operatorRoot) {
+  await Deno.mkdir(directory, { recursive: true, mode: 0o700 });
   const repository = await Deno.realPath(new URL("../../", import.meta.url));
-  const resolved = await Deno.realPath(operatorRoot);
+  const resolved = await Deno.realPath(directory);
   if (
     !resolved.startsWith(
       repository + (Deno.build.os === "windows" ? "\\" : "/"),
     )
   ) throw Error("Operator directory outside repository");
-  const info = await Deno.lstat(operatorRoot);
+  const info = await Deno.lstat(directory);
   if (!info.isDirectory || info.isSymlink) {
     throw Error("Unsafe operator directory");
   }
   if (Deno.build.os === "windows") {
     // Fixed script, path passed as a positional argument; no input interpolation.
     const script =
-      `$env:PSModulePath=Join-Path $PSHOME 'Modules'; $ErrorActionPreference='Stop'; $p=$args[0]; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; Set-Acl -LiteralPath $p -AclObject $acl; $check=Get-Acl -LiteralPath $p; if(!$check.AreAccessRulesProtected){throw 'Protection failed'}; foreach($r in $check.Access){$actual=$r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; if($actual -ne $sid.Value -and $actual -ne 'S-1-5-18'){throw 'Unexpected access'}}`;
+      `$env:PSModulePath=Join-Path $PSHOME 'Modules'; $ErrorActionPreference='Stop'; $p=$args[0]; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; [IO.Directory]::SetAccessControl($p,$acl); $check=Get-Acl -LiteralPath $p; if(!$check.AreAccessRulesProtected){throw 'Protection failed'}; foreach($r in $check.Access){$actual=$r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; if($actual -ne $sid.Value -and $actual -ne 'S-1-5-18'){throw 'Unexpected access'}}`;
     // A script file avoids PowerShell -Command argument reparsing.
     const path = await Deno.makeTempFile({ suffix: ".ps1" });
     try {
@@ -640,7 +640,7 @@ async function protectDirectory() {
           "-NonInteractive",
           "-File",
           path,
-          await Deno.realPath(operatorRoot),
+          await Deno.realPath(directory),
         ],
         stdout: "null",
         stderr: "null",

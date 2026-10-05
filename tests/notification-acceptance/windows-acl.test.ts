@@ -1,5 +1,79 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { protectFile } from "../hosted/notification-acceptance.ts";
+import {
+  assertRestrictedAcl,
+  protectDirectory,
+  protectFile,
+} from "../hosted/notification-acceptance.ts";
+Deno.test({
+  name:
+    "Windows retained operator recovery directory can be protected without elevated audit privileges",
+  ignore: Deno.build.os !== "windows" ||
+    !Deno.args.includes("--existing-recovery"),
+  fn: async () => {
+    await protectDirectory();
+  },
+});
+Deno.test({
+  name:
+    "Windows directory protection removes extra readers without an audit privilege",
+  ignore: Deno.build.os !== "windows" ||
+    (await Deno.permissions.query({ name: "run", command: "powershell.exe" }))
+        .state !== "granted",
+  fn: async () => {
+    const repository = await Deno.realPath(Deno.cwd());
+    const directory = await Deno.makeTempDir({
+      dir: repository,
+      prefix: ".acl-test-",
+    });
+    const script = await Deno.makeTempFile({ suffix: ".ps1" });
+    try {
+      await Deno.writeTextFile(
+        script,
+        "$ErrorActionPreference='Stop'; $item=[IO.DirectoryInfo]::new($args[0]); $acl=$item.GetAccessControl(); $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-1-0'),'Read','Allow')); $item.SetAccessControl($acl)",
+      );
+      const grant = await new Deno.Command("powershell.exe", {
+        args: ["-NoProfile", "-NonInteractive", "-File", script, directory],
+        stdout: "null",
+        stderr: "piped",
+      }).output();
+      if (!grant.success) throw Error(new TextDecoder().decode(grant.stderr));
+      await protectFile(
+        new URL(
+          "file:///" + (directory + "/retained.json").replaceAll("\\", "/"),
+        ),
+      );
+      await protectDirectory(
+        new URL("file:///" + directory.replaceAll("\\", "/") + "/"),
+      );
+      await Deno.writeTextFile(
+        script,
+        "$env:PSModulePath=Join-Path $PSHOME 'Modules'; $ErrorActionPreference='Stop'; $acl=Get-Acl -LiteralPath $args[0]; @{owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value;current=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;protected=$acl.AreAccessRulesProtected;readers=@($acl.Access|ForEach-Object {$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value})}|ConvertTo-Json -Compress",
+      );
+      const check = await new Deno.Command("powershell.exe", {
+        args: ["-NoProfile", "-NonInteractive", "-File", script, directory],
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      if (!check.success) throw Error(new TextDecoder().decode(check.stderr));
+      assertRestrictedAcl(JSON.parse(new TextDecoder().decode(check.stdout)));
+      await Deno.writeTextFile(
+        directory + "/probe.txt",
+        "synthetic; no credentials",
+      );
+      assertEquals(
+        await Deno.readTextFile(directory + "/probe.txt"),
+        "synthetic; no credentials",
+      );
+    } finally {
+      const resolved = await Deno.realPath(directory);
+      if (!resolved.startsWith(repository + "\\.acl-test-")) {
+        throw Error("Unsafe test cleanup path");
+      }
+      await Deno.remove(resolved, { recursive: true });
+      await Deno.remove(script);
+    }
+  },
+});
 Deno.test({
   name:
     "Windows protection removes a pre-existing explicit extra-reader file ACE",
