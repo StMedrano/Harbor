@@ -6,6 +6,30 @@ import {
 } from "../hosted/notification-acceptance.ts";
 Deno.test({
   name:
+    "Unix directory protection applies mode 0700 to the requested directory",
+  ignore: Deno.build.os === "windows" ||
+    (await Deno.permissions.query({ name: "write" })).state !== "granted",
+  fn: async () => {
+    const repository = await Deno.realPath(Deno.cwd());
+    const directory = await Deno.makeTempDir({
+      dir: repository,
+      prefix: ".acl-test-",
+    });
+    try {
+      await Deno.chmod(directory, 0o755);
+      await protectDirectory(new URL("file://" + directory + "/"));
+      assertEquals((await Deno.stat(directory)).mode! & 0o777, 0o700);
+    } finally {
+      const resolved = await Deno.realPath(directory);
+      if (!resolved.startsWith(repository + "/.acl-test-")) {
+        throw Error("Unsafe test cleanup path");
+      }
+      await Deno.remove(resolved, { recursive: true });
+    }
+  },
+});
+Deno.test({
+  name:
     "Windows retained operator recovery directory can be protected without elevated audit privileges",
   ignore: Deno.build.os !== "windows" ||
     !Deno.args.includes("--existing-recovery"),
