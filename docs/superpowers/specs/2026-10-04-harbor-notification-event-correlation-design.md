@@ -5,8 +5,8 @@
 The user approved the approach on 2026-10-04: reuse the existing V1
 `resourceId` field as a stable UUID for each desired-state notification event.
 The user explicitly approved this written spec on 2026-10-04. Native execution
-remains the selected method. Implementation awaits approval of the subsequent
-written plan.
+remains the selected method. The user also approved the subsequent
+written plan on 2026-10-04.
 
 Issue #1, the approved Vercel/Supabase production architecture, and the approved
 notification acceptance toolkit remain the source of truth. This spec amends

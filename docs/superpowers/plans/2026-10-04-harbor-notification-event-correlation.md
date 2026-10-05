@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-04-harbor-notification-event-correlation-design.md` (approved 2026-10-04).
 
-**Status:** User approved this plan on 2026-10-04; native implementation is in progress.
+**Status:** User approved this plan on 2026-10-04. Tasks 1–3 implemented and verified; development migration applied. Task 4 live acceptance is blocked by missing Firebase client/build configuration, Android recipient and secure worker-key input.
 
 ## Global Constraints
 
@@ -37,7 +37,7 @@
 
 - Recipient persistence checks: `tests/notification-acceptance/web-receipts.test.ts` and `tools/notification-acceptance/android/app/src/test/java/dev/stmedrano/harbor/acceptance/ReceiptStoreTest.kt`. Modify receipt implementation only if a meaningful regression fails.
 - Operator validation, checkpoint and correlation: `tests/hosted/notification-acceptance.ts`; tests in `tests/notification-acceptance/operator.test.ts`, `evidence.test.ts`, and `recovery.test.ts`.
-- Backend intent identity: new `supabase/migrations/20261004230000_notification_event_correlation.sql`; checks in new `supabase/tests/notification_event_correlation.test.sql` using established fixture conventions.
+- Backend intent identity: new `supabase/migrations/20261005014628_notification_event_correlation.sql`; checks in new `supabase/tests/notification_event_correlation.test.sql` using established fixture conventions.
 - Compatibility regressions: existing contract/function suites and `tests/integration/outbox-persistence.test.ts` where stored-route retry behavior needs an assertion.
 - Operator instructions and live evidence limitations: `docs/runbooks/notification-acceptance.md`.
 - Execution tracking: ignored `.superpowers/sdd/2026-10-04-harbor-notification-event-correlation/progress.md`.
@@ -73,12 +73,12 @@ Check the migration timestamp is unused and later than every existing migration 
 
 **Interfaces:** Replace only `private.harbor_record_device_notification() returns trigger`, retaining `security definer set search_path = ''` and private grants. Consume existing event keys, outbox rows and enqueue helper. Produce six-field new state routes; commands retain command resource IDs; existing legacy events retain five-field routes.
 
-- [ ] **Step 1: Add pgTAP RED assertions.** Build a parent/device with two active Web Push installations using the existing outbox domain test fixture pattern. Assert one state write yields three rows with one UUID and exactly six route fields, the next version has a different UUID, unchanged-version update adds no row, and command `resourceId` equals its command ID. Assert UUIDs match the existing route-validator UUID form and private grants remain denied to public clients.
-- [ ] **Step 2: Add replay/atomicity RED assertions.** Preseed the exact upcoming event key with one identified recipient, invoke the normal state write, and assert remaining recipients reuse its UUID. Repeat with all-legacy rows and assert every row remains legacy. For conflicting IDs, invalid IDs and mixed legacy/identified rows, use `throws_ok` around the state write and assert state/version and recipient counts are unchanged. Test case-only UUID differences as one identity. Assert duplicate enqueue never overwrites an existing route; add a retry persisted-route assertion to the integration suite if existing coverage does not prove it.
-- [ ] **Step 3: Commit/push tests and confirm CI RED.** Required foundation job runs fresh `supabase db reset`, `supabase db lint --level error`, `supabase test db` and integration tests. Verify failures come from the new identity assertions while established suites pass. Do not add the migration before observing expected RED.
-- [ ] **Step 4: Add the append-only migration.** Preserve unchanged-version early return, event key generation, recipient selection and command branch. For state events, inspect every existing row for the exact event key before any enqueue: no rows generates one `gen_random_uuid()`; all legacy omits `resourceId`; all identified requires valid UUIDs and one normalized value, then reuses it. Mixed/conflicting/invalid identities raise an exception. Add the identity to the common route once, before fanout. Retain transactional execution and existing enqueue conflict behavior.
-- [ ] **Step 5: Verify GREEN in CI.** All new pgTAP assertions and existing DB/function/contract/release/integration/end-to-end suites must pass. Inspect failures at their source; do not alter security controls or historical migrations to make assertions pass.
-- [ ] **Step 6: Commit/push.** Commit message `feat: persist stable desired-state notification identities`.
+- [x] **Step 1: Add pgTAP RED assertions.** Build a parent/device with two active Web Push installations using the existing outbox domain test fixture pattern. Assert one state write yields three rows with one UUID and exactly six route fields, the next version has a different UUID, unchanged-version update adds no row, and command `resourceId` equals its command ID. Assert UUIDs match the existing route-validator UUID form and private grants remain denied to public clients.
+- [x] **Step 2: Add replay/atomicity RED assertions.** Preseed the exact upcoming event key with one identified recipient, invoke the normal state write, and assert remaining recipients reuse its UUID. Repeat with all-legacy rows and assert every row remains legacy. For conflicting IDs, invalid IDs and mixed legacy/identified rows, use `throws_ok` around the state write and assert state/version and recipient counts are unchanged. Test case-only UUID differences as one identity. Assert duplicate enqueue never overwrites an existing route; add a retry persisted-route assertion to the integration suite if existing coverage does not prove it.
+- [x] **Step 3: Commit/push tests and confirm CI RED.** Required foundation job runs fresh `supabase db reset`, `supabase db lint --level error`, `supabase test db` and integration tests. Verify failures come from the new identity assertions while established suites pass. Do not add the migration before observing expected RED.
+- [x] **Step 4: Add the append-only migration.** Preserve unchanged-version early return, event key generation, recipient selection and command branch. For state events, inspect every existing row for the exact event key before any enqueue: no rows generates one `gen_random_uuid()`; all legacy omits `resourceId`; all identified requires valid UUIDs and one normalized value, then reuses it. Mixed/conflicting/invalid identities raise an exception. Add the identity to the common route once, before fanout. Retain transactional execution and existing enqueue conflict behavior.
+- [x] **Step 5: Verify GREEN in CI.** All new pgTAP assertions and existing DB/function/contract/release/integration/end-to-end suites must pass. Inspect failures at their source; do not alter security controls or historical migrations to make assertions pass.
+- [x] **Step 6: Commit/push.** Commit message `feat: persist stable desired-state notification identities`.
 
 ### Task 4: Verify the full slice and authorized development rollout
 
