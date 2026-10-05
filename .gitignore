@@ -12,3 +12,4 @@ tools/notification-acceptance/android/**/build/
 tools/notification-acceptance/android/local.properties
 tools/notification-acceptance/android/acceptance.properties
 tools/notification-acceptance/android/**/google-services.json
+.superpowers/notification-operator/
