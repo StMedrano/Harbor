@@ -5,6 +5,14 @@ import org.junit.Test
 import org.json.JSONObject
 
 class HarborApiTest {
+    @Test fun revokedDenialIsSafeAndDistinctForBothSignedOperations() {
+        val api = HarborApi("https://bfvybxkjxilntjgndsrm.supabase.co", "sb_publishable_fixture", identity(), {HarborReply(403,"{\"code\":\"DEVICE_REVOKED\",\"message\":\"private\"}")}, {100L}, {"nonce"}, {ByteArray(64)})
+        for (operation in listOf<() -> Unit>({api.sync(binding); Unit}, {api.registerFcm(binding,"token")})) {
+            val failure = assertThrows(HarborFailure::class.java, operation)
+            assertEquals(403,failure.status);assertEquals("DEVICE_REVOKED",failure.code)
+            assertFalse(failure.message.orEmpty().contains("private"))
+        }
+    }
     private val binding = DeviceBinding("12345678-1234-4234-8234-123456789abc", "23456789-1234-4234-8234-123456789abc", "34567890-1234-4234-8234-123456789abc")
     private fun identity(): DeviceIdentity = DeviceIdentity({100L}, {throw IllegalStateException("Unexpected refresh")}, {}).also {
         it.acceptSession(ChildSession("child-access", "child-refresh", 500L, true))

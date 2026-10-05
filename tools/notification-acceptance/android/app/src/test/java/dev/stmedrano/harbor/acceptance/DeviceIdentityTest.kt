@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DeviceIdentityTest {
+    @Test fun explicitResetReplacesUnusableAnonymousEnrollment() {
+        var cleared = false
+        val identity = DeviceIdentity({100L}, {throw IllegalStateException("Deleted refresh")}, {})
+        identity.acceptSession(ChildSession("old","invalid",99L,true))
+        identity.acceptBinding(DeviceBinding("12345678-1234-4234-8234-123456789abc","23456789-1234-4234-8234-123456789abc","34567890-1234-4234-8234-123456789abc"))
+        assertThrows(IllegalStateException::class.java) {identity.accessToken()}
+        identity.reset {cleared=true}
+        assertTrue(cleared);assertNull(identity.binding)
+        identity.acceptSession(ChildSession("new-anonymous","new-refresh",500L,true))
+        assertEquals("new-anonymous",identity.accessToken())
+    }
     @Test fun expiredAnonymousSessionRefreshesBeforeRequest() {
         val stages = mutableListOf<String>()
         val identity = DeviceIdentity(
