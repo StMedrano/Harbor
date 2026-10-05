@@ -10,6 +10,38 @@ const route = {
   kind: "device.desired_state.changed",
   deviceId: "12345678-1234-4234-8234-123456789abc",
 };
+Deno.test("state event identity survives serialized receipt persistence and duplicates", async () => {
+  const identified = {
+    ...route,
+    kind: "device.state.changed",
+    familyId: "11111111-1111-4111-8111-111111111111",
+    childId: "22222222-2222-4222-8222-222222222222",
+    resourceId: "33333333-3333-4333-8333-333333333333",
+  };
+  const saved: string[] = [];
+  const deps = {
+    save: async (value: unknown) => {
+      saved.push(JSON.stringify(value));
+    },
+    show: async () => {},
+  };
+  await receivePush(identified, now, deps);
+  await receivePush(identified, now, deps);
+  const read = saved.map((text) => {
+    const value = JSON.parse(text);
+    return parseReceipt(value.route, value.receivedAt);
+  });
+  assertEquals(read, [{ route: identified, receivedAt: now }, {
+    route: identified,
+    receivedAt: now,
+  }]);
+  assertEquals(parseReceipt({ ...identified, resourceId: "bad" }, now), null);
+  assertEquals(
+    parseReceipt({ ...identified, accessToken: "private" }, now),
+    null,
+  );
+  assertEquals(parseReceipt(route, now), { route, receivedAt: now });
+});
 Deno.test("receipt rejects content, credentials and malformed routes", () => {
   for (
     const value of [
@@ -65,4 +97,3 @@ Deno.test("notification click ignores untrusted destinations", async () => {
   );
   assertEquals(opened, ["http://localhost:3000/"]);
 });
-
