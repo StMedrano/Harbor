@@ -190,6 +190,59 @@ export type PreparationJournal = {
   familyId?: string;
   childId?: string;
 };
+export type Receipt = { route: NotificationRouteRefV1; receivedAt: string };
+export function correlateReceipts(
+  manifest: FixtureManifest,
+  eventKey: string,
+  startedAt: string,
+  input: unknown,
+  baselineCount: number,
+): Receipt[] {
+  const m = validateManifest(manifest), start = Date.parse(startedAt);
+  if (
+    !m.deviceId ||
+    eventKey !==
+      `desired-state:${m.deviceId}:${m.expectedDesiredStateVersion}` ||
+    !Number.isFinite(start) || !Array.isArray(input) ||
+    !Number.isSafeInteger(baselineCount) || baselineCount < 0 ||
+    baselineCount > input.length
+  ) throw Error("Invalid serialized observation boundary");
+  return input.slice(baselineCount).flatMap((raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const value = raw as Record<string, unknown>,
+      route = notificationRoute(value.route);
+    const time = typeof value.receivedAt === "number"
+      ? value.receivedAt
+      : typeof value.receivedAt === "string"
+      ? Date.parse(value.receivedAt)
+      : NaN;
+    if (
+      Object.keys(value).some((key) =>
+        key !== "route" && key !== "receivedAt"
+      ) || !route || Object.keys(route).length !== 5 ||
+      route.kind !== "device.state.changed" || route.familyId !== m.familyId ||
+      route.childId !== m.childId || route.deviceId !== m.deviceId ||
+      !Number.isFinite(time) || time < start || time > start + 120000
+    ) return [];
+    return [{ route, receivedAt: new Date(time).toISOString() }];
+  });
+}
+export function classifyDelivery(
+  provider: DeliveryOutcome,
+  matchingReceipts: Receipt[],
+  elapsedSeconds: number,
+): "received" | "unverified" | "provider_failure" {
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
+    throw Error("Invalid observation elapsed time");
+  }
+  if (provider.status === "retry" || provider.status === "dead_letter") {
+    return "provider_failure";
+  }
+  if (provider.status !== "sent" && provider.status !== "no_op") {
+    return "unverified";
+  }
+  return matchingReceipts.length ? "received" : "unverified";
+}
 export async function prepareFixture(ref: string, runId: string, deps: {
   protect(): Promise<void>;
   parent(): Promise<string>;
