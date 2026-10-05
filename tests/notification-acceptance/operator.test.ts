@@ -2,6 +2,7 @@ import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import {
   checkpointEvent,
   cleanupStages,
+  dispatchCheckpointed,
   dispatchRows,
   type FixtureManifest,
   type PreparationJournal,
@@ -40,6 +41,161 @@ const rows = [{
   target_ref: { subscriptionId: manifest.subscriptionIds[0] },
   route_payload: route,
 }];
+Deno.test("UUID equivalence covers fixture routes targets and duplicate outbox IDs", () => {
+  const m = {
+    ...manifest,
+    familyId: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
+    childId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    deviceId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    subscriptionIds: ["dddddddd-dddd-4ddd-8ddd-dddddddddddd"],
+  };
+  const r = {
+    ...route,
+    version: 1 as const,
+    familyId: m.familyId.toUpperCase(),
+    childId: m.childId.toUpperCase(),
+    deviceId: m.deviceId.toUpperCase(),
+    resourceId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  };
+  const batch = rows.map((row, index) => ({
+    ...row,
+    id: index
+      ? "aaaaaaab-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    event_key: `desired-state:${m.deviceId}:2`,
+    route_payload: r,
+    target_ref: index
+      ? { subscriptionId: m.subscriptionIds[0].toUpperCase() }
+      : { deviceId: m.deviceId.toUpperCase() },
+  }));
+  const accepted = validateDispatchRows(m, batch);
+  assertEquals(accepted.length, 2);
+  assertEquals(accepted[0].route, r);
+  assertThrows(() =>
+    validateDispatchRows(m, [batch[0], {
+      ...batch[1],
+      id: batch[0].id.toUpperCase(),
+    }])
+  );
+  assertThrows(() =>
+    validateManifest({
+      ...m,
+      subscriptionIds: [
+        m.subscriptionIds[0],
+        m.subscriptionIds[0].toUpperCase(),
+      ],
+    })
+  );
+});
+Deno.test("checkpointed dispatch preserves unrelated legacy history and refuses unsafe evidence before sending", async () => {
+  const older = { ...manifest, expectedDesiredStateVersion: 1 };
+  const history = checkpointEvent(
+    older,
+    validateDispatchRows(
+      older,
+      rows.map((row) => ({
+        ...row,
+        event_key: `desired-state:${manifest.deviceId}:1`,
+        route_payload: {
+          ...route,
+          resourceId: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
+        },
+      })),
+    ),
+    [],
+  );
+  let calls = 0, saves = 0;
+  const send = async () => {
+    calls++;
+    return { status: "sent" as const };
+  };
+  const result = await dispatchCheckpointed(manifest, rows, "worker-input", {
+    load: async () => history,
+    save: async () => {
+      saves++;
+    },
+    send,
+  });
+  assertEquals(calls, 2);
+  assertEquals(saves, 0);
+  assertEquals(result.eventMapping, null);
+  assertEquals(result.outcomes.map((outcome) => outcome.status), [
+    "sent",
+    "sent",
+  ]);
+  const sameEvent = checkpointEvent(
+    manifest,
+    validateDispatchRows(
+      manifest,
+      rows.map((row) => ({
+        ...row,
+        route_payload: {
+          ...route,
+          resourceId: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
+        },
+      })),
+    ),
+    [],
+  );
+  for (const input of [null, [{ ...history[0], recipients: [] }], sameEvent]) {
+    calls = 0;
+    await assertRejects(() =>
+      dispatchCheckpointed(manifest, rows, "worker-input", {
+        load: async () => input,
+        save: async () => {},
+        send,
+      })
+    );
+    assertEquals(calls, 0);
+  }
+  calls = 0;
+  await assertRejects(() =>
+    dispatchCheckpointed(manifest, rows, "worker-input", {
+      load: async () => {
+        throw Error("unreadable history");
+      },
+      save: async () => {},
+      send,
+    })
+  );
+  assertEquals(calls, 0);
+  const identified = rows.map((row) => ({
+    ...row,
+    route_payload: {
+      ...route,
+      resourceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    },
+  }));
+  await assertRejects(() =>
+    dispatchCheckpointed(manifest, identified, "worker-input", {
+      load: async () => history,
+      save: async () => {
+        throw Error("checkpoint failed");
+      },
+      send,
+    })
+  );
+  assertEquals(calls, 0);
+  const sequence: string[] = [];
+  const sent = await dispatchCheckpointed(
+    manifest,
+    identified,
+    "worker-input",
+    {
+      load: async () => history,
+      save: async (saved) => {
+        sequence.push("save");
+        assertEquals(saved.length, 2);
+      },
+      send: async () => {
+        sequence.push("send");
+        return { status: "sent" };
+      },
+    },
+  );
+  assertEquals(sequence, ["save", "send", "send"]);
+  assertEquals(sent.eventMapping?.desiredStateVersion, 2);
+});
 Deno.test("identified dispatch shares one UUID and rejects mixed or malformed identity before sending", async () => {
   const resourceId = "abcdefab-abcd-4abc-8abc-abcdefabcdef";
   const identified = rows.map((row) => ({

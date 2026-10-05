@@ -16,7 +16,11 @@ function id(value: unknown): string {
   if (typeof value !== "string" || !uuid.test(value)) {
     throw Error("Invalid fixture identifier");
   }
-  return value;
+  return value.toLowerCase();
+}
+function sameId(value: unknown, expected: string): boolean {
+  return typeof value === "string" && uuid.test(value) &&
+    value.toLowerCase() === expected.toLowerCase();
 }
 export type FixtureManifest = {
   runId: string;
@@ -78,7 +82,7 @@ export function checkpointEvent(
   existing: EventMapping[],
 ): EventMapping[] {
   const m = validateManifest(manifest);
-  if (!Array.isArray(existing)) throw Error("Invalid event checkpoints");
+  existing = validateHistory(m, existing);
   const validated = validateDispatchRows(m, rawRows(rows));
   if (!validated[0].route.resourceId) {
     throw Error("Legacy event cannot be checkpointed");
@@ -93,6 +97,24 @@ export function checkpointEvent(
       targetRef,
     })),
   };
+  for (const old of existing) {
+    if (old.desiredStateVersion === next.desiredStateVersion) {
+      if (canonical(old) !== canonical(next)) {
+        throw Error("Conflicting event checkpoint");
+      }
+    } else if (sameId(old.route.resourceId, next.route.resourceId!)) {
+      throw Error("Reused event identity");
+    }
+  }
+  return existing.some((old) =>
+      old.desiredStateVersion === next.desiredStateVersion
+    )
+    ? existing
+    : [...existing, next];
+}
+function validateHistory(m: FixtureManifest, input: unknown): EventMapping[] {
+  if (!Array.isArray(input)) throw Error("Invalid event checkpoints");
+  const existing = input as EventMapping[];
   const versions = new Set<number>(), resources = new Set<string>();
   for (const old of existing) {
     const record = object(old);
@@ -122,17 +144,8 @@ export function checkpointEvent(
     }
     versions.add(old.desiredStateVersion);
     resources.add(resource);
-    if (old.desiredStateVersion === next.desiredStateVersion) {
-      if (canonical(old) !== canonical(next)) {
-        throw Error("Conflicting event checkpoint");
-      }
-    } else if (resource === next.route.resourceId!.toLowerCase()) {
-      throw Error("Reused event identity");
-    }
   }
-  return versions.has(next.desiredStateVersion)
-    ? existing
-    : [...existing, next];
+  return existing;
 }
 function canonical(value: unknown): string {
   if (typeof value === "string") {
@@ -207,18 +220,21 @@ export function validateDispatchRows(
       seen.has(rowId) || r.event_key !== eventKey || !route ||
       Object.keys(route).length !== (route.resourceId ? 6 : 5) ||
       route.kind !== "device.state.changed" ||
-      route.familyId !== m.familyId || route.childId !== m.childId ||
-      route.deviceId !== m.deviceId ||
+      !sameId(route.familyId, m.familyId) ||
+      !sameId(route.childId, m.childId) ||
+      !sameId(route.deviceId, m.deviceId!) ||
       Object.keys(target).length !== 1
     ) throw Error("Foreign or malformed outbox row");
     seen.add(rowId);
     let targetRef: Record<string, string>;
-    if (r.transport === "fcm" && target.deviceId === deviceId) {
+    if (r.transport === "fcm" && sameId(target.deviceId, deviceId)) {
       targetRef = { deviceId };
     } else if (
       r.transport === "web_push" && typeof target.subscriptionId === "string" &&
-      m.subscriptionIds.includes(target.subscriptionId)
-    ) targetRef = { subscriptionId: target.subscriptionId };
+      m.subscriptionIds.some((subscription) =>
+        sameId(target.subscriptionId, subscription)
+      )
+    ) targetRef = { subscriptionId: id(target.subscriptionId) };
     else throw Error("Foreign recipient target");
     const targetKey = `${r.transport}:${Object.values(targetRef)[0]}`;
     if (targets.has(targetKey)) throw Error("Duplicate recipient intent");
@@ -270,6 +286,42 @@ export async function dispatchRows(
     }
   }
   return outcomes;
+}
+export async function dispatchCheckpointed(
+  manifest: FixtureManifest,
+  rows: unknown,
+  workerKey: string,
+  deps: {
+    load(): Promise<unknown>;
+    save(mappings: EventMapping[]): Promise<void>;
+    send(id: string, key: string): Promise<DeliveryOutcome>;
+  },
+): Promise<
+  {
+    outcomes: Awaited<ReturnType<typeof dispatchRows>>;
+    eventMapping: EventMapping | null;
+  }
+> {
+  const m = validateManifest(manifest);
+  const validated = validateDispatchRows(m, rows);
+  let mappings = validateHistory(m, await deps.load());
+  if (validated[0].route.resourceId) {
+    mappings = checkpointEvent(m, validated, mappings);
+    await deps.save(mappings);
+  } else if (
+    mappings.some((record) =>
+      record.desiredStateVersion === m.expectedDesiredStateVersion
+    )
+  ) {
+    throw Error("Legacy event conflicts with identified checkpoint");
+  }
+  return {
+    outcomes: await dispatchRows(m, rows, workerKey, deps.send),
+    eventMapping:
+      mappings.find((record) =>
+        record.desiredStateVersion === m.expectedDesiredStateVersion
+      ) ?? null,
+  };
 }
 export function readiness(input: Record<string, unknown>) {
   const required = [
@@ -489,8 +541,10 @@ export function correlateReceipts(
       Object.keys(value).some((key) =>
         key !== "route" && key !== "receivedAt"
       ) || !route || Object.keys(route).length !== 6 ||
-      route.kind !== "device.state.changed" || route.familyId !== m.familyId ||
-      route.childId !== m.childId || route.deviceId !== m.deviceId ||
+      route.kind !== "device.state.changed" ||
+      !sameId(route.familyId, m.familyId) ||
+      !sameId(route.childId, m.childId) ||
+      !sameId(route.deviceId, m.deviceId!) ||
       canonical(route) !== canonical(mapping.route) ||
       !Number.isFinite(time) || time < start || time > start + 120000
     ) return [];
@@ -682,47 +736,39 @@ async function main() {
   await protectDirectory();
   if (command === "dispatch") {
     const m = validateManifest(await load("manifest.json"));
-    const validated = validateDispatchRows(m, input.rows);
-    let mappings: EventMapping[];
-    try {
-      mappings = await load("event-mappings.json");
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
-      mappings = [];
-    }
-    if (validated[0].route.resourceId) {
-      mappings = checkpointEvent(m, validated, mappings);
-      await save("event-mappings.json", mappings);
-    } else {
-      // Even legacy dispatch must refuse malformed existing evidence.
-      if (!Array.isArray(mappings) || mappings.length) {
-        throw Error("Legacy dispatch cannot reuse identified checkpoints");
-      }
-    }
-    const outcomes = await dispatchRows(
+    const { outcomes, eventMapping } = await dispatchCheckpointed(
       m,
       input.rows,
       typeof input.workerKey === "string" ? input.workerKey : "",
-      async (outboxId, key) => {
-        const response = await fetch(
-          `${developmentUrl}/functions/v1/dispatch-outbox`,
-          {
-            method: "POST",
-            headers: { apikey: key, "content-type": "application/json" },
-            body: JSON.stringify({ outboxId }),
-            signal: AbortSignal.timeout(20000),
-          },
-        );
-        if (!response.ok) throw Error("Worker request failed");
-        return await response.json();
+      {
+        load: async () => {
+          try {
+            return await load("event-mappings.json");
+          } catch (error) {
+            if (!(error instanceof Deno.errors.NotFound)) throw error;
+            return [];
+          }
+        },
+        save: (mappings) => save("event-mappings.json", mappings),
+        send: async (outboxId, key) => {
+          const response = await fetch(
+            `${developmentUrl}/functions/v1/dispatch-outbox`,
+            {
+              method: "POST",
+              headers: { apikey: key, "content-type": "application/json" },
+              body: JSON.stringify({ outboxId }),
+              signal: AbortSignal.timeout(20000),
+            },
+          );
+          if (!response.ok) throw Error("Worker request failed");
+          return await response.json();
+        },
       },
     );
     await save("dispatch.json", {
       at: new Date().toISOString(),
       eventVersion: m.expectedDesiredStateVersion,
-      eventMapping: mappings.find((record) =>
-        record.desiredStateVersion === m.expectedDesiredStateVersion
-      ) ?? null,
+      eventMapping,
       outcomes,
     });
     console.log(

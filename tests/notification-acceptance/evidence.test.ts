@@ -38,6 +38,39 @@ const mapping: EventMapping = {
     targetRef: { deviceId: manifest.deviceId! },
   }],
 };
+Deno.test("UUID case-equivalent full routes still match the same trusted event", () => {
+  const m = {
+    ...manifest,
+    familyId: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
+    childId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    deviceId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  };
+  const key = `desired-state:${m.deviceId}:1`;
+  const route = {
+    ...receipt.route,
+    familyId: m.familyId,
+    childId: m.childId,
+    deviceId: m.deviceId,
+  };
+  const expected = {
+    ...mapping,
+    eventKey: key,
+    route,
+    recipients: [{
+      ...mapping.recipients[0],
+      targetRef: { deviceId: m.deviceId },
+    }],
+  };
+  for (
+    const field of ["familyId", "childId", "deviceId", "resourceId"] as const
+  ) {
+    const hint = {
+      ...receipt,
+      route: { ...route, [field]: route[field]!.toUpperCase() },
+    };
+    assertEquals(correlateReceipts(m, key, start, [hint], 0, expected), [hint]);
+  }
+});
 Deno.test("provider acceptance without receipt stays unverified at timeout", () => {
   assertEquals(classifyDelivery({ status: "sent" }, [], 1), "unverified");
   assertEquals(classifyDelivery({ status: "sent" }, [], 120), "unverified");
