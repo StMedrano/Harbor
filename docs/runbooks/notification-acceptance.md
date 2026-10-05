@@ -46,7 +46,7 @@ Open `http://localhost:3000/`. Enter the public publishable key and existing pub
 
 `HARBOR_ALLOWED_ORIGINS` must include exact `http://localhost:3000` alongside the existing Vercel origin, preserving list syntax/values. Secret-name inventory cannot verify its value. Verify matching OPTIONS allow-origin before registration.
 
-Live browser registration against development was verified. No real recipient receipt has been verified.
+Live browser registration, exact-event receipts and removal against development were verified on 2026-10-05; see the evidence summary below.
 
 ## Android recipient
 
@@ -88,7 +88,7 @@ Private-row deletion stays in connected SQL. Delete only outbox rows matching ex
 
 Any failed stage yields `complete: false`; local cleanup evidence retains failures and conservative remaining IDs. Retain journal/manifest and reconcile database/Auth state through trusted access. Retries handle absent deleted Auth/family records; uncertain API results or an orphan family require manual exact-run recovery. Keep credentials while recovery remains pending, then delete the earlier protected parent handoff and local receipts after successful cleanup.
 
-Remaining live prerequisites: matching Firebase client config, a Google Play-capable Android recipient and secure worker-key input. Combined receipts, re-dispatch, browser removal and revoked-device denial remain unverified. No production deployment or roadmap completion is claimed.
+The live prerequisites were supplied and the development lifecycle was verified on 2026-10-05. No production deployment or roadmap completion is claimed.
 
 ## Cleanup safety and evidence limits
 
@@ -129,4 +129,17 @@ Development migration `20261005014628_notification_event_correlation` was applie
 
 Security-advisor output was unchanged from the pre-migration baseline: private deny-by-default RLS information, generic anonymous-role warnings and disabled leaked-password protection. No new trigger warning appeared. Existing broader security work remains tracked separately; see [anonymous-policy advisory](https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins) and [password protection guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
 
-Live acceptance is still blocked: ignored Android `app/google-services.json` and `acceptance.properties` are absent, this workstation has no `adb`, and secure worker-key input is unavailable in the process. A matching Google Play-capable recipient remains required. No real notification receipt, foreground/background transport delivery, redispatch observation, removal/revocation observation or final fixture cleanup is newly claimed. Keep the protected handoff and recovery ledger; never paste server credentials into chat. Issue #1 stays open.
+### Live lifecycle evidence, 2026-10-05
+
+Verified implementation revision: `188c461b147ea8c460c48e084aa69a72c68364b0`; required foundation, browser/operator and Android gates passed in [CI 37339224932](https://github.com/StMedrano/Harbor/actions/runs/37339224932). The full Windows toolkit passed 41 tests, with one Unix-only test ignored. Directory and retained-file protection regressions failed before their targeted fixes and passed afterward; focused reviews found no remaining Critical/Important issues.
+
+The installed development APK used matching Firebase configuration, real Android Keystore proof and an actual phone recipient. Android Studio and its SDK are installed on the workstation. Phone model/Android version have been requested from the operator and are not yet recorded; browser evidence used the Codex in-app browser, whose version was not recorded. These observations do not establish an OEM/browser support matrix.
+
+- Pairing and backend FCM registration succeeded; signed sync retrieved desired-state version 2.
+- First and second serialized state events each produced independently recorded `sent` provider outcomes and actual Android/browser receipts. Full routes, distinct event UUIDs, prior-receipt baselines and the 120-second window were checked with the operator correlator. The second phone send used user-confirmed background mode.
+- Same-event redispatch returned `no_op` for both transports. Trusted persistence retained `sent` status and unchanged event/recipient identities. Original provider evidence was preserved separately; `no_op` was not treated as receipt proof.
+- Browser removal reported backend removal and local unsubscribe; a filtered backend check showed zero active registrations. The third change produced only an FCM intent, with provider acceptance and an exact matching phone receipt verified separately.
+- Fresh-MFA revocation succeeded. The user independently confirmed signed sync and signed FCM registration both returned HTTP 403 `DEVICE_REVOKED` while the binding and Auth account still existed.
+- Finalization returned `complete: true`, with no failed stages. Independent checks found zero fixture family, child, device, security binding, FCM registration, Auth accounts, subscriptions and outbox rows. Obsolete local test credential handoffs were removed; verification records were retained. Phone enrollment reset/local receipt clearing remains a user action.
+
+Delayed-duplicate exclusion is covered by automated correlation tests; no delayed-duplicate injection experiment was performed on the live phone. Email callbacks, stale-MFA timing, broader advisor/security review and production/OEM gates remain separate foundation/roadmap work. No main merge or production deployment occurred. Issue #1 stays open; the hourly automation remains paused.

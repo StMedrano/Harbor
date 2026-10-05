@@ -127,14 +127,15 @@ Existing foundation CI run `37235885153` passed on the same source revision.
 The initial intermittent owner-join rejection has not reproduced in the next
 three runs; retain that observation for investigation if it returns.
 
-Actual FCM/Web Push delivery and email callback acceptance remain pending.
-The development database currently has zero FCM registrations and zero active
-Web Push subscriptions, so there are no real delivery targets to verify. Native
-Android and Parent PWA clients are not implemented in this foundation checkout.
-Notification acceptance needs a development Android FCM test recipient and a
-browser service worker/PushSubscription created with this environment's VAPID
-public key and explicit user notification permission. Do not substitute fake
-tokens or synthetic subscription keys and call provider delivery verified.
+Actual FCM/Web Push delivery was verified on 2026-10-05 using the approved
+development notification acceptance toolkit. Exact-event foreground/background
+phone and browser receipts, redispatch, browser removal, phone-only delivery,
+signed revocation denials and exact-fixture cleanup are recorded in
+[notification acceptance](notification-acceptance.md). Zero fixture registrations
+after cleanup are expected and do not mean live delivery was skipped.
+The toolkit is not the production Parent Android, Child Android or Parent PWA.
+Email callback acceptance and stale-MFA timing remain separate pending gates;
+do not declare the whole backend foundation complete from notification evidence.
 
 ## Daily local workflow
 
