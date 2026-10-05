@@ -190,6 +190,140 @@ export type PreparationJournal = {
   familyId?: string;
   childId?: string;
 };
+export function discoverCleanupFixture(
+  manifest: FixtureManifest,
+  input: unknown,
+): FixtureManifest {
+  const m = validateManifest(manifest), e = object(input);
+  if (
+    e.projectRef !== projectRef || e.runId !== m.runId ||
+    e.familyId !== m.familyId || e.childId !== m.childId ||
+    e.complete !== true || !Array.isArray(e.devices) || e.devices.length > 1
+  ) throw Error("Complete trusted fixture binding discovery required");
+  if (e.devices.length === 0) {
+    if (m.deviceId || m.childAuthUserId) {
+      throw Error(
+        "Recorded binding requires checkpointed discovery during recovery",
+      );
+    }
+    return m;
+  }
+  const binding = object(e.devices[0]),
+    deviceId = id(binding.deviceId),
+    authUserId = id(binding.authUserId);
+  if (
+    (m.deviceId && m.deviceId !== deviceId) ||
+    (m.childAuthUserId && m.childAuthUserId !== authUserId)
+  ) throw Error("Foreign cleanup binding");
+  return { ...m, deviceId, childAuthUserId: authUserId };
+}
+export async function rollbackPreparation(
+  journal: PreparationJournal,
+  deps: {
+    family(id: string): Promise<void>;
+    parent(id: string): Promise<void>;
+  },
+) {
+  if (journal.projectRef !== projectRef) throw Error("Wrong recovery project");
+  id(journal.runId);
+  const failed: string[] = [];
+  if (!journal.parentUserId || !journal.familyId) {
+    return { complete: false, failed: ["exact-run-family-recovery"], journal };
+  }
+  try {
+    await deps.family(id(journal.familyId));
+  } catch {
+    failed.push("family");
+  }
+  // Retain parent/idempotency mapping if exact-family removal is not confirmed.
+  if (!failed.length) {
+    try {
+      await deps.parent(id(journal.parentUserId));
+    } catch {
+      failed.push("parent-auth");
+    }
+  }
+  return { complete: failed.length === 0, failed, journal };
+}
+export async function cleanupPhase<T>(
+  manifest: FixtureManifest,
+  phase: unknown,
+  evidence: unknown,
+  deps: { revoke(): Promise<void>; finalize(): Promise<T> },
+): Promise<T | { revoked: true; complete: false }> {
+  const m = validateManifest(manifest);
+  if (phase === "revoke") {
+    await deps.revoke();
+    return { revoked: true, complete: false };
+  }
+  if (phase !== "finalize") {
+    throw Error("Choose cleanup revoke or finalize phase");
+  }
+  if (m.deviceId) {
+    const e = object(evidence),
+      sync = object(e.sync),
+      registration = object(e.registration);
+    if (
+      e.deviceId !== m.deviceId || sync.status !== 403 ||
+      sync.code !== "DEVICE_REVOKED" || registration.status !== 403 ||
+      registration.code !== "DEVICE_REVOKED"
+    ) {
+      throw Error(
+        "Both signed revoked-device denials required before deleting identity",
+      );
+    }
+  }
+  return await deps.finalize();
+}
+export function assertRestrictedAcl(input: unknown) {
+  const acl = object(input);
+  if (
+    typeof acl.current !== "string" || acl.owner !== acl.current ||
+    acl.protected !== true || !Array.isArray(acl.readers) ||
+    !acl.readers.includes(acl.current) ||
+    acl.readers.some((reader) =>
+      reader !== acl.current && reader !== "S-1-5-18"
+    )
+  ) throw Error("Sensitive file ACL must allow only operator and SYSTEM");
+}
+export async function finalizeCleanup(
+  manifest: FixtureManifest,
+  stages: { name: string; run(): Promise<void> }[],
+) {
+  const names = [
+    "browser",
+    "private-rows",
+    "family",
+    "child-auth",
+    "parent-auth",
+  ];
+  if (
+    stages.length !== names.length ||
+    stages.some((stage, index) => stage.name !== names[index])
+  ) throw Error("Incomplete cleanup stages");
+  let browser = false, privateRows = false, domainRemoved = false;
+  return await cleanupStages(
+    manifest,
+    stages.map((stage) => ({
+      name: stage.name,
+      run: async () => {
+        if (stage.name === "family" && (!browser || !privateRows)) {
+          throw Error(
+            "Retain identities until browser and private rows are cleaned",
+          );
+        }
+        if (
+          (stage.name === "child-auth" || stage.name === "parent-auth") &&
+          !domainRemoved
+        ) throw Error("Retain Auth recovery until domain removal succeeds");
+        await stage.run();
+        if (stage.name === "browser") browser = true;
+        if (stage.name === "private-rows") privateRows = true;
+        if (stage.name === "family") domainRemoved = true;
+      },
+    })),
+  );
+}
 export type Receipt = { route: NotificationRouteRefV1; receivedAt: string };
 export function correlateReceipts(
   manifest: FixtureManifest,
@@ -207,6 +341,8 @@ export function correlateReceipts(
     !Number.isSafeInteger(baselineCount) || baselineCount < 0 ||
     baselineCount > input.length
   ) throw Error("Invalid serialized observation boundary");
+  // V1 routes carry no event/version identity. Later identical routes cannot distinguish delayed duplicates.
+  if (m.expectedDesiredStateVersion !== 1) return [];
   return input.slice(baselineCount).flatMap((raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
     const value = raw as Record<string, unknown>,
@@ -238,7 +374,7 @@ export function classifyDelivery(
   if (provider.status === "retry" || provider.status === "dead_letter") {
     return "provider_failure";
   }
-  if (provider.status !== "sent" && provider.status !== "no_op") {
+  if (provider.status !== "sent") {
     return "unverified";
   }
   return matchingReceipts.length ? "received" : "unverified";
@@ -305,7 +441,7 @@ async function protectDirectory() {
   if (Deno.build.os === "windows") {
     // Fixed script, path passed as a positional argument; no input interpolation.
     const script =
-      `$ErrorActionPreference='Stop'; $p=$args[0]; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; Set-Acl -LiteralPath $p -AclObject $acl; $check=Get-Acl -LiteralPath $p; if(!$check.AreAccessRulesProtected){throw 'Protection failed'}; foreach($r in $check.Access){$actual=$r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; if($actual -ne $sid.Value -and $actual -ne 'S-1-5-18'){throw 'Unexpected access'}}`;
+      `$env:PSModulePath=Join-Path $PSHOME 'Modules'; $ErrorActionPreference='Stop'; $p=$args[0]; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; Set-Acl -LiteralPath $p -AclObject $acl; $check=Get-Acl -LiteralPath $p; if(!$check.AreAccessRulesProtected){throw 'Protection failed'}; foreach($r in $check.Access){$actual=$r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; if($actual -ne $sid.Value -and $actual -ne 'S-1-5-18'){throw 'Unexpected access'}}`;
     // A script file avoids PowerShell -Command argument reparsing.
     const path = await Deno.makeTempFile({ suffix: ".ps1" });
     try {
@@ -334,13 +470,54 @@ async function protectDirectory() {
     }
   }
 }
-async function save(name: string, value: unknown) {
-  const file = localFile(name);
+export async function protectFile(file: URL) {
   try {
     if ((await Deno.lstat(file)).isSymlink) throw Error("Unsafe operator file");
   } catch (e) {
     if (!(e instanceof Deno.errors.NotFound)) throw e;
+    const created = await Deno.open(file, {
+      createNew: true,
+      write: true,
+      mode: 0o600,
+    });
+    created.close();
   }
+  if (Deno.build.os !== "windows") {
+    await Deno.chmod(file, 0o600);
+    return;
+  }
+  const script =
+    `$env:PSModulePath=Join-Path $PSHOME 'Modules'; $ErrorActionPreference='Stop'; $p=$args[0]; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=[Security.AccessControl.FileSecurity]::new(); $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($s in @($sid,[Security.Principal.SecurityIdentifier]::new('S-1-5-18'))){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($s,'FullControl','Allow'))}; Set-Acl -LiteralPath $p -AclObject $acl; $check=Get-Acl -LiteralPath $p; @{owner=$check.Owner.Translate([Security.Principal.SecurityIdentifier]).Value;current=$sid.Value;protected=$check.AreAccessRulesProtected;readers=@($check.Access|ForEach-Object {$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value})}|ConvertTo-Json -Compress`;
+  const scriptPath = await Deno.makeTempFile({ suffix: ".ps1" });
+  try {
+    // Owner is returned as an NTAccount string by Get-Acl, so request SID conversion explicitly.
+    await Deno.writeTextFile(
+      scriptPath,
+      script.replace(
+        "$check.Owner.Translate([Security.Principal.SecurityIdentifier]).Value",
+        "$check.GetOwner([Security.Principal.SecurityIdentifier]).Value",
+      ),
+    );
+    const result = await new Deno.Command("powershell.exe", {
+      args: [
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        scriptPath,
+        await Deno.realPath(file),
+      ],
+      stdout: "piped",
+      stderr: "null",
+    }).output();
+    if (!result.success) throw Error("Sensitive file protection failed");
+    assertRestrictedAcl(JSON.parse(new TextDecoder().decode(result.stdout)));
+  } finally {
+    await Deno.remove(scriptPath);
+  }
+}
+async function save(name: string, value: unknown) {
+  const file = localFile(name);
+  await protectFile(file); // Existing explicit ACEs must be removed before writing secrets.
   await Deno.writeTextFile(file, JSON.stringify(value, null, 2), {
     mode: 0o600,
   });
@@ -350,6 +527,7 @@ async function load(name: string) {
   if ((await Deno.lstat(localFile(name))).isSymlink) {
     throw Error("Unsafe operator file");
   }
+  await protectFile(localFile(name));
   return JSON.parse(await Deno.readTextFile(localFile(name)));
 }
 async function main() {
@@ -549,35 +727,23 @@ async function main() {
           }
         },
         rollback: async (journal) => {
-          const failed: string[] = [];
-          if (!journal.parentUserId) failed.push("uncertain-parent-creation");
-          // Parent marker was verified before assignment. Recover an idempotent family even if its HTTP reply was lost.
-          const families = journal.parentUserId
-            ? await admin.from("family_members").select("family_id").eq(
-              "user_id",
-              journal.parentUserId,
-            )
-            : { data: [], error: null };
-          if (families.error) failed.push("recover-family");
-          for (const family of families.data ?? []) {
-            const removed = await admin.from("families").delete().eq(
-              "id",
-              id(family.family_id),
-            );
-            if (removed.error) failed.push("family");
-          }
-          if (journal.parentUserId) {
-            const removed = await admin.auth.admin.deleteUser(
-              journal.parentUserId,
-            );
-            if (removed.error) failed.push("parent-auth");
-          }
-          await save("cleanup.json", {
-            complete: failed.length === 0,
-            failed,
-            journal,
+          const result = await rollbackPreparation(journal, {
+            family: async (familyId) => {
+              ok(
+                (await admin.from("families").delete().eq("id", familyId))
+                  .error,
+              );
+            },
+            parent: async (userId) => {
+              ok((await admin.auth.admin.deleteUser(userId)).error);
+            },
           });
-          if (failed.length) throw Error("Rollback incomplete");
+          await save("cleanup.json", result);
+          if (!result.complete) {
+            throw Error(
+              "Rollback incomplete; trusted exact parent/run family lookup required",
+            );
+          }
           await Deno.remove(localFile("handoff.json"));
         },
       });
@@ -592,7 +758,12 @@ async function main() {
       );
       return;
     }
-    const m = validateManifest(await load("manifest.json"));
+    let m = validateManifest(await load("manifest.json"));
+    if (command === "cleanup") {
+      m = discoverCleanupFixture(m, input.fixtureDiscovery);
+      await save("manifest.json", m); // Checkpoint every discovered binding before domain deletion.
+      await save("discovery.json", input.fixtureDiscovery);
+    }
     const handoff = object(await load("handoff.json"));
     const parentRecord = await admin.auth.admin.getUserById(m.parentUserId);
     if (parentRecord.error && parentRecord.error.status !== 404) {
@@ -697,7 +868,7 @@ async function main() {
       );
       return;
     }
-    const result = await cleanupStages(m, [
+    const stages = [
       {
         name: "browser",
         run: async () => {
@@ -810,7 +981,35 @@ async function main() {
           ok(deleted.error);
         },
       },
-    ]);
+    ];
+    const result = await cleanupPhase(
+      m,
+      input.phase ?? "revoke",
+      input.revocationEvidence,
+      {
+        revoke: stages.find((stage) => stage.name === "revoke")!.run,
+        finalize: () =>
+          finalizeCleanup(m, stages.filter((stage) => stage.name !== "revoke")),
+      },
+    );
+    if ("revoked" in result) {
+      await save("revocation.json", {
+        deviceId: m.deviceId,
+        revoked: true,
+        complete: false,
+      });
+      console.log(
+        JSON.stringify({
+          command,
+          phase: "revoke",
+          revoked: true,
+          complete: false,
+          next:
+            "Verify signed sync and registration both return 403 DEVICE_REVOKED before finalization",
+        }),
+      );
+      return;
+    }
     await save("cleanup.json", result);
     if (result.complete) await Deno.remove(localFile("handoff.json"));
     console.log(

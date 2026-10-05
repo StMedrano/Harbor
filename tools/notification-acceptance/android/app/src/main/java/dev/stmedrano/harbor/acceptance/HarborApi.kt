@@ -5,6 +5,7 @@ import java.util.Base64
 
 data class HarborRequest(val url: String, val method: String, val headers: Map<String, String>, val body: ByteArray)
 data class HarborReply(val status: Int, val body: String)
+class HarborFailure(val status: Int, val code: String) : IllegalStateException("HTTP $status $code")
 
 class HarborApi(
     private val url: String,
@@ -15,6 +16,10 @@ class HarborApi(
     private val nonce: () -> String,
     private val sign: (ByteArray) -> ByteArray
 ) {
+    private fun failure(reply: HarborReply): Nothing {
+        val code = try { JSONObject(reply.body).optString("code") } catch (_: Exception) { "" }
+        throw HarborFailure(reply.status, if (reply.status == 403 && code == "DEVICE_REVOKED") "DEVICE_REVOKED" else "REQUEST_FAILED")
+    }
     init {
         require(url == "https://bfvybxkjxilntjgndsrm.supabase.co") { "Only the approved development backend is allowed" }
         require(publishableKey.matches(Regex("sb_publishable_[A-Za-z0-9_-]+"))) { "Public publishable key required" }
@@ -63,11 +68,11 @@ class HarborApi(
     fun registerFcm(binding: DeviceBinding, token: String) {
         require(token.isNotBlank()) { "FCM token required" }
         val reply = request("/functions/v1/register-fcm", JSONObject().put("token", token), identity.accessToken(), binding)
-        check(reply.status == 204) { "FCM registration unconfirmed; retry" }
+        if (reply.status != 204) failure(reply)
     }
     fun sync(binding: DeviceBinding): String {
         val reply = request("/functions/v1/device-sync", JSONObject(), identity.accessToken(), binding)
-        check(reply.status == 200) { "Signed sync failed; retry or re-enroll" }
+        if (reply.status != 200) failure(reply)
         return reply.body
     }
 }

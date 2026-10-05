@@ -37,6 +37,7 @@ class AndroidDeviceKey {
 
 class AndroidChildStore(context: Context) {
     private val preferences = context.getSharedPreferences("harbor.acceptance.child", Context.MODE_PRIVATE)
+    fun clear() { check(preferences.edit().clear().commit()) { "Enrollment reset failed" } }
     fun saveSession(session: ChildSession) {
         require(session.anonymous)
         val json = JSONObject().put("accessToken", session.accessToken).put("refreshToken", session.refreshToken)

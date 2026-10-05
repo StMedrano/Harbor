@@ -11,10 +11,10 @@ const manifest: FixtureManifest = {
   familyId: "33333333-3333-4333-8333-333333333333",
   childId: "44444444-4444-4444-8444-444444444444",
   deviceId: "55555555-5555-4555-8555-555555555555",
-  expectedDesiredStateVersion: 2,
+  expectedDesiredStateVersion: 1,
   subscriptionIds: [],
 };
-const eventKey = `desired-state:${manifest.deviceId}:2`,
+const eventKey = `desired-state:${manifest.deviceId}:1`,
   start = "2026-10-04T12:00:00.000Z";
 const receipt = {
   route: {
@@ -52,7 +52,7 @@ Deno.test("foreign, old, late and baselined hints cannot satisfy current observa
   assertThrows(() =>
     correlateReceipts(
       manifest,
-      `desired-state:${manifest.deviceId}:1`,
+      `desired-state:${manifest.deviceId}:0`,
       start,
       input,
       0,
@@ -66,7 +66,7 @@ Deno.test("valid receipt passes while duplicate hints represent one authoritativ
   ], 0);
   assertEquals(matched.length, 2);
   assertEquals(classifyDelivery({ status: "sent" }, matched, 2), "received");
-  assertEquals(manifest.expectedDesiredStateVersion, 2);
+  assertEquals(manifest.expectedDesiredStateVersion, 1);
 });
 Deno.test("normalization accepts Android epoch time and rejects sensitive evidence", () => {
   assertEquals(
@@ -81,6 +81,25 @@ Deno.test("normalization accepts Android epoch time and rejects sensitive eviden
       ...receipt,
       route: { ...receipt.route, password: "private" },
     }], 0),
+    [],
+  );
+});
+
+Deno.test("no-op cannot establish provider acceptance from a route hint", () => {
+  assertEquals(
+    classifyDelivery({ status: "no_op" }, [receipt], 1),
+    "unverified",
+  );
+});
+Deno.test("delayed duplicate from an earlier version cannot prove the later version", () => {
+  assertEquals(
+    correlateReceipts(
+      { ...manifest, expectedDesiredStateVersion: 2 },
+      `desired-state:${manifest.deviceId}:2`,
+      start,
+      [receipt],
+      0,
+    ),
     [],
   );
 });

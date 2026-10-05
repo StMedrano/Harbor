@@ -8,7 +8,7 @@ class HarborApiTest {
     @Test fun revokedDenialIsSafeAndDistinctForBothSignedOperations() {
         val api = HarborApi("https://bfvybxkjxilntjgndsrm.supabase.co", "sb_publishable_fixture", identity(), {HarborReply(403,"{\"code\":\"DEVICE_REVOKED\",\"message\":\"private\"}")}, {100L}, {"nonce"}, {ByteArray(64)})
         for (operation in listOf<() -> Unit>({api.sync(binding); Unit}, {api.registerFcm(binding,"token")})) {
-            val failure = assertThrows(HarborFailure::class.java, operation)
+            val failure = assertThrows(HarborFailure::class.java) { operation() }
             assertEquals(403,failure.status);assertEquals("DEVICE_REVOKED",failure.code)
             assertFalse(failure.message.orEmpty().contains("private"))
         }

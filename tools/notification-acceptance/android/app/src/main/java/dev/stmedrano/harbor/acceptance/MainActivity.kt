@@ -2,6 +2,7 @@ package dev.stmedrano.harbor.acceptance
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
@@ -35,7 +36,7 @@ class MainActivity : Activity() {
         if (BuildConfig.CI_FIXTURE) { render(); return }
         buttons.forEach { it.isEnabled = false }
         executor.execute {
-            val result = try { work() } catch (_: Exception) { "Request failed. Check configuration/session and retry; re-enroll with a fresh pairing code if needed. Registration remains unconfirmed." }
+            val result = try { work() } catch (failure: HarborFailure) { failure.message ?: "Request failed" } catch (_: Exception) { "Request failed. Check configuration/session and retry. After operator cleanup, use Reset enrollment before pairing again." }
             runOnUiThread { if (!isDestroyed) { render(); status.append("\n$result"); buttons.forEach { it.isEnabled = true } } }
         }
     }
@@ -77,6 +78,17 @@ class MainActivity : Activity() {
         }
         button("Verify signed sync") {
             network { val result = JSONObject(runtime().sync()); "Signed sync verified. Desired-state version: ${result.getLong("desiredStateVersion")}." }
+        }
+        button("Verify signed FCM denial") {
+            network {runtime().verifySignedRegistration(); "HTTP 204. Registration accepted; revoked-device denial is not verified."}
+        }
+        button("Reset enrollment after cleanup") {
+            if (!BuildConfig.CI_FIXTURE) AlertDialog.Builder(this)
+                .setTitle("Reset local enrollment?")
+                .setMessage("Checkpoint the device and anonymous Auth binding with the operator and complete its cleanup first. This clears the old session, binding and registration confirmation. Receipt evidence stays available.")
+                .setNegativeButton("Cancel",null)
+                .setPositiveButton("Cleanup done; reset") { _,_ -> network {runtime().resetEnrollment(); "Enrollment reset. Enter a fresh pairing code to create a new anonymous identity."} }
+                .show()
         }
         button("Refresh receipt evidence") { render() }
         evidence = TextView(this); layout.addView(evidence)

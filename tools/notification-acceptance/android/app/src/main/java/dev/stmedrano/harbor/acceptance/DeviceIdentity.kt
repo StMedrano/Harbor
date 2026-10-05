@@ -9,6 +9,11 @@ class DeviceIdentity(
     private val save: (ChildSession) -> Unit
 ) {
     private var session: ChildSession? = null
+    @Synchronized fun reset(clearPersisted: () -> Unit) {
+        clearPersisted()
+        session = null
+        binding = null
+    }
     var binding: DeviceBinding? = null
         private set
 

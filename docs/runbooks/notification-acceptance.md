@@ -84,3 +84,34 @@ Private-row deletion stays in connected SQL. Delete only outbox rows matching ex
 Any failed stage yields `complete: false`; local cleanup evidence retains failures and conservative remaining IDs. Retain journal/manifest and reconcile database/Auth state through trusted access. Retries handle absent deleted Auth/family records; uncertain API results or an orphan family require manual exact-run recovery. Keep credentials while recovery remains pending, then delete the earlier protected parent handoff and local receipts after successful cleanup.
 
 Remaining live prerequisites: matching Firebase client config, a Google Play-capable Android recipient and secure worker-key input. Combined receipts, re-dispatch, browser removal and revoked-device denial remain unverified. No production deployment or roadmap completion is claimed.
+
+## Review corrections and remaining evidence limit
+
+Cleanup is explicitly two-phase. Before either phase, enumerate **all** devices for the exact fixture family/child through connected SQL, left-joining `private.device_security`. A missing Auth binding is an unresolved recovery condition, not an empty fixture. Supply `fixtureDiscovery: {projectRef, runId, familyId, childId, complete: true, devices: [{deviceId, authUserId}]}`. This one-device toolkit refuses multiple bindings; a genuinely unclaimed fixture uses `devices: []`. The runner checkpoints discovery before any domain deletion. On retry after domain deletion, reuse the protected discovery checkpoint rather than interpreting vanished bindings as never claimed.
+
+Run `cleanup` with `phase: "revoke"` first (also the safe default). It performs fresh MFA revocation and leaves Auth/domain records intact. In Android click Verify signed sync and Verify signed FCM denial; both must display **HTTP 403 DEVICE_REVOKED** while the binding/account still exist. Network failure, 401 or generic failure is not accepted. Preserve these actual results as `revocationEvidence: {deviceId, sync: {status: 403, code: "DEVICE_REVOKED"}, registration: {status: 403, code: "DEVICE_REVOKED"}}`.
+
+After browser removal/local unsubscribe and trusted private-row deletion/zero checks, run `cleanup` with `phase: "finalize"`, the checkpointed discovery, denial evidence, databaseCleanup and browserUnsubscribed inputs. Browser/private-row failure retains domain/Auth identities. Domain deletion failure retains Auth recovery. Every stage reports its failure; complete remains false until all pass.
+
+If a family-creation response was lost, preparation retains the parent and its idempotency mapping. Recover only the exact parent/run via connected SQL:
+
+```sql
+select family_id
+from private.family_creation_requests
+where user_id = 'EXACT_PARENT_UUID'::uuid
+  and idempotency_key = 'EXACT_RUN_UUID';
+```
+
+Checkpoint the recovered family ID in the protected journal before exact-fixture recovery. Never enumerate and delete all parent memberships. Never delete the parent while this lookup/removal remains uncertain.
+
+After operator cleanup and checkpointing the old binding, use Android's Reset enrollment after cleanup action, then a fresh pairing code. It clears the unusable anonymous session, binding and registration confirmation while preserving receipt evidence. Installing with `adb install -r` alone does not clear state.
+
+Windows applies/verifies owner/SYSTEM-only permissions on each handoff/evidence file before writing, including existing files. Run the native synthetic-file check explicitly on Windows:
+
+```sh
+deno test --frozen --allow-read --allow-write --allow-run=powershell.exe tests/notification-acceptance/windows-acl.test.ts
+```
+
+Default tests omit that filesystem/process check; it was also run successfully on this Windows host. PowerShell uses its own modules directory to avoid inheriting an incompatible PowerShell 7 module path.
+
+**Correlation limitation:** existing V1 routes contain no desired-state event/version ID. A late duplicate can look identical to a new version's receipt even with serialized sends and timestamp baselines. The classifier therefore admits only the first desired-state event on a fresh fixture device; later version hints remain **unverified**. `no_op` also remains unverified unless separate trusted persisted sent evidence establishes prior provider acceptance. The current classifier does not promote no-op to receipt success. Foreground/background and browser-removal checks requiring later versions cannot be declared complete under this protocol. A supported uniquely correlatable strategy requires a separately approved design change; this toolkit adds no backend payload/schema change silently.

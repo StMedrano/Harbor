@@ -10,7 +10,8 @@ class AcceptanceRuntime private constructor(context: Context) {
     private val deviceKey = AndroidDeviceKey()
     private lateinit var backend: HarborApi
     val identity = DeviceIdentity({System.currentTimeMillis() / 1000L}, {backend.refreshSession(it)}, childStore::saveSession)
-    val registration: Registration
+    var registration: Registration
+        private set
     val receipts = ReceiptStore({value ->
         val rows = JSONArray(preferences.getString("receipts", "[]")).put(value)
         check(preferences.edit().putString("receipts", rows.toString()).commit()) { "Receipt persistence failed" }
@@ -36,6 +37,14 @@ class AcceptanceRuntime private constructor(context: Context) {
         childStore.saveBinding(binding)
     }
     fun sync(): String = backend.sync(checkNotNull(identity.binding) { "Pair first" })
+    fun verifySignedRegistration() {
+        backend.registerFcm(checkNotNull(identity.binding) { "Pair first" },checkNotNull(preferences.getString("pendingToken",null)) { "Get an FCM token first" })
+    }
+    fun resetEnrollment() {
+        identity.reset(childStore::clear)
+        registration = Registration({identity.binding},backend::registerFcm)
+        preferences.getString("pendingToken",null)?.let(registration::onToken)
+    }
     companion object {
         @Volatile private var instance: AcceptanceRuntime? = null
         @Synchronized fun get(context: Context): AcceptanceRuntime = instance ?: AcceptanceRuntime(context.applicationContext).also { instance = it }
