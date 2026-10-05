@@ -4,6 +4,13 @@ import {
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2.105.0";
 import { parsePublicConfig } from "./config.ts";
+import {
+  beginEmailFixture,
+  EmailAcceptance,
+  type EmailFixture,
+  requestEmailRecovery,
+  takeEmailCallback,
+} from "./email-auth.ts";
 import { listReceipts } from "./receipts.ts";
 import {
   enablePush,
@@ -14,6 +21,52 @@ import {
 } from "./lifecycle.ts";
 
 let client: SupabaseClient | undefined;
+// Read and scrub the callback before any client initialization or request.
+let emailCallback: ReturnType<typeof takeEmailCallback> = null;
+let invalidEmailCallback = false;
+try {
+  emailCallback = takeEmailCallback(
+    location.href,
+    (url) => history.replaceState(null, "", url),
+  );
+} catch {
+  invalidEmailCallback = true;
+}
+let emailFlow: EmailAcceptance | undefined;
+const emailStatus = document.querySelector<HTMLElement>("#email-status")!;
+const changePassword = document.querySelector<HTMLButtonElement>(
+  "#change-password",
+)!;
+const emailStorageKey = "harbor-email-acceptance";
+type EmailSetup = {
+  config: ReturnType<typeof parsePublicConfig>;
+  fixture?: EmailFixture;
+};
+function saveEmailSetup(setup: EmailSetup) {
+  // Only public configuration and fixture identity/stage survive navigation.
+  sessionStorage.setItem(emailStorageKey, JSON.stringify(setup));
+}
+function readEmailSetup(): EmailSetup {
+  const setup = JSON.parse(sessionStorage.getItem(emailStorageKey) ?? "null");
+  if (
+    !setup || !setup.fixture || typeof setup.fixture.id !== "string" ||
+    typeof setup.fixture.email !== "string" ||
+    !["signup", "confirmed", "recovery", "complete"].includes(
+      setup.fixture.phase,
+    )
+  ) throw Error("Start the email test in this browser tab.");
+  return { config: parsePublicConfig(setup.config), fixture: setup.fixture };
+}
+function emailClient(config: ReturnType<typeof parsePublicConfig>) {
+  return createClient(config.supabaseUrl, config.publishableKey, {
+    auth: {
+      persistSession: false,
+      detectSessionInUrl: false,
+      autoRefreshToken: true,
+      flowType: "implicit",
+    },
+  });
+}
 async function renderReceipts() {
   const output = document.querySelector("#receipts")!;
   try {
@@ -62,6 +115,8 @@ form.addEventListener("submit", (e) => {
   e.preventDefault();
   void action(async () => {
     deps = undefined;
+    emailFlow = undefined;
+    changePassword.hidden = true;
     if (client) await client.auth.signOut({ scope: "local" });
     client = undefined;
     const config = parsePublicConfig({
@@ -137,6 +192,134 @@ form.addEventListener("submit", (e) => {
       "Signed in for this page session. Click Enable notifications to register.";
   });
 });
+
+async function emailAction(work: () => Promise<void>) {
+  await action(async () => {
+    try {
+      await work();
+    } catch {
+      emailStatus.textContent =
+        "Email test failed or link was rejected. Confirmation/recovery remains unverified. Check the development configuration and use this same browser tab; do not share email links or passwords.";
+    }
+  });
+}
+document.querySelector("#signup")!.addEventListener("click", () => {
+  void emailAction(async () => {
+    if (
+      !input("owned-inbox").checked || !input("email").checkValidity() ||
+      !input("password").value
+    ) throw Error("Use an owned, unused test inbox and password.");
+    if (sessionStorage.getItem(emailStorageKey)) {
+      throw Error("Finish or clean up the existing fixture first.");
+    }
+    const config = parsePublicConfig({
+      supabaseUrl: input("url").value,
+      publishableKey: input("key").value,
+      vapidPublicKey: input("vapid").value,
+    });
+    saveEmailSetup({ config }); // Verify storage availability before creating an account.
+    deps = undefined;
+    emailFlow = undefined;
+    changePassword.hidden = true;
+    if (client) await client.auth.signOut({ scope: "local" });
+    client = emailClient(config);
+    const password = input("password").value;
+    input("password").value = "";
+    try {
+      const fixture = await beginEmailFixture(
+        client.auth,
+        input("email").value.trim(),
+        password,
+      );
+      saveEmailSetup({ config, fixture });
+      emailStatus.textContent =
+        "Signup request accepted. Email delivery is not yet verified. Open the confirmation link on this computer in this same tab, then return here. Keep the account for the recovery test and cleanup.";
+    } catch {
+      sessionStorage.removeItem(emailStorageKey);
+      throw Error("Signup failed.");
+    }
+  });
+});
+document.querySelector("#request-recovery")!.addEventListener("click", () => {
+  void emailAction(async () => {
+    if (!client) throw Error("Confirm and sign in first.");
+    const setup = readEmailSetup();
+    const fixture = await requestEmailRecovery(client.auth, setup.fixture!);
+    saveEmailSetup({ ...setup, fixture });
+    emailFlow = undefined;
+    changePassword.hidden = true;
+    deps = undefined;
+    await client.auth.signOut({ scope: "local" });
+    client = undefined;
+    emailStatus.textContent =
+      "Recovery request accepted; delivery remains unverified. Copy the original, unclicked Reset Password link from your email into Recovery email link below, then click Verify recovery email. Do not open the link first or share it in chat.";
+  });
+});
+document.querySelector("#verify-recovery")!.addEventListener("click", () => {
+  void emailAction(async () => {
+    const link = input("recovery-link").value.trim();
+    input("recovery-link").value = "";
+    const setup = readEmailSetup();
+    emailFlow = undefined;
+    changePassword.hidden = true;
+    deps = undefined;
+    if (client) await client.auth.signOut({ scope: "local" });
+    client = emailClient(setup.config);
+    const next = new EmailAcceptance(client.auth, setup.fixture!);
+    await next.acceptRecoveryLink(link);
+    emailFlow = next;
+    changePassword.hidden = false;
+    emailStatus.textContent =
+      "Recovery one-time token verified by the server for this exact test account. Enter and confirm your new password, then click Save new password.";
+  });
+});
+changePassword.addEventListener("click", () => {
+  void emailAction(async () => {
+    const password = input("new-password").value;
+    const confirmation = input("confirm-password").value;
+    input("new-password").value = "";
+    input("confirm-password").value = "";
+    if (!emailFlow || !password || password !== confirmation) {
+      throw Error("Enter matching new passwords after recovery.");
+    }
+    await emailFlow.changePassword(password);
+    const setup = readEmailSetup();
+    saveEmailSetup({
+      ...setup,
+      fixture: { ...setup.fixture!, phase: "complete" },
+    });
+    emailFlow = undefined;
+    changePassword.hidden = true;
+    client = undefined;
+    deps = undefined;
+    emailStatus.textContent =
+      "Password update accepted and page session signed out. Verify the old password fails and the new password signs in, then request disposable account cleanup. Recovery acceptance is not complete until those checks pass.";
+  });
+});
+if (invalidEmailCallback) {
+  emailStatus.textContent =
+    "Email link was rejected and removed from the address bar. Confirmation/recovery remains unverified.";
+}
+if (emailCallback) {
+  const callback = emailCallback;
+  emailCallback = null;
+  void emailAction(async () => {
+    const setup = readEmailSetup();
+    input("url").value = setup.config.supabaseUrl;
+    input("key").value = setup.config.publishableKey;
+    input("vapid").value = setup.config.vapidPublicKey;
+    input("email").value = setup.fixture!.email;
+    client = emailClient(setup.config);
+    const next = new EmailAcceptance(client.auth, setup.fixture!);
+    await next.accept(callback);
+    saveEmailSetup({
+      ...setup,
+      fixture: { ...setup.fixture!, phase: "confirmed" },
+    });
+    emailStatus.textContent =
+      "Email confirmation verified with the server for this exact test account. Request the recovery email next.";
+  });
+}
 document.querySelector("#enable")!.addEventListener("click", () => {
   void action(async () => {
     status.textContent = "Registration unconfirmed.";

@@ -7,13 +7,24 @@
     <main>
       <h1>Harbor development notification check</h1>
       <p>Local acceptance recipient. Sign-in lasts only for this page session. Use the temporary test parent account and public development keys.</p>
-      <form autocomplete="off">
+      <form id="acceptance-form" autocomplete="off">
 <p><label>Development URL <input name="url" type="url" required value="https://bfvybxkjxilntjgndsrm.supabase.co" size="55"></label></p>
 <p><label>Publishable key <input name="key" required size="55"></label></p>
 <p><label>Public VAPID key <input name="vapid" required size="55"></label></p>
 <p><label>Test parent email <input name="email" type="email" required autocomplete="off"></label></p>
 <p><label>Password <input name="password" type="password" required autocomplete="off"></label></p>
 <button>Sign in</button></form>
+      <h2>Email confirmation and password recovery</h2>
+      <p>Development only. Use an owned inbox with no existing development account. Open the confirmation link on this computer in this same browser tab. For recovery, copy the original, unclicked email link into Recovery email link below. Do not send links or passwords in chat. Keep this tab open until cleanup.</p>
+      <p><label><input name="owned-inbox" type="checkbox" form="acceptance-form"> I own this inbox and approve creating a disposable test account.</label></p>
+      <p><button id="signup" type="button">Create email test account</button> <button id="request-recovery" type="button">Request recovery email</button></p>
+      <p><label>Recovery email link <input name="recovery-link" type="password" autocomplete="off" form="acceptance-form" size="55"></label> <button id="verify-recovery" type="button">Verify recovery email</button></p>
+      <p><label>New password <input name="new-password" type="password" autocomplete="new-password" form="acceptance-form"></label></p>
+      <p><label>Confirm new password <input name="confirm-password" type="password" autocomplete="new-password" form="acceptance-form"></label></p>
+      <button id="change-password" type="button"
+        hidden>Save new password</button>
+      <p id="email-status"
+        role="status">Email confirmation and recovery have not been verified.</p>
       <p><button id="enable" type="button">Enable notifications</button> <button id="remove" type="button">Remove registration</button></p>
       <p id="status"
         role="status">Sign in to begin. Delivery has not been verified.</p>
