@@ -652,8 +652,8 @@ export async function protectDirectory(directory: URL = operatorRoot) {
       await Deno.remove(path);
     }
   } else {
-    await Deno.chmod(operatorRoot, 0o700);
-    if (((await Deno.stat(operatorRoot)).mode! & 0o777) !== 0o700) {
+    await Deno.chmod(directory, 0o700);
+    if (((await Deno.stat(directory)).mode! & 0o777) !== 0o700) {
       throw Error("Cannot protect operator directory");
     }
   }
