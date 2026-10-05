@@ -77,7 +77,7 @@ Click Remove registration in the signed-in browser: backend removal precedes loc
 
 ## Cleanup and recovery
 
-`cleanup` performs real fresh TOTP enrollment/challenge and device revocation. Verify signed registration/sync denial on Android after revocation; the CLI cannot prove that observation.
+`cleanup` has separate revoke and finalize phases, described below. Verify actual signed registration/sync denial on Android while its account and binding still exist; the CLI cannot prove that observation itself.
 
 Private-row deletion stays in connected SQL. Delete only outbox rows matching exact route family/child/device and desired-state device event prefix, and subscriptions belonging to exact fixture parent. Verify zero remaining rows; retain audit records. Pass the actual trusted result as `databaseCleanup: {projectRef, runId, familyId, deviceId, parentUserId, remainingOutbox: 0, remainingSubscriptions: 0}` plus `browserUnsubscribed: true`. These operator attestations must come from actual checks. The runner attempts all stages, deletes exact fixture family/Auth identities and removes its handoff only when every stage passes.
 
@@ -85,7 +85,7 @@ Any failed stage yields `complete: false`; local cleanup evidence retains failur
 
 Remaining live prerequisites: matching Firebase client config, a Google Play-capable Android recipient and secure worker-key input. Combined receipts, re-dispatch, browser removal and revoked-device denial remain unverified. No production deployment or roadmap completion is claimed.
 
-## Review corrections and remaining evidence limit
+## Cleanup safety and evidence limits
 
 Cleanup is explicitly two-phase. Before either phase, enumerate **all** devices for the exact fixture family/child through connected SQL, left-joining `private.device_security`. A missing Auth binding is an unresolved recovery condition, not an empty fixture. Supply `fixtureDiscovery: {projectRef, runId, familyId, childId, complete: true, devices: [{deviceId, authUserId}]}`. This one-device toolkit refuses multiple bindings; a genuinely unclaimed fixture uses `devices: []`. The runner checkpoints discovery before any domain deletion. On retry after domain deletion, reuse the protected discovery checkpoint rather than interpreting vanished bindings as never claimed.
 
