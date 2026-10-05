@@ -39,6 +39,27 @@ Deno.test({
 });
 Deno.test({
   name:
+    "Windows retained journal can be protected repeatedly without changing contents",
+  ignore: Deno.build.os !== "windows" ||
+    !Deno.args.includes("--existing-recovery"),
+  fn: async () => {
+    const file = new URL(
+      "../../.superpowers/notification-operator/journal.json",
+      import.meta.url,
+    );
+    const before = await Deno.readFile(file);
+    await protectFile(file);
+    await protectFile(file);
+    const after = await Deno.readFile(file);
+    assertEquals(
+      before.length === after.length &&
+        before.every((byte, index) => byte === after[index]),
+      true,
+    );
+  },
+});
+Deno.test({
+  name:
     "Windows directory protection removes extra readers without an audit privilege",
   ignore: Deno.build.os !== "windows" ||
     (await Deno.permissions.query({ name: "run", command: "powershell.exe" }))
