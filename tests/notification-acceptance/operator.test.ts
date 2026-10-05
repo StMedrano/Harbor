@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import {
+  checkpointEvent,
   cleanupStages,
   dispatchRows,
   type FixtureManifest,
@@ -39,6 +40,120 @@ const rows = [{
   target_ref: { subscriptionId: manifest.subscriptionIds[0] },
   route_payload: route,
 }];
+Deno.test("identified dispatch shares one UUID and rejects mixed or malformed identity before sending", async () => {
+  const resourceId = "abcdefab-abcd-4abc-8abc-abcdefabcdef";
+  const identified = rows.map((row) => ({
+    ...row,
+    route_payload: { ...route, resourceId },
+  }));
+  assertEquals(validateDispatchRows(manifest, identified).length, 2);
+  assertEquals(
+    validateDispatchRows(manifest, [{
+      ...identified[0],
+      route_payload: { ...route, resourceId: resourceId.toUpperCase() },
+    }, identified[1]]).length,
+    2,
+  );
+  for (
+    const bad of [
+      [identified[0], rows[1]],
+      [identified[0], {
+        ...identified[1],
+        route_payload: { ...route, resourceId: manifest.parentUserId },
+      }],
+      [identified[0], {
+        ...identified[1],
+        route_payload: { ...route, resourceId: "bad" },
+      }],
+      [{
+        ...identified[0],
+        route_payload: { ...route, resourceId, accessToken: "private" },
+      }, identified[1]],
+      [identified[0]],
+    ]
+  ) {
+    let calls = 0;
+    await assertRejects(() =>
+      dispatchRows(manifest, bad, "worker-input", async () => {
+        calls++;
+        return { status: "sent" };
+      })
+    );
+    assertEquals(calls, 0);
+  }
+});
+Deno.test("event checkpoint is idempotent and refuses replaced recipients and UUID reuse", () => {
+  const identified = validateDispatchRows(
+    manifest,
+    rows.map((row) => ({
+      ...row,
+      route_payload: {
+        ...route,
+        resourceId: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
+      },
+    })),
+  );
+  const saved = checkpointEvent(manifest, identified, []);
+  assertEquals(saved.length, 1);
+  assertEquals(saved[0].desiredStateVersion, 2);
+  assertEquals(
+    checkpointEvent(manifest, identified.toReversed(), saved),
+    saved,
+  );
+  assertEquals(
+    checkpointEvent(
+      manifest,
+      identified.map((row) => ({
+        ...row,
+        route: {
+          ...row.route,
+          resourceId: row.route.resourceId!.toUpperCase(),
+        },
+      })),
+      saved,
+    ),
+    saved,
+  );
+  assertThrows(() =>
+    checkpointEvent(manifest, validateDispatchRows(manifest, rows), [])
+  );
+  assertThrows(() =>
+    checkpointEvent(
+      manifest,
+      identified.map((row) => ({ ...row, id: manifest.parentUserId })),
+      saved,
+    )
+  );
+  assertThrows(() =>
+    checkpointEvent(
+      manifest,
+      identified.map((row) => ({
+        ...row,
+        route: { ...row.route, resourceId: manifest.parentUserId },
+      })),
+      saved,
+    )
+  );
+  const next = { ...manifest, expectedDesiredStateVersion: 3 };
+  assertThrows(() =>
+    checkpointEvent(
+      next,
+      identified.map((row) => ({
+        ...row,
+        eventKey: `desired-state:${manifest.deviceId}:3`,
+      })),
+      saved,
+    )
+  );
+  for (
+    const corrupt of [
+      [{ ...saved[0], route: { ...saved[0].route, accessToken: "private" } }],
+      [{ ...saved[0], eventKey: `desired-state:${manifest.deviceId}:1` }],
+      [{ ...saved[0], recipients: [] }],
+      [{ ...saved[0], unexpected: "private" }],
+    ]
+  ) assertThrows(() => checkpointEvent(manifest, identified, corrupt));
+});
 Deno.test("operator rejects wrong project before any dispatch", async () => {
   let calls = 0;
   await assertRejects(() =>

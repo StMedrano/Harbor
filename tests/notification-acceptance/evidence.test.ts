@@ -2,6 +2,7 @@ import { assertEquals, assertThrows } from "jsr:@std/assert@1";
 import {
   classifyDelivery,
   correlateReceipts,
+  type EventMapping,
   type FixtureManifest,
 } from "../hosted/notification-acceptance.ts";
 const manifest: FixtureManifest = {
@@ -23,8 +24,19 @@ const receipt = {
     familyId: manifest.familyId,
     childId: manifest.childId,
     deviceId: manifest.deviceId,
+    resourceId: "abcdefab-abcd-4abc-8abc-abcdefabcdef",
   },
   receivedAt: "2026-10-04T12:00:01.000Z",
+};
+const mapping: EventMapping = {
+  eventKey,
+  desiredStateVersion: 1,
+  route: receipt.route,
+  recipients: [{
+    id: "77777777-7777-4777-8777-777777777777",
+    transport: "fcm",
+    targetRef: { deviceId: manifest.deviceId! },
+  }],
 };
 Deno.test("provider acceptance without receipt stays unverified at timeout", () => {
   assertEquals(classifyDelivery({ status: "sent" }, [], 1), "unverified");
@@ -45,10 +57,16 @@ Deno.test("foreign, old, late and baselined hints cannot satisfy current observa
     { ...receipt, receivedAt: "2026-10-04T12:02:01Z" },
     receipt,
   ];
-  assertEquals(correlateReceipts(manifest, eventKey, start, input, 4), []);
-  assertEquals(correlateReceipts(manifest, eventKey, start, input, 0), [
-    receipt,
-  ]);
+  assertEquals(
+    correlateReceipts(manifest, eventKey, start, input, 4, mapping),
+    [],
+  );
+  assertEquals(
+    correlateReceipts(manifest, eventKey, start, input, 0, mapping),
+    [
+      receipt,
+    ],
+  );
   assertThrows(() =>
     correlateReceipts(
       manifest,
@@ -60,27 +78,48 @@ Deno.test("foreign, old, late and baselined hints cannot satisfy current observa
   );
 });
 Deno.test("valid receipt passes while duplicate hints represent one authoritative event", () => {
-  const matched = correlateReceipts(manifest, eventKey, start, [
-    receipt,
-    receipt,
-  ], 0);
+  const matched = correlateReceipts(
+    manifest,
+    eventKey,
+    start,
+    [
+      receipt,
+      receipt,
+    ],
+    0,
+    mapping,
+  );
   assertEquals(matched.length, 2);
   assertEquals(classifyDelivery({ status: "sent" }, matched, 2), "received");
   assertEquals(manifest.expectedDesiredStateVersion, 1);
 });
 Deno.test("normalization accepts Android epoch time and rejects sensitive evidence", () => {
   assertEquals(
-    correlateReceipts(manifest, eventKey, start, [{
-      ...receipt,
-      receivedAt: Date.parse(receipt.receivedAt),
-    }], 0),
+    correlateReceipts(
+      manifest,
+      eventKey,
+      start,
+      [{
+        ...receipt,
+        receivedAt: Date.parse(receipt.receivedAt),
+      }],
+      0,
+      mapping,
+    ),
     [receipt],
   );
   assertEquals(
-    correlateReceipts(manifest, eventKey, start, [{
-      ...receipt,
-      route: { ...receipt.route, password: "private" },
-    }], 0),
+    correlateReceipts(
+      manifest,
+      eventKey,
+      start,
+      [{
+        ...receipt,
+        route: { ...receipt.route, password: "private" },
+      }],
+      0,
+      mapping,
+    ),
     [],
   );
 });
@@ -101,5 +140,104 @@ Deno.test("delayed duplicate from an earlier version cannot prove the later vers
       0,
     ),
     [],
+  );
+});
+Deno.test("later-version receipt requires the exact trusted event mapping", () => {
+  const next = { ...manifest, expectedDesiredStateVersion: 2 };
+  const nextKey = `desired-state:${manifest.deviceId}:2`;
+  const current = {
+    ...receipt,
+    route: {
+      ...receipt.route,
+      resourceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    },
+  };
+  const currentMapping = {
+    ...mapping,
+    eventKey: nextKey,
+    desiredStateVersion: 2,
+    route: current.route,
+  };
+  assertEquals(
+    correlateReceipts(
+      next,
+      nextKey,
+      start,
+      [receipt, current],
+      0,
+      currentMapping,
+    ),
+    [current],
+  );
+  assertEquals(correlateReceipts(next, nextKey, start, [current], 0), []);
+  assertEquals(
+    correlateReceipts(next, nextKey, start, [current], 0, mapping),
+    [],
+  );
+  assertEquals(
+    correlateReceipts(next, nextKey, start, [current], 0, {
+      ...currentMapping,
+      recipients: [],
+    }),
+    [],
+  );
+  assertEquals(
+    correlateReceipts(next, nextKey, start, [current], 0, {
+      ...currentMapping,
+      route: { ...current.route, familyId: manifest.parentUserId },
+    }),
+    [],
+  );
+  const { resourceId: _ignored, ...legacy } = current.route;
+  assertEquals(
+    correlateReceipts(
+      next,
+      nextKey,
+      start,
+      [{ ...current, route: legacy }],
+      0,
+      currentMapping,
+    ),
+    [],
+  );
+  assertEquals(correlateReceipts(manifest, eventKey, start, [receipt], 0), []);
+  assertEquals(
+    correlateReceipts(
+      next,
+      nextKey,
+      start,
+      [{ ...current, receivedAt: "2026-10-04T12:02:00Z" }],
+      0,
+      currentMapping,
+    ).length,
+    1,
+  );
+  assertEquals(
+    correlateReceipts(
+      next,
+      nextKey,
+      start,
+      [{ ...current, receivedAt: "2026-10-04T12:02:01Z" }],
+      0,
+      currentMapping,
+    ),
+    [],
+  );
+  assertEquals(
+    correlateReceipts(
+      next,
+      nextKey,
+      start,
+      [{
+        ...current,
+        route: {
+          ...current.route,
+          resourceId: current.route.resourceId.toUpperCase(),
+        },
+      }],
+      0,
+      currentMapping,
+    ).length,
+    1,
   );
 });

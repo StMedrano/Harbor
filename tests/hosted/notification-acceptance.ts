@@ -62,6 +62,23 @@ export type OutboxRow = {
   targetRef: Record<string, string>;
   route: NotificationRouteRefV1;
 };
+export type EventMapping = {
+  eventKey: string;
+  desiredStateVersion: number;
+  route: NotificationRouteRefV1;
+  recipients: {
+    id: string;
+    transport: "fcm" | "web_push";
+    targetRef: Record<string, string>;
+  }[];
+};
+export function checkpointEvent(
+  _manifest: FixtureManifest,
+  _rows: OutboxRow[],
+  _existing: EventMapping[],
+): EventMapping[] {
+  return [];
+}
 export function validateDispatchRows(
   value: FixtureManifest,
   input: unknown,
@@ -331,6 +348,7 @@ export function correlateReceipts(
   startedAt: string,
   input: unknown,
   baselineCount: number,
+  _mapping?: EventMapping,
 ): Receipt[] {
   const m = validateManifest(manifest), start = Date.parse(startedAt);
   if (
