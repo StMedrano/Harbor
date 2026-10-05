@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -21,6 +22,8 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var evidence: TextView
+    private lateinit var scroll: ScrollView
+    private var feedback = ""
     private val executor = Executors.newSingleThreadExecutor()
     private val buttons = mutableListOf<Button>()
     private fun runtime() = AcceptanceRuntime.get(this)
@@ -30,14 +33,22 @@ class MainActivity : Activity() {
         val paired = runtime().identity.binding != null
         val registered = runtime().registration.confirmedToken != null
         status.text = "Notifications allowed: $permission. Paired: $paired. Backend FCM registration confirmed: $registered."
+        if (feedback.isNotEmpty()) status.append("\n$feedback")
         evidence.text = runtime().receipts.receipts().joinToString("\n\n").ifEmpty { "No receipt evidence yet." }
+    }
+    private fun showFeedback(message: String) {
+        if (isDestroyed) return
+        feedback = message
+        render()
+        scroll.post { scroll.smoothScrollTo(0, 0) }
     }
     private fun network(work: () -> String) {
         if (BuildConfig.CI_FIXTURE) { render(); return }
         buttons.forEach { it.isEnabled = false }
+        showFeedback("Working…")
         executor.execute {
             val result = try { work() } catch (failure: HarborFailure) { failure.message ?: "Request failed" } catch (_: Exception) { "Request failed. Check configuration/session and retry. After operator cleanup, use Reset enrollment before pairing again." }
-            runOnUiThread { if (!isDestroyed) { render(); status.append("\n$result"); buttons.forEach { it.isEnabled = true } } }
+            runOnUiThread { if (!isDestroyed) { showFeedback(result); buttons.forEach { it.isEnabled = true } } }
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,10 +72,12 @@ class MainActivity : Activity() {
         }
         button("Get current FCM token") {
             if (!BuildConfig.CI_FIXTURE) {
-                FirebaseApp.initializeApp(this)
-                FirebaseMessaging.getInstance().isAutoInitEnabled = true
-                FirebaseMessaging.getInstance().token.addOnSuccessListener { runtime().onToken(it); render() }
-                    .addOnFailureListener { status.text = "FCM token unavailable. Check the matching Firebase setup and retry." }
+                requestFcmToken({ success, failure ->
+                    FirebaseApp.initializeApp(this)
+                    FirebaseMessaging.getInstance().isAutoInitEnabled = true
+                    FirebaseMessaging.getInstance().token.addOnSuccessListener { success(it) }
+                        .addOnFailureListener { failure() }
+                }, { runtime().onToken(it) }, ::showFeedback)
             } else render()
         }
         button("Register FCM / retry") {
@@ -92,14 +105,28 @@ class MainActivity : Activity() {
         }
         button("Refresh receipt evidence") { render() }
         evidence = TextView(this); layout.addView(evidence)
-        setContentView(ScrollView(this).apply { addView(layout) })
+        scroll = ScrollView(this).apply {
+            addView(layout)
+            setOnApplyWindowInsetsListener { view, insets ->
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
+                    view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+                } else {
+                    @Suppress("DEPRECATION")
+                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                }
+                insets
+            }
+        }
+        setContentView(scroll)
+        scroll.requestApplyInsets()
         render()
     }
     override fun onResume() { super.onResume(); if (::status.isInitialized) render() }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         render()
-        if (requestCode == 1 && grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) status.append("\nNotification permission refused. Enable it in Android app settings before the delivery check.")
+        if (requestCode == 1 && grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) showFeedback("Notification permission refused. Enable it in Android app settings before the delivery check.")
     }
     override fun onDestroy() { executor.shutdown(); super.onDestroy() }
 }
