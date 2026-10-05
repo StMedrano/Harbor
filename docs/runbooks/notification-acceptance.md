@@ -34,6 +34,7 @@ Ignored `.superpowers/notification-operator/` stores:
 - `manifest.json`: run/project/parent/family/child/device, expected version and trusted subscription whitelist; no credentials.
 - `handoff.json`: parent email/password, public configuration and expiring pairing code; open only locally.
 - `change.json`, `dispatch.json`, `cleanup.json`: minimal local evidence. Publish only status, counts, source revision and CI to GitHub.
+- `event-mappings.json`: protected trusted event/version/route/recipient checkpoints; never publish fixture identifiers.
 
 Preparation creates an email-confirmed disposable parent with a real password session, creates a family through `create-family`, inserts the fixture child with admin access and obtains a real pairing code. Failure attempts rollback and retains recovery evidence. Lost API responses require trusted SQL reconciliation; an empty ID list does not prove cleanup.
 
@@ -71,7 +72,11 @@ Read active subscription IDs for the exact fixture parent from `private.parent_w
 
 Through connected SQL, select only `id, event_key, transport, target_ref, route_payload, status` from `private.notification_outbox` for exact event `desired-state:<fixture-device-id>:<manifest-version>` and route family/child/device. Pass these as `rows` to `dispatch`. The runner requires one FCM row and exactly whitelisted Web Push rows, rejects incomplete/foreign/duplicate batches and invokes existing `dispatch-outbox`. Outcomes are `sent`, `retry`, `dead_letter`, `no_op` or `unverified`, separately by transport.
 
-Capture receipt baselines before each serialized change. Observe up to two minutes for the matching minimal route in browser worker and Android callback. Record time and foreground/background mode; match route kind/device with the operator event/version. Provider 2xx alone is incomplete. Duplicate hints remain read-only. Re-dispatch sent rows should return `no_op`; a second change uses a new version.
+Capture receipt baselines before each serialized change. For newly identified events, every FCM/Web Push row must carry the same valid `resourceId` with exactly the six approved route fields. Dispatch checkpoints that exact event/version and recipient batch before calling the worker; conflicting checkpoints or reused event UUIDs are refused. Repeating the same checkpoint is idempotent. Removed browser subscriptions remain recorded in historical mappings.
+
+Observe up to two minutes for the matching full minimal route in browser worker and Android callback. Use the exact event's protected mapping as the final argument to `correlateReceipts(manifest, eventKey, startedAt, receipts, baselineCount, mapping)`. Match all route fields including `resourceId`; missing/legacy/foreign mappings remain unverified. A late earlier-version hint fails even inside the new observation window. Record time and foreground/background mode; provider acceptance alone is incomplete. Duplicate hints remain read-only and represent one event.
+
+Re-dispatch sent rows should return `no_op`. Through trusted exact-event SQL, verify persisted `status = 'sent'` and compare the unchanged resource UUID, route and recipient identities with the original checkpoint. Keep that persisted provider evidence separate from actual receipt evidence; `no_op` alone never becomes verified delivery. A second change uses a new version and a different event UUID. Timeout without a matching receipt remains unverified.
 
 Click Remove registration in the signed-in browser: backend removal precedes local unsubscribe. Confirm filtered active subscriptions are zero. Supply `subscriptionIds: []` for the next change; it should produce FCM only.
 
@@ -114,4 +119,4 @@ deno test --frozen --allow-read --allow-write --allow-run=powershell.exe tests/n
 
 Default tests omit that filesystem/process check; it was also run successfully on this Windows host. PowerShell uses its own modules directory to avoid inheriting an incompatible PowerShell 7 module path.
 
-**Correlation limitation:** existing V1 routes contain no desired-state event/version ID. A late duplicate can look identical to a new version's receipt even with serialized sends and timestamp baselines. The classifier therefore admits only the first desired-state event on a fresh fixture device; later version hints remain **unverified**. `no_op` also remains unverified unless separate trusted persisted sent evidence establishes prior provider acceptance. The current classifier does not promote no-op to receipt success. Foreground/background and browser-removal checks requiring later versions cannot be declared complete under this protocol. A supported uniquely correlatable strategy requires a separately approved design change; this toolkit adds no backend payload/schema change silently.
+**Compatibility:** generic V1 recipients still read legacy routes. Legacy dispatch cannot establish exact receipt delivery; correlation requires the trusted resource UUID introduced by the separately approved event-correlation spec/plan. No timestamp fallback or backfill is permitted. Development migration and actual live receipts are separate verification gates; implementation/CI does not establish either.

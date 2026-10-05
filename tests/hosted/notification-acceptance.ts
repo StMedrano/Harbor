@@ -73,11 +73,118 @@ export type EventMapping = {
   }[];
 };
 export function checkpointEvent(
-  _manifest: FixtureManifest,
-  _rows: OutboxRow[],
-  _existing: EventMapping[],
+  manifest: FixtureManifest,
+  rows: OutboxRow[],
+  existing: EventMapping[],
 ): EventMapping[] {
-  return [];
+  const m = validateManifest(manifest);
+  if (!Array.isArray(existing)) throw Error("Invalid event checkpoints");
+  const validated = validateDispatchRows(m, rawRows(rows));
+  if (!validated[0].route.resourceId) {
+    throw Error("Legacy event cannot be checkpointed");
+  }
+  const next: EventMapping = {
+    eventKey: validated[0].eventKey,
+    desiredStateVersion: m.expectedDesiredStateVersion,
+    route: validated[0].route,
+    recipients: validated.map(({ id, transport, targetRef }) => ({
+      id,
+      transport,
+      targetRef,
+    })),
+  };
+  const versions = new Set<number>(), resources = new Set<string>();
+  for (const old of existing) {
+    const record = object(old);
+    if (
+      Object.keys(record).sort().join() !==
+        "desiredStateVersion,eventKey,recipients,route" ||
+      !Number.isSafeInteger(record.desiredStateVersion) ||
+      (record.desiredStateVersion as number) < 1 ||
+      !Array.isArray(record.recipients)
+    ) throw Error("Invalid event checkpoint");
+    const subscriptions = record.recipients.flatMap((raw) => {
+      const r = object(raw), target = object(r.targetRef);
+      if (Object.keys(r).sort().join() !== "id,targetRef,transport") {
+        throw Error("Invalid checkpoint recipient");
+      }
+      return r.transport === "web_push" ? [id(target.subscriptionId)] : [];
+    });
+    const historical = {
+      ...m,
+      expectedDesiredStateVersion: record.desiredStateVersion as number,
+      subscriptionIds: subscriptions,
+    };
+    validateMapping(historical, old);
+    const resource = old.route.resourceId!.toLowerCase();
+    if (versions.has(old.desiredStateVersion) || resources.has(resource)) {
+      throw Error("Duplicate event checkpoint");
+    }
+    versions.add(old.desiredStateVersion);
+    resources.add(resource);
+    if (old.desiredStateVersion === next.desiredStateVersion) {
+      if (canonical(old) !== canonical(next)) {
+        throw Error("Conflicting event checkpoint");
+      }
+    } else if (resource === next.route.resourceId!.toLowerCase()) {
+      throw Error("Reused event identity");
+    }
+  }
+  return versions.has(next.desiredStateVersion)
+    ? existing
+    : [...existing, next];
+}
+function canonical(value: unknown): string {
+  if (typeof value === "string") {
+    return JSON.stringify(uuid.test(value) ? value.toLowerCase() : value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonical).sort().join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${
+      Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map((
+        [key, v],
+      ) => `${JSON.stringify(key)}:${canonical(v)}`).join(",")
+    }}`;
+  }
+  return JSON.stringify(value);
+}
+function rawRows(rows: OutboxRow[]) {
+  if (!Array.isArray(rows)) throw Error("Invalid outbox checkpoint rows");
+  return rows.map((row) => ({
+    id: row.id,
+    event_key: row.eventKey,
+    transport: row.transport,
+    target_ref: row.targetRef,
+    route_payload: row.route,
+  }));
+}
+function validateMapping(
+  m: FixtureManifest,
+  value: EventMapping,
+): EventMapping {
+  const r = object(value);
+  if (
+    Object.keys(r).sort().join() !==
+      "desiredStateVersion,eventKey,recipients,route" ||
+    r.desiredStateVersion !== m.expectedDesiredStateVersion ||
+    !Array.isArray(r.recipients)
+  ) throw Error("Invalid event mapping");
+  const rows = r.recipients.map((raw) => {
+    const recipient = object(raw);
+    if (Object.keys(recipient).sort().join() !== "id,targetRef,transport") {
+      throw Error("Invalid event recipient");
+    }
+    return {
+      id: recipient.id,
+      event_key: r.eventKey,
+      transport: recipient.transport,
+      target_ref: recipient.targetRef,
+      route_payload: r.route,
+    };
+  });
+  const validated = validateDispatchRows(m, rows);
+  if (!validated[0].route.resourceId) throw Error("Missing event identity");
+  return value;
 }
 export function validateDispatchRows(
   value: FixtureManifest,
@@ -98,7 +205,7 @@ export function validateDispatchRows(
       target = object(r.target_ref);
     if (
       seen.has(rowId) || r.event_key !== eventKey || !route ||
-      Object.keys(route).length !== 5 ||
+      Object.keys(route).length !== (route.resourceId ? 6 : 5) ||
       route.kind !== "device.state.changed" ||
       route.familyId !== m.familyId || route.childId !== m.childId ||
       route.deviceId !== m.deviceId ||
@@ -128,6 +235,10 @@ export function validateDispatchRows(
     rows.length !== m.subscriptionIds.length + 1 ||
     !targets.has(`fcm:${m.deviceId}`)
   ) throw Error("Incomplete fixture transport batch");
+  if (
+    new Set(rows.map((row) => row.route.resourceId?.toLowerCase() ?? "legacy"))
+      .size !== 1
+  ) throw Error("Inconsistent event identity");
   return rows;
 }
 export async function dispatchRows(
@@ -348,7 +459,7 @@ export function correlateReceipts(
   startedAt: string,
   input: unknown,
   baselineCount: number,
-  _mapping?: EventMapping,
+  mapping?: EventMapping,
 ): Receipt[] {
   const m = validateManifest(manifest), start = Date.parse(startedAt);
   if (
@@ -359,8 +470,12 @@ export function correlateReceipts(
     !Number.isSafeInteger(baselineCount) || baselineCount < 0 ||
     baselineCount > input.length
   ) throw Error("Invalid serialized observation boundary");
-  // V1 routes carry no event/version identity. Later identical routes cannot distinguish delayed duplicates.
-  if (m.expectedDesiredStateVersion !== 1) return [];
+  if (!mapping) return [];
+  try {
+    validateMapping(m, mapping);
+  } catch {
+    return [];
+  }
   return input.slice(baselineCount).flatMap((raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
     const value = raw as Record<string, unknown>,
@@ -373,9 +488,10 @@ export function correlateReceipts(
     if (
       Object.keys(value).some((key) =>
         key !== "route" && key !== "receivedAt"
-      ) || !route || Object.keys(route).length !== 5 ||
+      ) || !route || Object.keys(route).length !== 6 ||
       route.kind !== "device.state.changed" || route.familyId !== m.familyId ||
       route.childId !== m.childId || route.deviceId !== m.deviceId ||
+      canonical(route) !== canonical(mapping.route) ||
       !Number.isFinite(time) || time < start || time > start + 120000
     ) return [];
     return [{ route, receivedAt: new Date(time).toISOString() }];
@@ -566,6 +682,23 @@ async function main() {
   await protectDirectory();
   if (command === "dispatch") {
     const m = validateManifest(await load("manifest.json"));
+    const validated = validateDispatchRows(m, input.rows);
+    let mappings: EventMapping[];
+    try {
+      mappings = await load("event-mappings.json");
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      mappings = [];
+    }
+    if (validated[0].route.resourceId) {
+      mappings = checkpointEvent(m, validated, mappings);
+      await save("event-mappings.json", mappings);
+    } else {
+      // Even legacy dispatch must refuse malformed existing evidence.
+      if (!Array.isArray(mappings) || mappings.length) {
+        throw Error("Legacy dispatch cannot reuse identified checkpoints");
+      }
+    }
     const outcomes = await dispatchRows(
       m,
       input.rows,
@@ -587,6 +720,9 @@ async function main() {
     await save("dispatch.json", {
       at: new Date().toISOString(),
       eventVersion: m.expectedDesiredStateVersion,
+      eventMapping: mappings.find((record) =>
+        record.desiredStateVersion === m.expectedDesiredStateVersion
+      ) ?? null,
       outcomes,
     });
     console.log(
