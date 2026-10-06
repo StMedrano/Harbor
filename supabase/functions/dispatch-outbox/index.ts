@@ -28,6 +28,7 @@ export function createOutboxWorkerHandler(
 if (import.meta.main) {
   const { createPersistentDispatchOne, privateOutboxStore } = await import("../_shared/outbox.ts");
   const { sendFcm } = await import("../_shared/fcm.ts");
-  const handler = createOutboxWorkerHandler(createPersistentDispatchOne(privateOutboxStore, { sendFcm }), () => Deno.env.get("HARBOR_OUTBOX_WORKER_KEY"));
+  const { sendParentFcm } = await import("../_shared/parent-fcm-delivery.ts");
+  const handler = createOutboxWorkerHandler(createPersistentDispatchOne(privateOutboxStore, { sendFcm, sendParentFcm }), () => Deno.env.get("HARBOR_OUTBOX_WORKER_KEY"));
   serveHarbor(handler);
 }

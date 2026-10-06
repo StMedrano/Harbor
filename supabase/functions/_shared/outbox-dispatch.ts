@@ -17,7 +17,7 @@ export type DispatchDependencies = {
   claim(id: string): Promise<OutboxNotification | null>;
   complete(id: string, attempt: number): Promise<void>;
   fail(id: string, failure: OutboxFailure, attempt: number): Promise<void>;
-  sendFcm(target: Record<string, string>, payload: NotificationRouteRefV1): Promise<PushDeliveryResult>;
+  sendFcm(target: Record<string, string>, payload: NotificationRouteRefV1, lease?: { outboxId: string; attempt: number }): Promise<PushDeliveryResult>;
   sendWebPush(target: Record<string, string>, payload: NotificationRouteRefV1): Promise<PushDeliveryResult>;
   disableWebPush(subscriptionId: string, outboxId: string, attempt: number): Promise<void>;
 };
@@ -35,7 +35,7 @@ export function createDispatchOne(dependencies: DispatchDependencies) {
     let result: PushDeliveryResult;
     try {
       result = row.transport === "fcm"
-        ? await dependencies.sendFcm(row.targetRef, payload)
+        ? await dependencies.sendFcm(row.targetRef, payload, { outboxId: row.id, attempt: row.attemptCount })
         : await dependencies.sendWebPush(row.targetRef, payload);
     } catch {
       result = { status: "retryable_failure", reason: "network_error" };
@@ -58,4 +58,3 @@ export function createDispatchOne(dependencies: DispatchDependencies) {
     return { status: retryable ? "retry" : "dead_letter" };
   };
 }
-

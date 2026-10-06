@@ -47,7 +47,7 @@ Deno.test("parent fanout persists independent delivery, current authorization an
         {
           id: string;
           target_ref: Record<string, string>;
-          route_payload: unknown;
+          route_payload: Record<string, string | number>;
         }
       >
     >`select id,target_ref,route_payload from private.notification_outbox where event_key=${event}`;

@@ -9,7 +9,7 @@ export type WebPushSubscription = {
 
 export type PushDeliveryResult =
   | { status: "sent" }
-  | { status: "permanent_failure"; reason: "invalid_subscription" | "provider_rejected" }
+  | { status: "permanent_failure"; reason: "invalid_subscription" | "invalid_token" | "provider_rejected" }
   | { status: "retryable_failure"; reason: "rate_limited" | "provider_error" | "network_error" };
 
 type PushLibrarySubscription = {
