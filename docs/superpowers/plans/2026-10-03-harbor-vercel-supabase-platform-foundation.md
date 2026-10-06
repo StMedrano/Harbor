@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Acceptance status:** Implementation and development acceptance verified on 2026-10-06; integration remains in the existing draft PR workflow. See [the reconciled definition of done](../../runbooks/platform-foundation-acceptance.md). Historical task checkboxes describe the original execution recipe; this evidence record states current completion and limits.
+
 **Goal:** Build Harbor Subproject 1: the secure Supabase backend and shared-contract foundation used by native Parent Android and the later full-parity Parent PWA, including Auth/MFA, family isolation, child-device trust, desired state, Android FCM, PWA Web Push, Realtime authorization, and release-blocking security tests.
 
 **Architecture:** Supabase is Harbor's backend source of truth. Parent clients use the same Supabase Auth tenant, direct Data API access only where RLS fully expresses authorization, and Edge Functions for privileged/security-sensitive work; child devices use a separate Supabase Auth identity plus Android Keystore ECDSA P-256 proof-of-possession. Vercel remains frontend-only and the full Next.js Parent PWA is deferred to Subproject 2B; this plan creates only the backend interfaces, shared contracts, Web Push support, and environment boundaries that PWA work will consume.
