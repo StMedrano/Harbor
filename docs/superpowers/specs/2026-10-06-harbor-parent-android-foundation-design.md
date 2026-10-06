@@ -1,9 +1,8 @@
 # Harbor Parent Android Foundation Design — Subproject 2A
 
-**Status:** Written specification for user review. The user selected Parent Android,
+**Status:** Approved by the user on 2026-10-06; written implementation plan approval pending. The user selected Parent Android,
 accepted continuation of the proposed foundation scope, and replaced Kombai as
-visual source with Harbor's Vercel frontend. This document is not yet approved
-for implementation or implementation planning.
+visual source with Harbor's Vercel frontend. Specification approval permits implementation planning only. Product implementation awaits separate written-plan approval.
 
 **Authority:** The approved Vercel/Supabase production architecture and Issue #1.
 Backend foundation baseline: `c7e19cfbe29f62ba8c2c9369cef570384a60dc09`, all required
