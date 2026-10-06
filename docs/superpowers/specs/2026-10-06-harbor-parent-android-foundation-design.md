@@ -183,7 +183,7 @@ local secrets/views and cancels old-account retries; session-bound resolution an
 route-only data messages provide defense while remote cleanup is pending. A failed offline token deletion remains unconfirmed; preserve no old account credentials merely to retry cleanup.
 On a new account, fetch a fresh token and establish a new verified binding.
 
-Use data-only parent FCM messages so Android cannot automatically display a stale-account notification. The envelope carries the existing minimal route and the immutable parent registration ID; the receiver matches that ID to its current user-scoped registration before rendering a notification. Keep existing route/event contracts unchanged. Push contains existing minimal event/reference routes, never child names,
+Use data-only parent FCM messages so Android cannot automatically display a stale-account notification. The parent-only FCM data envelope has exactly two string fields: `route` is the JSON-serialized existing `NotificationRouteRefV1`, and `parentRegistrationId` is the immutable registration UUID. Child FCM keeps its existing wire format; the receiver matches that ID to its current user-scoped registration before rendering a notification. Keep existing route/event contracts unchanged. Push contains existing minimal event/reference routes, never child names,
 locations, message content or Auth tokens. The Android receiver ignores hints
 for a different signed-in account/family and uses generic notification text.
 A notification tap opens the referenced authorized child/device after a fresh
