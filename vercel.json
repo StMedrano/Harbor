@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx --yes deno@2.9.7 run --frozen --allow-env=VERCEL_ENV --allow-read --allow-write --allow-run tools/notification-acceptance/web/preview-build.ts",
+  "buildCommand": "sh tools/notification-acceptance/web/preview-build.sh",
   "outputDirectory": "preview-dist",
   "trailingSlash": true,
   "headers": [
