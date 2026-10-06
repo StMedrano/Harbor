@@ -81,7 +81,7 @@ export const privateOutboxStore = {
     const rows = await getPrivateSql()<Array<{ status: string | null }>>`select private.harbor_fail_notification(${id}::uuid, ${attempt}::integer, ${failure.retryable}::boolean, ${failure.errorCategory}::text, ${failure.nextAttemptAt}::timestamptz) as status`;
     return rows[0]?.status ?? null;
   },
-  async readWebPush(id, familyId) {
+  async readWebPush(id: string, familyId?: string) {
     const rows = await getPrivateSql()<WebPushSubscription[]>`select s.endpoint, s.p256dh, s.auth from private.parent_web_push_subscriptions s where s.id = ${id}::uuid and s.status = 'active' and (${familyId ?? null}::uuid is null or exists (select 1 from public.family_members fm where fm.user_id = s.user_id and fm.family_id = ${familyId ?? null}::uuid and fm.status = 'active' and fm.role in ('owner', 'parent')))`;
     return rows[0] ?? null;
   },
