@@ -102,6 +102,15 @@ $harborKeyJson | deno run --frozen --allow-net=bfvybxkjxilntjgndsrm.supabase.co 
 Remove-Variable harborKeyJson
 ```
 
+For genuine stale-MFA acceptance, append `--stale-mfa` to the harness command.
+This opt-in run takes just over 15 minutes. It uses an actual hosted TOTP/AAL2
+session, waits until its most recent TOTP event is older than 900 seconds,
+validates that the token still identifies the fixture user, and expects
+`revoke-device` to return `403 MFA_REQUIRED`. A signed child sync must still
+succeed, proving the denied request did not revoke the device. A fresh TOTP
+challenge then permits the normal revocation and subsequent device denial.
+Do not forge JWT timestamps or shorten the server window to speed up this gate.
+CI type-checks the harness but does not run hosted acceptance or receive keys.
 Do not print or persist the key JSON. The harness currently requires legacy
 anon/service-role credentials for its fixture setup; it is not a production
 client integration. PR CI must not run this hosted workflow or require its keys.
@@ -127,14 +136,15 @@ Existing foundation CI run `37235885153` passed on the same source revision.
 The initial intermittent owner-join rejection has not reproduced in the next
 three runs; retain that observation for investigation if it returns.
 
-Actual FCM/Web Push delivery and email callback acceptance remain pending.
-The development database currently has zero FCM registrations and zero active
-Web Push subscriptions, so there are no real delivery targets to verify. Native
-Android and Parent PWA clients are not implemented in this foundation checkout.
-Notification acceptance needs a development Android FCM test recipient and a
-browser service worker/PushSubscription created with this environment's VAPID
-public key and explicit user notification permission. Do not substitute fake
-tokens or synthetic subscription keys and call provider delivery verified.
+Actual FCM/Web Push delivery was verified on 2026-10-05 using the approved
+development notification acceptance toolkit. Exact-event foreground/background
+phone and browser receipts, redispatch, browser removal, phone-only delivery,
+signed revocation denials and exact-fixture cleanup are recorded in
+[notification acceptance](notification-acceptance.md). Zero fixture registrations
+after cleanup are expected and do not mean live delivery was skipped.
+The toolkit is not the production Parent Android, Child Android or Parent PWA.
+Email callback acceptance and stale-MFA timing remain separate pending gates;
+do not declare the whole backend foundation complete from notification evidence.
 
 ## Daily local workflow
 
@@ -219,3 +229,37 @@ continue through normal authentication. Browser preflight does not authenticate;
 actual calls always do. No wildcard or cookie credential allowance is enabled.
 The shared HTTP wrapper adds CORS to successful and error responses and converts
 known SQL domain errors into sanitized stable Harbor error codes.
+
+## Foreign-key workload assessment — 2026-10-06
+
+`supabase/tests/foreign_key_workload.test.sql` uses temporary copies of the
+migrated tables and indexes with 20,000 enrollment tokens and 30,000 devices.
+No real users or hosted rows are used, planner choices are not forced, and the
+entire test rolls back. It measures selective lookup paths used by FK cleanup;
+it is not production load testing or a complete cascade latency benchmark.
+
+RED CI run `37501399394` failed exactly four of the six new assertions.
+Family and issuer lookups scanned all 20,000 tokens, discarding 19,990 and
+19,980 rows respectively. The existing device indexes handled the composite
+family/child predicate with a bitmap scan returning three rows and no rows
+removed by filtering. Preserve those indexes rather than add a redundant
+composite index solely to clear the advisor.
+
+The additive `enrollment_cleanup_indexes` migration adds full B-tree indexes
+for enrollment `family_id` and `issued_by_user_id`, without changing grants,
+RLS, constraints, readers or writers. Apply it only after clean CI passes and
+a development migration dry run shows exactly the reviewed pending migration.
+The designated development table had zero enrollment rows before preparation;
+regular transactional index creation is appropriate for this bounded rollout.
+A populated production rollout needs a separate locking/online-build assessment.
+
+If rollback is required, remove only
+`private.device_enrollment_tokens_family_idx` and
+`private.device_enrollment_tokens_issuer_idx` through a reviewed forward
+migration. Existing rows and authorization remain intact, but the measured
+full scans return. Do not edit applied migration history or remove other indexes.
+
+The residual composite device FK advisor is reviewed by the measured lookup
+above. The nonce cleanup index remains required despite an unused-index notice.
+These conclusions apply to the synthetic workload; reassess with actual scale,
+skew and deletion workloads before production performance readiness.

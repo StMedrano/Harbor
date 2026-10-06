@@ -1,0 +1,15 @@
+{
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "harbor-acceptance-ci-fixture",
+    "storage_bucket": "harbor-acceptance-ci-fixture.invalid"
+  },
+  "client": [{
+    "client_info": {
+      "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+      "android_client_info": {"package_name": "dev.stmedrano.harbor.acceptance"}
+    },
+    "api_key": [{"current_key": "AIzaSyCI_FIXTURE_NONFUNCTIONAL_0000000000"}]
+  }],
+  "configuration_version": "1"
+}

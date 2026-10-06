@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-04-harbor-notification-acceptance-toolkit-design.md` — explicitly approved by the user on 2026-10-04.
 
-**Status:** Written plan awaits user review. Preserve the roadmap's selected **Native** execution method (`superpowers:executing-plans`). Do not implement before this plan is approved.
+**Status:** Written plan explicitly approved by the user on 2026-10-04. Preserve the roadmap's selected **Native** execution method (`superpowers:executing-plans`). Execution started in draft PR #15; live acceptance remains pending.
 
 ## Global Constraints
 

@@ -3,7 +3,7 @@ import { jsonError } from "./responses.ts";
 
 type Handler = (request: Request) => Response | Promise<Response>;
 const allowedHeaders = "authorization, apikey, content-type, x-client-info, x-supabase-api-version, x-harbor-device-id, x-harbor-timestamp, x-harbor-nonce, x-harbor-signature";
-export function withCors(handler: Handler, origins: () => string[] = () => (Deno.env.get("HARBOR_ALLOWED_ORIGINS") ?? "").split(",").map((origin) => origin.trim()).filter(Boolean)): Handler {
+export function withCors(handler: Handler, origins: () => string[] = () => configuredOrigins((key) => Deno.env.get(key))): Handler {
   return async (request) => {
     const origin = request.headers.get("origin");
     if (origin && !origins().includes(origin)) return jsonError("FORBIDDEN", 403, "Origin is not allowed");
@@ -32,3 +32,11 @@ export function withCors(handler: Handler, origins: () => string[] = () => (Deno
   };
 }
 export function serveHarbor(handler: Handler) { return Deno.serve(withCors(handler)); }
+export function configuredOrigins(read: (key: string) => string | undefined): string[] {
+  const origins = (read("HARBOR_ALLOWED_ORIGINS") ?? "").split(",").map((origin) => origin.trim()).filter(Boolean);
+  const preview = read("HARBOR_ACCEPTANCE_PREVIEW_ORIGIN");
+  if (read("SUPABASE_URL") === "https://bfvybxkjxilntjgndsrm.supabase.co" &&
+    preview === "https://harbor-git-feat-notification-accepta-83c20a-stalinvmedrano-1274.vercel.app" &&
+    !origins.includes(preview)) origins.push(preview);
+  return origins;
+}

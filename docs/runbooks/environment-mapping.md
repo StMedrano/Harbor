@@ -55,3 +55,13 @@ production backend. The strict check refuses unassigned or development configura
 Production is currently unassigned, so this gate intentionally blocks a production
 release. Integration into the future Parent PWA build is required when `apps/web`
 is implemented; no production deployment is enabled by this foundation change.
+
+## Bounded online acceptance preview
+
+The existing development notification/email recipient may be served at
+`/acceptance/` on the reviewed protected branch preview for
+`feat/notification-acceptance-toolkit`. This is an explicitly development-only
+acceptance tool, not an assigned staging backend or production Parent PWA.
+Its frontend build refuses production. Preserve Vercel sign-in protection,
+add only its exact callback to development Auth, and keep administrative,
+worker, Firebase private and VAPID private credentials server-side.

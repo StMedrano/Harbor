@@ -289,6 +289,52 @@ try {
   pass("private WebSocket family authorization");
   const otherRevoke = await endpoint(b, "revoke-device", revokeBody);
   assertEquals(otherRevoke.status, 403);
+  if (Deno.args.includes("--stale-mfa")) {
+    // Real hosted token and wall-clock age; never forge claims or shift server time.
+    const accessToken = await token(a);
+    const claims = JSON.parse(atob(accessToken.split(".")[1]));
+    const mfaTimes = (claims.amr ?? [])
+      .filter((event: { method: string }) => event.method === "totp")
+      .map((event: { timestamp: number }) => event.timestamp);
+    const latestMfa = Math.max(...mfaTimes);
+    if (!Number.isFinite(latestMfa)) {
+      throw new Error("Missing real MFA timestamp");
+    }
+    const staleAt = latestMfa + 902;
+    if (claims.exp <= staleAt + 60) {
+      throw new Error("Fixture token expires before stale-MFA acceptance");
+    }
+    console.log("WAIT real hosted MFA session aging beyond 900 seconds");
+    while (Math.floor(Date.now() / 1000) < staleAt) {
+      const remaining = staleAt * 1000 - Date.now();
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(30000, remaining))
+      );
+    }
+    const stillValid = await a.auth.getUser(accessToken);
+    ok(stillValid.error, "unexpired stale AAL2 token validation");
+    assertEquals(stillValid.data.user?.id, verified.data!.user.id);
+    const stale = await endpoint(a, "revoke-device", revokeBody);
+    assertEquals(stale.status, 403, "stale AAL2 revocation denial");
+    assertEquals(stale.data.code, "MFA_REQUIRED");
+    const unaffected = await proof();
+    assertEquals(
+      (await endpoint(
+        child,
+        "device-sync",
+        unaffected.body,
+        unaffected.headers,
+      )).status,
+      200,
+      "stale MFA denial must not revoke the device",
+    );
+    pass("real stale (>900s) AAL2 rejected without revocation");
+    const refreshed = await a.auth.mfa.challengeAndVerify({
+      factorId: enrollment.data!.id,
+      code: totp(enrollment.data!.totp.secret),
+    });
+    ok(refreshed.error, "fresh TOTP challenge after stale denial");
+  }
   assertEquals((await endpoint(a, "revoke-device", revokeBody)).status, 204);
   const after = await proof();
   const revoked = await endpoint(
