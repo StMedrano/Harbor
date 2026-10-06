@@ -12,6 +12,7 @@ export type AmrEntry = {
 };
 
 export type ParentContext = {
+  sessionId?: string;
   userId: string;
   accessToken: string;
   aal: AalLevel;
@@ -31,6 +32,7 @@ export type ParentUser = {
 export type ValidatedAccessToken = {
   user: ParentUser;
   claims: {
+    sessionId?: string;
     aal?: AalLevel;
     amr?: AmrEntry[];
   };
@@ -94,6 +96,7 @@ function createDefaultAuthDependencies(accessToken: string): AuthDependencies {
           isAnonymous: rawUser.is_anonymous === true || rawClaims.is_anonymous === true,
         },
         claims: {
+          sessionId: typeof rawClaims.session_id === "string" ? rawClaims.session_id : undefined,
           aal: normalizeAal(rawClaims.aal),
           amr: normalizeAmr(rawClaims.amr),
         },
@@ -147,6 +150,7 @@ export async function requireParent(
   return {
     userId: validated.user.id,
     accessToken,
+    ...(typeof validated.claims.sessionId === "string" ? { sessionId: validated.claims.sessionId } : {}),
     aal: validated.claims.aal ?? "aal1",
     amr: validated.claims.amr ?? [],
   };

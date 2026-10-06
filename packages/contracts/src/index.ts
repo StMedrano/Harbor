@@ -19,3 +19,5 @@ export type { AalLevel } from "./v1/auth.ts";
 export { HarborErrorCodes } from "./v1/errors.ts";
 export type { HarborErrorCode } from "./v1/errors.ts";
 export type { NotificationRouteRefV1 } from "./v1/notifications.ts";
+
+export type { RegisterParentFcmRequestV1, RegisterParentFcmReplyV1, RemoveParentFcmRequestV1 } from "./v1/parent-notifications.ts";
