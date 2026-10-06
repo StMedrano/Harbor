@@ -110,7 +110,7 @@ Add the necessary `create-child` Edge Function and an atomic server helper:
 
 - Request: `familyId`, trimmed `displayName` and `idempotencyKey`.
 - Authenticate a non-anonymous parent; require active owner/parent membership in
-  the requested family. Direct client INSERT/UPDATE/DELETE grants stay denied.
+  the requested family. Recheck membership inside the creation transaction with a lock that serializes membership removal. Direct client INSERT/UPDATE/DELETE grants stay denied.
 - Validate a nonblank display name of at most 100 characters, rejecting control
   characters. Never derive authorization from names or user metadata.
 - Create the child and record request identity in one transaction. Server request
@@ -159,7 +159,7 @@ client installation ID, current Auth session binding, token/token hash, active
 state and lifecycle timestamps. Uniqueness per `(user_id, client_installation_id)`
 supports multiple parent installations. One token may have only one active owner;
 rotation/account switch deactivates its old binding atomically. Token values
-are server-only, excluded from responses/audits/logs; no client table grants.
+are server-only, excluded from responses/audits/logs; no client table grants. Registration returns only its non-secret immutable registration ID and confirmed active state, which the app stores scoped to the current user.
 Require a current owner Auth session for registration and revalidate that session
 binding when resolving a queued recipient. Session refresh keeps the session
 binding; a new sign-in replaces it through authenticated registration.
@@ -168,7 +168,7 @@ Extend existing outbox fanout/target resolution additively for parent FCM
 registration IDs. Preserve child FCM and browser Web Push targets and event
 correlation. Resolve active family membership, immutable registration owner,
 current session and active token at dispatch time. Removed family members,
-signed-out sessions and inactive registrations must not receive future sends.
+remotely invalidated Auth sessions and inactive registrations must not receive future sends. Offline local sign-out cannot immediately prove remote invalidation; do not claim provider delivery has stopped until that state is confirmed.
 Use a parent-specific registration target, not a child device target or guessed
 recipient user ID. A permanently invalid token disables that registration;
 retryable failures and other transports retain existing durable behavior.
@@ -179,11 +179,11 @@ Handle token rotation, failed registration/removal and process recreation with
 bounded retry of the same installation operation. Sign-out removes registration
 while credentials are usable, deletes the local Firebase token, invalidates the
 current Auth session and clears local identity. Offline sign-out still clears
-local secrets/views and cancels retries; session-bound resolution and generic
-route-only notifications provide defense while remote cleanup is pending.
+local secrets/views and cancels old-account retries; session-bound resolution and generic
+route-only data messages provide defense while remote cleanup is pending. A failed offline token deletion remains unconfirmed; preserve no old account credentials merely to retry cleanup.
 On a new account, fetch a fresh token and establish a new verified binding.
 
-Push contains existing minimal event/reference routes, never child names,
+Use data-only parent FCM messages so Android cannot automatically display a stale-account notification. The envelope carries the existing minimal route and the immutable parent registration ID; the receiver matches that ID to its current user-scoped registration before rendering a notification. Keep existing route/event contracts unchanged. Push contains existing minimal event/reference routes, never child names,
 locations, message content or Auth tokens. The Android receiver ignores hints
 for a different signed-in account/family and uses generic notification text.
 A notification tap opens the referenced authorized child/device after a fresh
@@ -215,7 +215,7 @@ The written implementation plan defines exact tasks/files and pinned dependencie
 Required proof before Subproject 2A completion:
 
 - JVM/Compose tests for loading/errors, stale/empty/denied states, navigation,
-  account-switch cache isolation, refresh serialization and callback rejection.
+  account-switch cache isolation, refresh serialization and callback rejection, including data-only messages for old registration IDs and offline sign-out.
 - Database/function tests for child-creation idempotency/conflicts, parent-only
   authorization, known-ID cross-family denial, private FCM grants, multiple
   installations, rotation/removal and current-session recipient resolution.
