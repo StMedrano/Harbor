@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import {
   beginEmailFixture,
+  confirmEmailAfterSignIn,
   EmailAcceptance,
   type EmailAuth,
   type EmailFixture,
@@ -237,4 +238,28 @@ Deno.test("only confirmed exact fixture may request recovery; delivery remains u
     await requestEmailRecovery(full, { ...fixture, phase: "confirmed" }),
     { ...fixture, phase: "recovery" },
   );
+});
+
+Deno.test("confirmed signup fixture can resume after consumed callback without reusing the email link", async () => {
+  const { auth, state } = authFixture();
+  const resumed = await confirmEmailAfterSignIn(auth, fixture);
+  assertEquals(resumed, { ...fixture, phase: "confirmed" });
+  assertEquals(fixture.phase, "signup");
+  const flow = new EmailAcceptance(auth, resumed);
+  await assertRejects(() => flow.changePassword("new-password"));
+  assertEquals(state.updated, 0);
+});
+Deno.test("sign-in confirmation resume rejects wrong or unconfirmed fixture and preserves recovery stages", async () => {
+  for (const changes of [{ id: "other" }, { email_confirmed_at: "" }]) {
+    const { auth, state } = authFixture();
+    Object.assign(state.user, changes);
+    await assertRejects(() => confirmEmailAfterSignIn(auth, fixture));
+    assertEquals(state.signedOut, 1);
+  }
+  for (const phase of ["recovery", "complete"] as const) {
+    const { auth } = authFixture();
+    await assertRejects(() =>
+      confirmEmailAfterSignIn(auth, { ...fixture, phase })
+    );
+  }
 });

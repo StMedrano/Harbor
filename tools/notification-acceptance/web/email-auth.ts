@@ -165,3 +165,19 @@ export class EmailAcceptance {
     await this.auth.signOut({ scope: "local" });
   }
 }
+
+export async function confirmEmailAfterSignIn(
+  auth: EmailAuth,
+  fixture: EmailFixture,
+): Promise<EmailFixture> {
+  if (fixture.phase !== "signup" && fixture.phase !== "confirmed") {
+    throw Error("Keep the current recovery stage.");
+  }
+  try {
+    await requireFixture(auth, fixture);
+  } catch {
+    await auth.signOut({ scope: "local" });
+    throw Error("Email confirmation was not verified.");
+  }
+  return { ...fixture, phase: "confirmed" };
+}

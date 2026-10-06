@@ -8,6 +8,7 @@ const site = acceptanceSite(location.href);
 import { parsePublicConfig } from "./config.ts";
 import {
   beginEmailFixture,
+  confirmEmailAfterSignIn,
   EmailAcceptance,
   type EmailFixture,
   requestEmailRecovery,
@@ -142,6 +143,21 @@ form.addEventListener("submit", (e) => {
       throw error;
     }
     client = next;
+    if (sessionStorage.getItem(emailStorageKey)) {
+      const setup = readEmailSetup();
+      if (
+        setup.fixture!.phase === "signup" ||
+        setup.fixture!.phase === "confirmed"
+      ) {
+        const fixture = await confirmEmailAfterSignIn(
+          next.auth,
+          setup.fixture!,
+        );
+        saveEmailSetup({ ...setup, fixture });
+        emailStatus.textContent =
+          "Email confirmation verified with the server for this exact signed-in test account. Request the recovery email next.";
+      }
+    }
     const registration = await navigator.serviceWorker.register(
       site.workerUrl,
       { type: "module", scope: site.scope },

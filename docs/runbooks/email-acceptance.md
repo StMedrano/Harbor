@@ -96,3 +96,11 @@ Online availability does not complete live email or notification acceptance.
 The real user email flow, old/new-password checks and exact fixture cleanup
 remain required. Production SMTP, parent client implementation and the wider
 roadmap remain separate work.
+
+If Supabase has already confirmed the email but the callback was consumed or
+rejected, sign in with the original password in the same test tab. The page
+rechecks the server-confirmed exact pending fixture before advancing signup to
+confirmed. It does not reuse the email link, create another account, replace a
+recovery/complete stage, or unlock password changes without the separately
+verified recovery token. If the original pending fixture is absent, return to
+the original tab; do not invent a new fixture binding.
