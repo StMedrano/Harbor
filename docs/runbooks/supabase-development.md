@@ -102,6 +102,15 @@ $harborKeyJson | deno run --frozen --allow-net=bfvybxkjxilntjgndsrm.supabase.co 
 Remove-Variable harborKeyJson
 ```
 
+For genuine stale-MFA acceptance, append `--stale-mfa` to the harness command.
+This opt-in run takes just over 15 minutes. It uses an actual hosted TOTP/AAL2
+session, waits until its most recent TOTP event is older than 900 seconds,
+validates that the token still identifies the fixture user, and expects
+`revoke-device` to return `403 MFA_REQUIRED`. A signed child sync must still
+succeed, proving the denied request did not revoke the device. A fresh TOTP
+challenge then permits the normal revocation and subsequent device denial.
+Do not forge JWT timestamps or shorten the server window to speed up this gate.
+CI type-checks the harness but does not run hosted acceptance or receive keys.
 Do not print or persist the key JSON. The harness currently requires legacy
 anon/service-role credentials for its fixture setup; it is not a production
 client integration. PR CI must not run this hosted workflow or require its keys.
