@@ -2,6 +2,7 @@ export const ContractVersion = 1 as const;
 
 export type {
   ChildV1,
+  CreateChildRequestV1,
   FamilyMemberRoleV1,
   FamilyMemberStatusV1,
   FamilyMemberV1,

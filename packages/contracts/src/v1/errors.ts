@@ -7,6 +7,7 @@ export const HarborErrorCodes = [
   "DEVICE_OFFLINE",
   "STALE_VERSION",
   "REPLAY_REJECTED",
+  "IDEMPOTENCY_CONFLICT",
 ] as const;
 
 export type HarborErrorCode = (typeof HarborErrorCodes)[number];

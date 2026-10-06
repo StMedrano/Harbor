@@ -16,6 +16,7 @@ export function databaseError(error: unknown): HarborAuthError | null {
   if (error instanceof HarborAuthError) return error;
   if (!error || typeof error !== "object") return null;
   const { code, message } = error as { code?: unknown; message?: unknown };
+  if (code === "P0001" && message === "IDEMPOTENCY_CONFLICT") return new HarborAuthError("IDEMPOTENCY_CONFLICT", 409, "Idempotency key belongs to a different request");
   if (code === "P0001" && message === "STALE_VERSION") return new HarborAuthError("STALE_VERSION", 409, "Desired-state version is stale");
   if (code === "42501" && message === "DEVICE_REVOKED") return new HarborAuthError("DEVICE_REVOKED", 403, "Device has been revoked");
   if (code === "42501" || (code === "23505" && message === "device identity is already bound")) return new HarborAuthError("FORBIDDEN", 403, "Operation is not authorized");

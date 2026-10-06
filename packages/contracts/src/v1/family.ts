@@ -29,3 +29,9 @@ export interface ChildV1 {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CreateChildRequestV1 {
+  familyId: string;
+  displayName: string;
+  idempotencyKey: string;
+}
