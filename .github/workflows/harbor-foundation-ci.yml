@@ -206,6 +206,7 @@ jobs:
           --allow-net=127.0.0.1:54322
           tests/integration/outbox-persistence.test.ts
           tests/integration/child-creation.test.ts
+          tests/integration/parent-fcm-persistence.test.ts
 
       - name: Verify shared backend platform acceptance
         env:
