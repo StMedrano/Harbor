@@ -5,6 +5,7 @@ import {
 } from "npm:@supabase/supabase-js@2.105.0";
 import { acceptanceSite } from "./site.ts";
 const site = acceptanceSite(location.href);
+import { checkPassword } from "./password-check.ts";
 import { parsePublicConfig } from "./config.ts";
 import {
   beginEmailFixture,
@@ -86,6 +87,7 @@ navigator.serviceWorker.addEventListener("message", (event) => {
 });
 let deps: PushLifecycleDependencies | undefined;
 const status = document.querySelector<HTMLElement>("#status")!;
+const passwordStatus = document.querySelector<HTMLElement>("#password-status")!;
 const form = document.querySelector<HTMLFormElement>("form")!;
 function input(name: string) {
   return form.elements.namedItem(name) as HTMLInputElement;
@@ -117,6 +119,8 @@ async function action(work: () => Promise<void>) {
 }
 form.addEventListener("submit", (e) => {
   e.preventDefault();
+  passwordStatus.textContent =
+    "Password check has not completed for this attempt.";
   void action(async () => {
     deps = undefined;
     emailFlow = undefined;
@@ -137,10 +141,24 @@ form.addEventListener("submit", (e) => {
     });
     const email = input("email").value, password = input("password").value;
     input("password").value = "";
-    const { error } = await next.auth.signInWithPassword({ email, password });
-    if (error) {
-      await next.auth.signOut({ scope: "local" });
-      throw error;
+    const accepted = await checkPassword(
+      next.auth,
+      email,
+      password,
+      (result) => {
+        passwordStatus.textContent = {
+          checking: "Checking password with Supabase...",
+          accepted: "Password accepted by Supabase.",
+          rejected: "Password rejected: the email or password is incorrect.",
+          unverified:
+            "Password could not be verified. Check the connection and try again.",
+        }[result];
+      },
+    );
+    if (!accepted) {
+      status.textContent =
+        "Not signed in. Notification registration is unconfirmed.";
+      return;
     }
     client = next;
     if (sessionStorage.getItem(emailStorageKey)) {
