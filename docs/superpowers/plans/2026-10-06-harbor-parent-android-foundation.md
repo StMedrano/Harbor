@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-06-harbor-parent-android-foundation-design.md` — approved by the user on 2026-10-06.
 
-**Status:** Awaiting this written plan's approval. No implementation is authorized yet.
+**Status:** Approved by the user on 2026-10-06. The separately approved build amendment `2026-10-06-harbor-parent-android-build-amendment.md` supersedes the original Task1 toolchain pins.
 
 **Execution method:** Preserve the user's selected Native (`superpowers:executing-plans`) method: inline TDD, one fresh whole-branch review and one test-first fix pass at the end. Do not redispatch completed foundation reviews.
 

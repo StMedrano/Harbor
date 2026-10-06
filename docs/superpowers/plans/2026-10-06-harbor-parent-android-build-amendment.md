@@ -1,6 +1,6 @@
 # Parent Android Task 1 compatibility amendment
 
-Status: proposed; awaiting user approval. Original specification and nine milestones remain binding. No runtime app implementation or backend changes have been made.
+Status: explicitly approved by the user on 2026-10-06. Original specification and nine milestones remain binding. No runtime app implementation or backend changes have been made.
 
 ## Observed blocker
 

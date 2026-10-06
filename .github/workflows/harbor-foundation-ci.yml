@@ -8,6 +8,43 @@ permissions:
   contents: read
 
 jobs:
+  parent-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/parent-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install approved parent SDK
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Verify parent fixture build
+        run: |
+          chmod +x gradlew
+          cp config/ci-fixture-google-services.json app/google-services.json
+          ./gradlew -PparentCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
+      - name: Verify fixture isolation and missing-config guard
+        run: |
+          apkanalyzer manifest print app/build/outputs/apk/debug/app-debug.apk > app/build/reports/parent-manifest.xml
+          grep -F 'android:allowBackup="false"' app/build/reports/parent-manifest.xml
+          grep -F 'android:usesCleartextTraffic="false"' app/build/reports/parent-manifest.xml
+          if grep -F 'android.permission.INTERNET' app/build/reports/parent-manifest.xml; then exit 1; fi
+          if ./gradlew --no-daemon --dependency-verification=strict help >/tmp/harbor-parent-config.log 2>&1; then exit 1; fi
+          grep -F 'Supply development parent.properties' /tmp/harbor-parent-config.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parent-android-test-results
+          path: |
+            apps/parent-android/app/build/test-results/
+            apps/parent-android/app/build/reports/
   notification-android:
     runs-on: ubuntu-latest
     timeout-minutes: 20
