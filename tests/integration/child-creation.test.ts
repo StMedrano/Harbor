@@ -98,7 +98,9 @@ Deno.test("concurrent identical child requests persist one child/request/audit",
         "a".repeat(64)
       })`;
     const [first, second] = await Promise.all([create(), create()]);
-    assertEquals(first, second);
+    assertEquals(first.length, 1);
+    assertEquals(second.length, 1);
+    assertEquals(first[0], second[0]);
     assertEquals(
       (await sql`select count(*)::int n from public.children where family_id=${family}::uuid`)[
         0
