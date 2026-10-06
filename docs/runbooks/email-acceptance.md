@@ -104,3 +104,26 @@ confirmed. It does not reuse the email link, create another account, replace a
 recovery/complete stage, or unlock password changes without the separately
 verified recovery token. If the original pending fixture is absent, return to
 the original tab; do not invent a new fixture binding.
+
+## Verified development run — 2026-10-06
+
+The owned disposable inbox had no existing development Auth account before the
+run. The user received the signup confirmation email; hosted Auth independently
+verified confirmation for the exact checkpointed account. The user then followed
+the recovery flow. Account-bound Auth logs established recovery request
+acceptance, explicit recovery-token verification and a successful password
+update. After the separate password-evidence display was deployed, the user
+confirmed fresh old-password rejection and fresh new-password acceptance.
+
+The operator checked the exact project, account identity and full-precision
+creation time before cleanup. No family memberships, family-creation requests,
+device bindings, pairing tokens, staff permissions or Web Push recipients were
+attached. The development Admin API removed only this disposable Auth account.
+Independent SQL then verified zero remaining exact-account Auth users, sessions,
+identities, refresh tokens, profile, family memberships and Web Push rows.
+No password or email link was requested or persisted. Close the test tab after
+cleanup; this disposable account is no longer available for sign-in.
+
+This establishes the bounded live development email-confirmation/password-
+recovery check. It does not establish production SMTP readiness, completed
+parent products or completion of the wider foundation/production roadmap.
