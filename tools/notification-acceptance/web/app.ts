@@ -3,6 +3,8 @@ import {
   createClient,
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2.105.0";
+import { acceptanceSite } from "./site.ts";
+const site = acceptanceSite(location.href);
 import { parsePublicConfig } from "./config.ts";
 import {
   beginEmailFixture,
@@ -28,6 +30,7 @@ try {
   emailCallback = takeEmailCallback(
     location.href,
     (url) => history.replaceState(null, "", url),
+    site.pageUrl,
   );
 } catch {
   invalidEmailCallback = true;
@@ -140,8 +143,8 @@ form.addEventListener("submit", (e) => {
     }
     client = next;
     const registration = await navigator.serviceWorker.register(
-      "/service-worker.js",
-      { type: "module" },
+      site.workerUrl,
+      { type: "module", scope: site.scope },
     );
     await navigator.serviceWorker.ready;
     const invoke = async (name: string, body: Record<string, unknown>) => {
@@ -230,10 +233,11 @@ document.querySelector("#signup")!.addEventListener("click", () => {
         client.auth,
         input("email").value.trim(),
         password,
+        site.pageUrl,
       );
       saveEmailSetup({ config, fixture });
       emailStatus.textContent =
-        "Signup request accepted. Email delivery is not yet verified. Open the confirmation link on this computer in this same tab, then return here. Keep the account for the recovery test and cleanup.";
+        "Signup request accepted. Email delivery is not yet verified. Open the confirmation link on this same device in this same tab, then return here. Keep the account for the recovery test and cleanup.";
     } catch {
       sessionStorage.removeItem(emailStorageKey);
       throw Error("Signup failed.");
@@ -244,7 +248,11 @@ document.querySelector("#request-recovery")!.addEventListener("click", () => {
   void emailAction(async () => {
     if (!client) throw Error("Confirm and sign in first.");
     const setup = readEmailSetup();
-    const fixture = await requestEmailRecovery(client.auth, setup.fixture!);
+    const fixture = await requestEmailRecovery(
+      client.auth,
+      setup.fixture!,
+      site.pageUrl,
+    );
     saveEmailSetup({ ...setup, fixture });
     emailFlow = undefined;
     changePassword.hidden = true;
@@ -265,7 +273,7 @@ document.querySelector("#verify-recovery")!.addEventListener("click", () => {
     deps = undefined;
     if (client) await client.auth.signOut({ scope: "local" });
     client = emailClient(setup.config);
-    const next = new EmailAcceptance(client.auth, setup.fixture!);
+    const next = new EmailAcceptance(client.auth, setup.fixture!, site.pageUrl);
     await next.acceptRecoveryLink(link);
     emailFlow = next;
     changePassword.hidden = false;
@@ -310,7 +318,7 @@ if (emailCallback) {
     input("vapid").value = setup.config.vapidPublicKey;
     input("email").value = setup.fixture!.email;
     client = emailClient(setup.config);
-    const next = new EmailAcceptance(client.auth, setup.fixture!);
+    const next = new EmailAcceptance(client.auth, setup.fixture!, site.pageUrl);
     await next.accept(callback);
     saveEmailSetup({
       ...setup,

@@ -36,7 +36,7 @@ export async function notificationClick(
   origin: string,
   open: (url: string) => Promise<unknown>,
 ): Promise<void> {
-  await open(new URL("/", origin).href);
+  await open(new URL("./", origin).href);
 }
 function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

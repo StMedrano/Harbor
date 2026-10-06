@@ -1,3 +1,4 @@
+import { acceptanceSite } from "./site.ts";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.105.0";
 
 export type EmailFixture = {
@@ -20,11 +21,12 @@ export async function beginEmailFixture(
   auth: SupabaseClient["auth"],
   email: string,
   password: string,
+  redirect: string = emailRedirect,
 ): Promise<EmailFixture> {
   const { data, error } = await auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: emailRedirect },
+    options: { emailRedirectTo: acceptanceSite(redirect).pageUrl },
   });
   if (error || !data.user?.id || !data.user.identities?.length) {
     throw Error("Signup was not accepted.");
@@ -45,6 +47,7 @@ async function requireFixture(auth: EmailAuth, fixture: EmailFixture) {
 export async function requestEmailRecovery(
   auth: SupabaseClient["auth"],
   fixture: EmailFixture,
+  redirect: string = emailRedirect,
 ): Promise<EmailFixture> {
   if (fixture.phase !== "confirmed") throw Error("Confirm the fixture first.");
   try {
@@ -54,7 +57,7 @@ export async function requestEmailRecovery(
     throw Error("Verified fixture identity is required.");
   }
   const { error } = await auth.resetPasswordForEmail(fixture.email, {
-    redirectTo: emailRedirect,
+    redirectTo: acceptanceSite(redirect).pageUrl,
   });
   if (error) throw Error("Recovery request was not accepted.");
   return { ...fixture, phase: "recovery" };
@@ -63,15 +66,16 @@ export async function requestEmailRecovery(
 export function takeEmailCallback(
   url: string,
   replace: (url: string) => void,
+  redirect: string = emailRedirect,
 ): EmailCallback | null {
   const parsed = new URL(url);
   if (!parsed.hash && !parsed.search) return null;
   // Scrub even malformed/error links before inspecting any credential.
-  replace(emailRedirect);
+  replace(acceptanceSite(redirect).pageUrl);
   const params = new URLSearchParams(parsed.hash.slice(1));
   const type = params.get("type");
   if (
-    parsed.origin !== "http://localhost:3000" || parsed.pathname !== "/" ||
+    parsed.origin + parsed.pathname !== acceptanceSite(redirect).pageUrl ||
     parsed.search ||
     params.has("error") || params.has("error_code") ||
     !["type", "access_token", "refresh_token"].every((key) =>
@@ -88,7 +92,11 @@ export function takeEmailCallback(
 
 export class EmailAcceptance {
   private recoveryReady = false;
-  constructor(private auth: EmailAuth, private fixture: EmailFixture) {}
+  constructor(
+    private auth: EmailAuth,
+    private fixture: EmailFixture,
+    private redirect: string = emailRedirect,
+  ) {}
   async acceptRecoveryLink(link: string): Promise<"recovery"> {
     this.recoveryReady = false;
     try {
@@ -103,7 +111,7 @@ export class EmailAcceptance {
         params.get("type") !== "recovery" ||
         params.getAll("token").length !== 1 || !params.get("token") ||
         params.getAll("redirect_to").length !== 1 ||
-        params.get("redirect_to") !== emailRedirect
+        params.get("redirect_to") !== acceptanceSite(this.redirect).pageUrl
       ) throw Error("Recovery link is invalid.");
       // The server verifies action type, expiry and single use; URL labels and
       // ordinary access/refresh tokens are never recovery proof.

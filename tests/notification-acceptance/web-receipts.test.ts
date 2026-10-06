@@ -97,3 +97,18 @@ Deno.test("notification click ignores untrusted destinations", async () => {
   );
   assertEquals(opened, ["http://localhost:3000/"]);
 });
+
+Deno.test("notification click returns to acceptance scope rather than the root demo", async () => {
+  let opened = "";
+  await notificationClick(
+    { url: "https://foreign.test/" },
+    "https://harbor-git-feat-notification-accepta-83c20a-stalinvmedrano-1274.vercel.app/acceptance/",
+    async (url) => {
+      opened = url;
+    },
+  );
+  assertEquals(
+    opened,
+    "https://harbor-git-feat-notification-accepta-83c20a-stalinvmedrano-1274.vercel.app/acceptance/",
+  );
+});

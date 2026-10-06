@@ -27,7 +27,7 @@ worker.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     notificationClick(
       event.notification.data,
-      worker.location.origin,
+      worker.registration.scope,
       async (url) => {
         const existing = (await worker.clients.matchAll({ type: "window" }))
           .find((client) => client.url === url) as WindowClient | undefined;

@@ -64,3 +64,35 @@ scrubbing, exact server-verified identity, recovery stage/action proof and
 failure/retry behavior; they do not establish real email delivery, link expiry
 timing, successful password replacement or fixture cleanup. Those remain live
 checks until observed.
+
+## Protected online development recipient
+
+The user approved publishing this existing tool under `/acceptance/` on the
+existing branch preview, with Vercel sign-in protection retained. The reviewed
+address is:
+`https://harbor-git-feat-notification-accepta-83c20a-stalinvmedrano-1274.vercel.app/acceptance/`.
+
+Use the same device, browser and tab for signup and confirmation. The online
+page includes only public development configuration, so a phone does not need
+access to the local computer or its private credentials. A callback opened on
+another browser/profile cannot borrow the pending fixture.
+
+The static preview build refuses any environment other than Vercel preview.
+Its output includes only the unchanged demo index/bundle and three acceptance
+assets. The worker scope is `/acceptance/`; notification clicks return there.
+Deployment sign-in protection must remain enabled. Do not distribute bypass
+tokens, promote this preview to production, or point a production configuration
+at development Supabase.
+
+Add only the exact acceptance callback to development Auth's redirect list,
+preserving the Site URL and all other settings. For the two Web Push lifecycle
+functions, `HARBOR_ACCEPTANCE_PREVIEW_ORIGIN` adds this one reviewed origin only
+on the exact development backend. It preserves the existing
+`HARBOR_ALLOWED_ORIGINS` setting without retrieving or replacing its value.
+Unknown origins, production backends and actual unauthenticated requests remain
+denied. Deploy only the relevant reviewed Web Push lifecycle functions after CI.
+
+Online availability does not complete live email or notification acceptance.
+The real user email flow, old/new-password checks and exact fixture cleanup
+remain required. Production SMTP, parent client implementation and the wider
+roadmap remain separate work.
