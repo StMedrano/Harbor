@@ -143,7 +143,7 @@ Commands below use the available pinned Deno/Supabase executables. Android comma
 
 **Files:** Create `notifications/{FamilyRealtime,ParentRegistrationStore,ParentNotifications,FirebaseTokenProvider,ParentMessagingService,ParentMessageParser}.kt`, `ParentRuntime.kt`, `ui/SettingsScreen.kt`; tests `notifications/{ParentNotificationsTest,ParentMessageParserTest,SignOutTest}.kt` and instrumented `notifications/ParentNotificationUiTest.kt`.
 
-**Interfaces:** `FamilyRealtime.connect(identity,familyId)/disconnect()`; `ParentNotifications.enable()/remove()/onTokenChanged(token)/onMessage(data)`; `ParentMessageParser.parse(data): ParentHint?`; `ParentRuntime.signOutCurrent()` orchestrates notifications, Auth, channels and caches. All async completions carry the identity/registration generation they started with.
+**Interfaces:** `FamilyRealtime.connect(identity,familyId)/disconnect()`; `ParentNotifications.enable()/remove()/onTokenChanged(token)/onMessage(data)`; `ParentMessageParser.parse(data): ParentHint?`; `ParentRuntime.signOutCurrent()` orchestrates notifications, Auth, channels and caches. Set a signing-out state and clear the current rendering/registration marker immediately, before bounded best-effort remote cleanup with captured in-memory credentials; invalidate old async generations. Do not persist credentials for later cleanup. All async completions carry the identity/registration generation they started with.
 
 - [ ] Write RED tests: permission denial never registers; backend failure stays unconfirmed; rotation/retry reuses installation identity; old registration IDs/wrong-family/unknown fields/sensitive payloads rejected; account switch during a request cannot commit old state; offline sign-out clears local state without claiming backend/provider cleanup.
 - [ ] Test exact two-string parent envelope, duplicate event hints and taps on inaccessible devices. Realtime disconnects on identity/family change; missed events recover on foreground/reconnect. Run unit tests to observe RED.
@@ -155,7 +155,7 @@ Commands below use the available pinned Deno/Supabase executables. Android comma
 
 **Files:** Create `security/{MfaGateway,SecurityViewModel}.kt`, `ui/SecurityScreen.kt`, tests `security/{MfaRevocationTest,SecurityUiTest}.kt`; wire existing device view/revoke API.
 
-**Interfaces:** `TotpEnrollment(factorId:String,secret:String,qrUri:String)` (memory-only); `MfaGateway.enrollTotp(): TotpEnrollment`, `challenge(factorId:String,code:String): Unit`, `listFactors(): List<String>`; `ParentApi.revokeDevice(familyId,deviceId): Unit`; security state separates confirmation, challenge, ready-to-retry, pending, accepted and denied.
+**Interfaces:** `TotpEnrollment(factorId:String,secret:String,qrUri:String)` (memory-only); `MfaGateway.enrollTotp(): TotpEnrollment`, `challenge(factorId:String,code:String): Unit`, `listFactors(): List<String>`; `ParentApi.revokeDevice(familyId,deviceId): Unit`; security state separates confirmation, challenge, ready-to-retry, pending, accepted and denied. `SecurityViewModel.challenge(factorId:String,code:String): Unit` changes only assurance/retry readiness; `requestRevocation(familyId:String,deviceId:String)` opens confirmation, and `confirmRetry(): Unit` invokes the deliberate backend operation.
 
 - [ ] Write RED tests: AAL1/stale-MFA denial shows step-up; successful challenge never automatically revokes; deliberate retry calls backend; wrong device/family and network failures never show completion; offline/cache roles cannot permit revocation; setup secret/password not in logs/screenshots.
 - [ ] Run focused unit/Compose tests and observe RED.
@@ -212,7 +212,32 @@ These are the required test names and minimal assertions; define synthetic fixtu
 
 Task 2 test name `duplicate_child_request_returns_same_id`: call `createChildAtomic` twice with the same normalized input; assert equal IDs, exactly one child/request and one creation audit with no name metadata. Task 3 `unexpired_jwt_with_removed_session_cannot_register`: remove the fixture session while retaining the valid JWT, call the new handler, assert HTTP 401 and zero active registrations. Task 4 `late_invalid_token_cannot_disable_rotated_registration`: resolve token generation A, rotate to B, invoke invalidation for A's hash/current lease, assert B remains active and other transports still send. Task 9 `parent_lifecycle_preserves_three_transport_identity`: repeat the exact event/dispatch, assert stable three-target intent identities and no duplicate domain mutation.
 
-The parent receiver supports the current domain kinds `device.state.changed` and `device.command.created`; other kinds are refused until their separately approved product flows exist. Parent hints require current family/child/device/resource references and the stored registration ID, validated before rendering. Generated Room entities use `(subjectId,familyId,resourceId)` keys. FamilySnapshot contains actual child/public-device fields plus fetch time, and no Auth credentials.
+The parent receiver supports the current domain kinds `device.state.changed` and `device.command.created`; other kinds are refused until their separately approved product flows exist. Parent hints require current family/child/device/resource references and the stored registration ID, validated before rendering. Confirmed remote sign-out blocks new recipient resolutions; already in-flight/provider-accepted packets cannot be recalled and must be filtered by the current rendering marker. Generated Room entities use `(subjectId,familyId,resourceId)` keys. FamilySnapshot contains actual child/public-device fields plus fetch time, and no Auth credentials.
+
+```typescript
+// Task 2: create-child.test.ts; input/parents are owned synthetic DB fixtures.
+Deno.test("duplicate_child_request_returns_same_id", async () => {
+  const first = await createChildAtomic(input);
+  const second = await createChildAtomic(input);
+  assertEquals(second.id, first.id);
+}); // pgTAP additionally asserts one child/request/audit and payload-conflict denial.
+// Task 3: parent-session.test.ts; verified Auth fixture has a removed session.
+Deno.test("unexpired_jwt_with_removed_session_cannot_register", async () => {
+  await assertRejects(() => requireActiveParentSession(request, removedSessionDeps),
+    HarborAuthError, "Authentication is required");
+});
+// Task 4: parent-fcm-persistence.test.ts; rotate the fixture to hashB first.
+Deno.test("late_invalid_token_cannot_disable_rotated_registration", async () => {
+  await store.disableParentFcm(registrationId, hashA, outboxId, attempt);
+  assertEquals((await store.readParentFcm(registrationId, familyId))?.tokenHash, hashB);
+});
+// Task 9: parent-android-foundation.test.ts; first dispatches already completed.
+Deno.test("parent_lifecycle_preserves_three_transport_identity", async () => {
+  assertEquals(await dispatch(childIntentId), { status: "no_op" });
+  assertEquals(await dispatch(parentIntentId), { status: "no_op" });
+  assertEquals(await dispatch(webIntentId), { status: "no_op" });
+}); // assert the same three durable IDs and unchanged domain rows in PostgreSQL.
+```
 ## Plan self-review and execution handoff
 
 Coverage: Tasks 1/5 implement secure build/Auth; Task 2 child creation; Tasks 3/4 parent FCM backend; Task 6 native setup/read/cache; Task 7 realtime/push/sign-out; Task 8 MFA/accessibility/platform evidence; Task 9 review/rollout/real cleanup. All five Review Focus conditions have owning tests. Interface names/ownership are consistent across tasks; encrypted Auth owns secrets, Room owns stale reads, ParentRuntime owns cross-component logout.
