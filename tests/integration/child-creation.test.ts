@@ -5,6 +5,7 @@ Deno.test("membership removal holds child creation until commit, then denies wit
   const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
     max: 4,
     prepare: false,
+    idle_timeout: 20,
   });
   const actor = crypto.randomUUID(), family = crypto.randomUUID();
   let unlock = () => {};
@@ -85,6 +86,7 @@ Deno.test("concurrent identical child requests persist one child/request/audit",
   const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
     max: 3,
     prepare: false,
+    idle_timeout: 20,
   });
   const actor = crypto.randomUUID(), family = crypto.randomUUID();
   try {
