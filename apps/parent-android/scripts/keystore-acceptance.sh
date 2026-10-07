@@ -18,8 +18,11 @@ adb shell am force-stop dev.stmedrano.harbor.parent
 run_test restoreColdStart
 run_test keyLossClearsCiphertextAndAllowsFreshSignIn
 run_test callbackIsScrubbedBeforeActivityCanAcceptIt
-run_test parent04StoresSurviveProfileBootstrap dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest
-run_test corruptModeHintDoesNotStartRuntime dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest
+profile_status=0
+run_test parent04StoresSurviveProfileBootstrap dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
+run_test corruptModeHintDoesNotStartRuntime dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
+run_test offlineFixtureBootstrapsWithoutProtectedRuntime dev.stmedrano.harbor.parent.profile.ProfileStartupTest || profile_status=1
+[[ "$profile_status" == 0 ]]
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1

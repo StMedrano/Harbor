@@ -64,6 +64,16 @@ class ProfileCoordinatorTest {
         released.complete(Unit); replacement.await()
         assertFalse(value.isCurrent(previous))
     }
+    @Test fun failedRuntimeStartStopsPartialRuntime() = runTest {
+        var running = false
+        val value = ProfileCoordinator(Store(), { "parent" }, { null }, { running = false }, {
+            running = true; error("start failed")
+        })
+        value.restore()
+        assertFalse(running)
+        assertNull(value.currentLease())
+        assertTrue(value.state.value is ProfileState.Blocked)
+    }
     @Test fun lateOldRestoreCannotActivate() = runTest {
         val entered = CompletableDeferred<Unit>(); val old = CompletableDeferred<String?>()
         var calls = 0

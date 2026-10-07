@@ -9,6 +9,7 @@ import dev.stmedrano.harbor.parent.data.ParentDatabase
 import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.security.*
+import dev.stmedrano.harbor.parent.profile.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -16,6 +17,24 @@ data class ParentTapState(val device: DevicePublicV1? = null, val message: Strin
 
 class ParentApplication : Application() {
     val accountScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var parentConstructionAllowed = false
+    private var parentCollectors: Job? = null
+    val profiles by lazy {
+        val store = AndroidProfileStore(this)
+        ProfileCoordinator(store, {
+            val childRecords = getSharedPreferences("harbor-child-auth", MODE_PRIVATE).all.isNotEmpty()
+            if (BuildConfig.CI_FIXTURE || store.read() == ProfileRole.CHILD || childRecords) null
+            else { parentAuth?.restore(); parentAuth?.identity?.value?.userId }
+        }, {
+            // Task 2 supplies verified child restoration. Until then, existing
+            // child records block startup rather than being treated as a parent.
+            check(getSharedPreferences("harbor-child-auth", MODE_PRIVATE).all.isEmpty())
+            null
+        }, ::stopParentRuntime, { lease ->
+            check(lease.role == ProfileRole.PARENT)
+            startParentRuntime()
+        })
+    }
     private val mutableTap = MutableStateFlow(ParentTapState())
     val tapState = mutableTap.asStateFlow()
     private val secureStore by lazy { SecureAuthStore.open(this) }
@@ -24,8 +43,14 @@ class ParentApplication : Application() {
     }
     // One SDK/repository per process survives Activity recreation. The CI APK
     // never constructs a live client, in addition to having no INTERNET permission.
-    val authRepository: ParentAuthRepository? by lazy {
+    private val parentAuth: ParentAuthRepository? by lazy {
         client?.let { ParentAuthRepository(SupabaseAuthGateway(it, secureStore), secureStore) }
+    }
+    val authRepository: ParentAuthRepository?
+        get() = if (parentConstructionAllowed) parentAuth else null
+    fun openParentSetup() {
+        check(profiles.state.value == ProfileState.Setup)
+        parentConstructionAllowed = true
     }
     private val parentApi by lazy { authRepository?.let { SdkParentApi(checkNotNull(client), it) } }
     val familyViewModel: FamilyViewModel? by lazy {
@@ -84,15 +109,36 @@ class ParentApplication : Application() {
     }
     override fun onCreate() {
         super.onCreate()
-        if (BuildConfig.CI_FIXTURE) return
-        val auth = checkNotNull(authRepository)
         accountScope.launch {
+            profiles.restore()
+            // This stage preserves the existing parent setup screen. Task 3
+            // makes construction contingent on an explicit Parent selection.
+            if (profiles.state.value == ProfileState.Setup) parentConstructionAllowed = true
+        }
+    }
+    private suspend fun stopParentRuntime() {
+        parentCollectors?.cancelAndJoin()
+        parentCollectors = null
+        if (parentConstructionAllowed) {
+            realtime?.disconnect()
+            familyViewModel?.hideVisible()
+            securityViewModel?.clear()
+            mutableTap.value = ParentTapState()
+        }
+        parentConstructionAllowed = false
+    }
+    private fun startParentRuntime() {
+        parentConstructionAllowed = true
+        if (BuildConfig.CI_FIXTURE || parentCollectors != null) return
+        val auth = checkNotNull(authRepository)
+        parentCollectors = accountScope.launch { coroutineScope {
+        launch {
             auth.identity.collectLatest { identity ->
                 if (identity != null) accountWork { ensureContext() }
                 else { realtime?.disconnect(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() }
             }
         }
-        accountScope.launch {
+        launch {
             combine(auth.identity, checkNotNull(familyViewModel).repository.state) { identity, family ->
                 identity to family.snapshot?.takeIf { family.failure != FamilyFailure.ACCESS_DENIED && it.membership.userId == identity?.userId }?.family?.id
             }.distinctUntilChanged().collectLatest { (identity, family) ->
@@ -105,6 +151,7 @@ class ParentApplication : Application() {
                 }
             }
         }
+        } }
     }
     private val contextBinding by lazy { ParentContextBinding(::currentIdentity, checkNotNull(familyViewModel), registrationStore,
         { realtime?.disconnect(); notifications?.invalidate(); renderer.clear(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
@@ -123,16 +170,25 @@ class ParentApplication : Application() {
         catch (_: Exception) { /* Controllers retain honest failed/unconfirmed states. */ }
     }
     fun foreground() { accountScope.launch { accountWork {
+        if (profiles.state.value !is ProfileState.Parent) return@accountWork
         if (currentIdentity() != null) {
             authRepository?.withAccessToken { }
             ensureContext()
             currentIdentity()?.let { familyViewModel?.refresh(it) }
         }
     } } }
-    fun queueTokenRefresh() { registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this, it, null) } }
-    fun queueMessage(data: Map<String, String>) { registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this, it, data) } }
+    fun queueTokenRefresh() { accountScope.launch {
+        profiles.state.first { it != ProfileState.Transitioning }
+        if (profiles.state.value is ProfileState.Parent) registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this@ParentApplication, it, null) }
+    } }
+    fun queueMessage(data: Map<String, String>) { accountScope.launch {
+        profiles.state.first { it != ProfileState.Transitioning }
+        if (profiles.state.value is ProfileState.Parent) registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this@ParentApplication, it, data) }
+    } }
     suspend fun processBackground(owner: ParentIdentity, data: Map<String, String>?) {
         if (BuildConfig.CI_FIXTURE) return
+        profiles.state.first { it != ProfileState.Transitioning }
+        if (profiles.state.value !is ProfileState.Parent) return
         runtime?.authAction {
             ParentBackgroundProcessor(::currentIdentity, registrationStore::optedOwner,
                 { authRepository?.restore() }, ::ensureContext,

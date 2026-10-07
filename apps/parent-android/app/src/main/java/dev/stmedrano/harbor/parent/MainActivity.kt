@@ -31,6 +31,7 @@ import dev.stmedrano.harbor.parent.ui.DeviceScreen
 import dev.stmedrano.harbor.parent.ui.SecurityScreen
 import dev.stmedrano.harbor.parent.family.DevicePublicV1
 import dev.stmedrano.harbor.parent.notifications.*
+import dev.stmedrano.harbor.parent.profile.ProfileState
 
 class MainActivity : ComponentActivity() {
     private val callback = mutableStateOf<String?>(null)
@@ -47,6 +48,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val graph = application as ParentApplication
+            val profile = graph.profiles.state.collectAsState().value
+            if (profile == ProfileState.Transitioning || profile is ProfileState.Blocked || profile is ProfileState.Child) {
+                HarborTheme { ParentApp(showBrand = false) {
+                    Text(if (profile == ProfileState.Transitioning) "Restoring Harbor…" else "This phone needs authorized setup recovery.")
+                } }
+                return@setContent
+            }
+            if (profile == ProfileState.Setup) graph.openParentSetup()
             val identity = graph.authRepository?.identity?.collectAsState()?.value
             val runtime = graph.runtime?.state?.collectAsState()?.value
             val notifications = graph.notifications?.state?.collectAsState()?.value ?: ParentNotificationState()
@@ -82,8 +91,13 @@ class MainActivity : ComponentActivity() {
                             authentication = {
                                 AuthScreen(graph.authRepository, callback.value, graph.runtime,
                                     onAuthenticated = {
+                                        graph.accountScope.launch {
+                                        graph.profiles.activateParent()
+                                        if (graph.profiles.state.value is ProfileState.Parent) withContext(Dispatchers.Main) {
                                         authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
                                         logoutRequested.value = false; graph.closeNotification()
+                                        }
+                                        }
                                     }, onCallbackConsumed = { callback.value = null })
                             },
                             parentMenu = {

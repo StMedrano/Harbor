@@ -3,6 +3,8 @@ package dev.stmedrano.harbor.parent.profile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -13,7 +15,7 @@ class ProfileCoordinator(
     private val stopRuntime: suspend () -> Unit,
     private val startRuntime: suspend (ProfileLease) -> Unit
 ) {
-    private val mutableState = MutableStateFlow<ProfileState>(ProfileState.Setup)
+    private val mutableState = MutableStateFlow<ProfileState>(ProfileState.Transitioning)
     val state = mutableState.asStateFlow()
     private val mutex = Mutex()
     private var generation = 0L
@@ -58,10 +60,18 @@ class ProfileCoordinator(
                 mutableState.value = if (role == ProfileRole.PARENT) ProfileState.Parent(lease) else ProfileState.Child(lease)
             }
         } catch (cancelled: CancellationException) {
-            mutex.withLock { if (captured == generation) mutableState.value = ProfileState.Blocked(ProfileBlock.INVALID_CREDENTIALS) }
+            fail(captured, ProfileBlock.INVALID_CREDENTIALS)
             throw cancelled
         } catch (_: Exception) {
-            mutex.withLock { if (captured == generation) mutableState.value = ProfileState.Blocked(ProfileBlock.STORAGE_UNAVAILABLE) }
+            fail(captured, ProfileBlock.STORAGE_UNAVAILABLE)
+        }
+    }
+    private suspend fun fail(captured: Long, reason: ProfileBlock) = withContext(NonCancellable) {
+        mutex.withLock {
+            if (captured != generation) return@withLock
+            mutableState.value = ProfileState.Blocked(reason)
+            try { stopRuntime() }
+            catch (_: Exception) { /* Remain blocked; cleanup is never inferred. */ }
         }
     }
 }

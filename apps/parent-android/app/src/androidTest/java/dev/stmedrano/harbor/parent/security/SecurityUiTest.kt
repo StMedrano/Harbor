@@ -50,7 +50,9 @@ class SecurityUiTest {
         assertEquals(1, calls)
         assertNull(model.state.value.enrollment)
         compose.onNodeWithText("Retry revocation").performScrollTo().performClick()
-        compose.waitUntil(5000) { model.state.value.phase == SecurityPhase.ACCEPTED }
+        // ACCEPTED confirms revocation before the independent refresh finishes.
+        // Wait for the operation boundary before asserting its refresh side effect.
+        compose.waitUntil(5000) { model.state.value.phase == SecurityPhase.ACCEPTED && !model.state.value.busy }
         assertEquals(2, calls); assertEquals(1, refreshed)
         compose.onNodeWithText("Back to family").performScrollTo().performClick()
         compose.onNodeWithText("Family overview").assertIsDisplayed()
