@@ -16,7 +16,14 @@ class ProfileStartupTest {
         compose.waitUntil(5000) { graph.profiles.state.value != ProfileState.Transitioning }
         assertEquals(ProfileState.Setup, graph.profiles.state.value)
         assertNull(graph.authRepository)
+        compose.onNodeWithText("Parent").assertExists()
+        compose.onNodeWithText("Child").assertExists()
         compose.onNodeWithText("Settings").assertDoesNotExist()
         compose.onNodeWithText("Security").assertDoesNotExist()
+        compose.onNodeWithText("Child").performClick()
+        compose.onNodeWithText("Enter pairing code").assertExists()
+        compose.onNodeWithText("Settings").assertDoesNotExist()
+        compose.onNodeWithText("Security").assertDoesNotExist()
+        assertNull(graph.authRepository)
     }
 }
