@@ -46,7 +46,7 @@ class AuthScreenTest {
         val callback = mutableStateOf<String?>(null)
         compose.setContent { HarborTheme { ParentApp { AuthScreen(repository, callback.value) { callback.value = null } } } }
         compose.waitUntil(5000) { compose.onAllNodesWithText("Working…").fetchSemanticsNodes().isEmpty() }
-        compose.onNodeWithText("Forgot password?").performClick()
+        compose.onNodeWithText("Forgot password?").performScrollTo().performClick()
         compose.onNodeWithText("Email").performTextInput("parent@example.invalid")
         compose.onNodeWithText("Request recovery email").performClick()
         compose.waitUntil(5000) { store.transaction != null }
@@ -61,6 +61,7 @@ class AuthScreenTest {
         assertFalse(repository.hasVerifiedRecovery())
         compose.onNodeWithText("New password").assertDoesNotExist()
         compose.onNodeWithText("Password").assertExists()
+        Unit
     }
 
     @Test fun offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled() {
@@ -74,11 +75,13 @@ class AuthScreenTest {
         compose.onNodeWithText("Request recovery email").assertIsNotEnabled()
         compose.onNodeWithText("Password").assertDoesNotExist()
         compose.onNodeWithText("New password").assertDoesNotExist()
-        compose.onNodeWithText("Back to sign in").performClick()
-        compose.onNodeWithText("Create account").performClick()
+        compose.onNodeWithText("Back to sign in").performScrollTo().performClick()
+        compose.onNodeWithText("Create account").performScrollTo().performClick()
         compose.onNodeWithTag("auth-submit").assertIsNotEnabled()
         compose.onNodeWithText("Forgot password?").assertDoesNotExist()
     }
+
+    @Test fun largeTextAuthNavigationKeepsRecoverySeparate() = offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled()
 
     @Test fun failedSignInCannotLeaveVerifiedSessionTitleVisible() = runBlocking {
         val store = SecureAuthStore(object : AuthValues {

@@ -39,6 +39,7 @@ run_test notificationContainsGenericTextAndAnImmutableExplicitTap dev.stmedrano.
 visual_status=0
 run_test pairingDialogUsesVercelSurface dev.stmedrano.harbor.parent.ui.FamilyRouteTest || visual_status=1
 adb shell settings put system font_scale 1.8
+run_test largeTextAuthNavigationKeepsRecoverySeparate dev.stmedrano.harbor.parent.ui.AuthScreenTest || visual_status=1
 run_test largeTextPairingRequiresFreshReadAndBackReturnsToFamily dev.stmedrano.harbor.parent.ui.FamilyRouteTest || visual_status=1
 adb shell settings put system font_scale 1.0
 [[ "$visual_status" == 0 ]]
