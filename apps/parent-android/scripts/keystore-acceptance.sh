@@ -22,3 +22,4 @@ run_test callbackIsScrubbedBeforeActivityCanAcceptIt
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest
 
 run_test credentialsAreExcludedFromLegacyCloudAndDeviceTransfer
+run_test failedSignInCannotLeaveVerifiedSessionTitleVisible dev.stmedrano.harbor.parent.ui.AuthScreenTest
