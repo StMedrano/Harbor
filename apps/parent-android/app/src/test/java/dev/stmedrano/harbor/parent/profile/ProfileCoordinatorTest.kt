@@ -74,6 +74,14 @@ class ProfileCoordinatorTest {
         assertNull(value.currentLease())
         assertTrue(value.state.value is ProfileState.Blocked)
     }
+    @Test fun conflictingStoredCredentialsBlockBeforeAnyClientConstruction() = runTest {
+        var clients = 0
+        val probe = ProfileEvidence({ true }, { true })
+        val value = coordinator(parent = { probe.assertSingleProfile(); clients++; "parent" }, child = { "device" })
+        value.restore()
+        assertEquals(0, clients)
+        assertEquals(ProfileState.Blocked(ProfileBlock.AMBIGUOUS), value.state.value)
+    }
     @Test fun lateOldRestoreCannotActivate() = runTest {
         val entered = CompletableDeferred<Unit>(); val old = CompletableDeferred<String?>()
         var calls = 0

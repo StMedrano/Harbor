@@ -10,6 +10,7 @@ import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.security.*
 import dev.stmedrano.harbor.parent.profile.*
+import dev.stmedrano.harbor.parent.child.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -19,20 +20,31 @@ class ParentApplication : Application() {
     val accountScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var parentConstructionAllowed = false
     private var parentCollectors: Job? = null
+    private val evidence by lazy { ProfileEvidence(
+        { getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isNotEmpty() },
+        { EncryptedChildStore.hasRecords(this) }) }
+    private val childKey by lazy { ChildDeviceKey() }
+    private val childRepository by lazy {
+        ChildRepository(ChildApi.create(childKey), EncryptedChildStore(this), childKey, { System.currentTimeMillis() / 1000 })
+    }
     val profiles by lazy {
         val store = AndroidProfileStore(this)
         ProfileCoordinator(store, {
-            val childRecords = getSharedPreferences("harbor-child-auth", MODE_PRIVATE).all.isNotEmpty()
+            evidence.assertSingleProfile()
+            val childRecords = EncryptedChildStore.hasRecords(this)
             if (BuildConfig.CI_FIXTURE || store.read() == ProfileRole.CHILD || childRecords) null
             else { parentAuth?.restore(); parentAuth?.identity?.value?.userId }
         }, {
-            // Task 2 supplies verified child restoration. Until then, existing
-            // child records block startup rather than being treated as a parent.
-            check(getSharedPreferences("harbor-child-auth", MODE_PRIVATE).all.isEmpty())
-            null
+            evidence.assertSingleProfile()
+            if (!EncryptedChildStore.hasRecords(this)) null
+            else {
+                childRepository.restore()
+                if (childRepository.state.value is ChildSyncState.Blocked) throw ProfileValidationFailure(ProfileBlock.INVALID_CREDENTIALS)
+                childRepository.binding.value?.deviceId
+            }
         }, ::stopParentRuntime, { lease ->
-            check(lease.role == ProfileRole.PARENT)
-            startParentRuntime()
+            if (lease.role == ProfileRole.PARENT) startParentRuntime()
+            else check(childRepository.binding.value?.deviceId == lease.ownerId)
         })
     }
     private val mutableTap = MutableStateFlow(ParentTapState())

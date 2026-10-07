@@ -37,7 +37,11 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
         try {
             val saved = store.load()
             if (saved == null) {
-                mutableState.value = if (store.claimPending) ChildSyncState.Blocked(ChildFailure.UNKNOWN_OUTCOME) else ChildSyncState.Stale(null)
+                mutableState.value = when {
+                    store.claimPending -> ChildSyncState.Blocked(ChildFailure.UNKNOWN_OUTCOME)
+                    store.hasHistory -> ChildSyncState.Blocked(ChildFailure.STORAGE_UNAVAILABLE)
+                    else -> ChildSyncState.Stale(null)
+                }
                 return@withLock
             }
             record = saved
@@ -68,6 +72,7 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             if (!code.matches(Regex("[0-9]{6}")) || currentBinding.value != null || store.load()?.binding != null) return@withLock PairResult.Rejected
             if (store.claimPending) return@withLock PairResult.UnknownOutcome
             val previous = store.load()
+            if (previous == null && store.hasHistory) throw Invalid(ChildFailure.STORAGE_UNAVAILABLE)
             val session = previous?.let { sessionFor(it).session } ?: run {
                 // A lost signup response may already have created an identity.
                 // Persist the unknown-outcome guard before that first request.

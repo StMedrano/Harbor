@@ -15,7 +15,9 @@ class ChildRepositoryTest {
         var record: ChildRecord? = null
         var readFails = false
         var writeFails = false
+        var history = false
         override var claimPending = false
+        override val hasHistory get() = history || claimPending || record != null
         override fun load(): ChildRecord? { if (readFails) throw IOException("fixture read failure"); return record }
         override fun save(record: ChildRecord) { if (writeFails) throw IOException("fixture write failure"); this.record = record }
         override fun clear() { record = null }
@@ -136,5 +138,11 @@ class ChildRepositoryTest {
         val value = repository(store, backend); value.restore(); store.writeFails = true
         assertEquals(ChildSyncState.Blocked(ChildFailure.REVOKED), value.sync())
         assertEquals(ChildSyncState.Blocked(ChildFailure.REVOKED), value.state.value)
+    }
+    @Test fun missingEncryptedRecordWithHistoryIsBlocked() = runTest {
+        val store = Store().apply { history = true }
+        val value = repository(store, Backend(store)); value.restore()
+        assertEquals(ChildSyncState.Blocked(ChildFailure.STORAGE_UNAVAILABLE), value.state.value)
+        assertNull(value.binding.value)
     }
 }

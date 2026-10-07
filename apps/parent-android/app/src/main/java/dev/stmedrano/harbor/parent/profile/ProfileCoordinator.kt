@@ -62,6 +62,8 @@ class ProfileCoordinator(
         } catch (cancelled: CancellationException) {
             fail(captured, ProfileBlock.INVALID_CREDENTIALS)
             throw cancelled
+        } catch (invalid: ProfileValidationFailure) {
+            fail(captured, invalid.reason)
         } catch (_: Exception) {
             fail(captured, ProfileBlock.STORAGE_UNAVAILABLE)
         }
