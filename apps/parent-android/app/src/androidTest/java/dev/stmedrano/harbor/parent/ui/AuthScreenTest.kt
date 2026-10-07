@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import org.junit.Rule
 import org.junit.Test
 import dev.stmedrano.harbor.parent.auth.*
@@ -20,12 +21,17 @@ class AuthScreenTest {
         compose.setContent { HarborTheme { ParentApp { AuthScreen(null, null) {} } } }
         compose.onNodeWithText("Email").assertIsNotEnabled()
         compose.onNodeWithText("Password").assertIsNotEnabled()
-        compose.onNodeWithText("Sign in").assertIsNotEnabled()
-        compose.onNodeWithText("Create account").assertIsNotEnabled()
+        compose.onNodeWithTag("auth-submit").assertIsNotEnabled()
+        compose.onNodeWithText("New password").assertDoesNotExist()
+        compose.onNodeWithText("Request recovery email").assertDoesNotExist()
+        compose.onNodeWithText("Forgot password?").performClick()
         compose.onNodeWithText("Request recovery email").assertIsNotEnabled()
-        compose.onNodeWithText("New password").assertIsNotEnabled()
-        compose.onNodeWithText("Confirm new password").assertIsNotEnabled()
-        compose.onNodeWithText("Update password").assertIsNotEnabled()
+        compose.onNodeWithText("Password").assertDoesNotExist()
+        compose.onNodeWithText("New password").assertDoesNotExist()
+        compose.onNodeWithText("Back to sign in").performClick()
+        compose.onNodeWithText("Create account").performClick()
+        compose.onNodeWithTag("auth-submit").assertIsNotEnabled()
+        compose.onNodeWithText("Forgot password?").assertDoesNotExist()
     }
 
     @Test fun failedSignInCannotLeaveVerifiedSessionTitleVisible() = runBlocking {
@@ -56,7 +62,7 @@ class AuthScreenTest {
         compose.waitUntil(5000) { compose.onAllNodesWithText("Parent session verified").fetchSemanticsNodes().size == 1 }
         compose.onNodeWithText("Email").performTextInput("parent@example.invalid")
         compose.onNodeWithText("Password").performTextInput("synthetic-wrong")
-        compose.onNodeWithText("Sign in").performScrollTo().performClick()
+        compose.onNodeWithTag("auth-submit").performScrollTo().performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithText("Request failed. Check your connection, or cancel the email flow and request a fresh link.").fetchSemanticsNodes().size == 1 }
         compose.onNodeWithText("Parent session verified").assertDoesNotExist()
     }
