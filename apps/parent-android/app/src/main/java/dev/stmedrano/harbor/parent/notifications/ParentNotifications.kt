@@ -31,6 +31,7 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
         generation++; optedIdentity = null; store.clearMarker(); seen.clear()
         mutableState.value = ParentNotificationState()
     }
+    fun disableLocally() = synchronized(lock) { store.clearOptIn(); invalidate() }
     suspend fun enable() = operations.withLock {
         val identity = currentIdentity()
         if (identity == null || !permissionAllowed()) {
@@ -38,7 +39,7 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
             return@withLock
         }
         val ticket = synchronized(lock) {
-            generation++; optedIdentity = identity; store.clearMarker()
+            generation++; optedIdentity = identity; store.setOptedIn(identity, true); store.clearMarker()
             mutableState.value = ParentNotificationState(busy = true)
             generation
         }
@@ -77,9 +78,9 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
         failed(identity, ticket)
     }
     suspend fun remove() {
-        val identity = currentIdentity() ?: run { invalidate(); return }
+        val identity = currentIdentity() ?: run { disableLocally(); return }
         val installation = store.installationId()
-        invalidate()
+        disableLocally()
         val ticket = synchronized(lock) { generation }
         val removed = withTimeoutOrNull(10000) {
             try { api.remove(installation, captureAccessToken()); true }

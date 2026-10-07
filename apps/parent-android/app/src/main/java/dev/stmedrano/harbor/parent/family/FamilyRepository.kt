@@ -72,6 +72,11 @@ class FamilyRepository(private val api: ParentApi, private val cache: FamilyCach
     }
     fun hideVisible() = synchronized(frames) { generation.incrementAndGet(); mutableState.value = FamilyState() }
     suspend fun clearAll() { hideVisible(); commits.withLock { cache.clearAll() } }
+    suspend fun retainUser(identity: ParentIdentity) {
+        requireCurrent(identity)
+        hideVisible()
+        commits.withLock { requireCurrent(identity); cache.retainUser(identity.userId); requireCurrent(identity) }
+    }
     suspend fun showCached(identity: ParentIdentity, familyId: String) {
         requireCurrent(identity)
         val ticket = synchronized(frames) { generation.incrementAndGet() }

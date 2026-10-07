@@ -51,15 +51,22 @@ class FamilyRouteTest {
         val child = ChildV1(1, "child", family.id, "Child", date, date)
         val device = DevicePublicV1(1, "device", family.id, child.id, "Phone", "standard", "active", null, date, date)
         val enrolled = java.util.concurrent.atomic.AtomicBoolean(false)
+        val currentDevice = java.util.concurrent.atomic.AtomicReference(device)
+        val offline = java.util.concurrent.atomic.AtomicBoolean(false)
+        val denied = java.util.concurrent.atomic.AtomicBoolean(false)
         val api = object : ParentApi {
             override suspend fun revokeDevice(familyId: String, deviceId: String): Unit = error("Unexpected revocation")
             override suspend fun listFamilies() = listOf(family)
             override suspend fun createFamily(name: String, key: String): CreatedFamily = error("not used")
             override suspend fun createChild(request: CreateChildRequest): ChildV1 = error("not used")
             override suspend fun createPairing(childId: String) = PairingCode("123456", "2099-01-01T00:10:00Z")
-            override suspend fun readFamily(familyId: String) = FamilySnapshot(family,
+            override suspend fun readFamily(familyId: String): FamilySnapshot {
+                if (denied.get()) throw FamilyAccessDenied()
+                if (offline.get()) error("offline")
+                return FamilySnapshot(family,
                 FamilyMemberV1(1, "membership", family.id, identity.userId, "owner", "active", date, date),
-                listOf(child), if (enrolled.get()) listOf(device) else emptyList(), 1234)
+                listOf(child), if (enrolled.get()) listOf(currentDevice.get()) else emptyList(), 1234)
+            }
         }
         context.deleteDatabase(databaseName)
         val dao = ParentDatabase.open(context, databaseName).also { database = it }.familyCache()
@@ -97,6 +104,17 @@ class FamilyRouteTest {
         compose.onNodeWithText("Phone · active · standard").performScrollTo().performClick()
         compose.onNodeWithText("Last seen: not reported").performScrollTo().assertIsDisplayed()
         saveScreenshot("family-device-large-text.png")
+        currentDevice.set(device.copy(displayName = "Updated phone", lastSeenAt = date))
+        kotlinx.coroutines.runBlocking { model.refresh(identity) }
+        compose.onNodeWithText("Updated phone").assertExists()
+        compose.onNodeWithText("Last seen: $date").assertExists()
+        offline.set(true)
+        kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
+        compose.onNodeWithText("Cached device view · fetched at 1234 · refresh when online").assertExists()
+        denied.set(true)
+        kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
+        compose.onNodeWithText("This device is unavailable. Refresh your family.").assertExists()
+        compose.onNodeWithText("Updated phone").assertDoesNotExist()
         instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
         compose.onNodeWithText("Refresh family").performScrollTo().assertIsDisplayed()

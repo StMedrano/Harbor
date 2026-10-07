@@ -8,6 +8,7 @@ export type ParentFcmRegistrationInput = {
 };
 export type ParentFcmRemovalInput = {
   userId: string;
+  sessionId: string;
   clientInstallationId: string;
 };
 export function parentInstallation(value: unknown): string | null {
@@ -31,5 +32,5 @@ export async function registerParentFcmAtomic(
 export async function removeParentFcmAtomic(
   input: ParentFcmRemovalInput,
 ): Promise<void> {
-  await getPrivateSql()`select private.harbor_remove_parent_fcm(${input.userId}::uuid,${input.clientInstallationId})`;
+  await getPrivateSql()`select private.harbor_remove_parent_fcm(${input.userId}::uuid,${input.sessionId}::uuid,${input.clientInstallationId})`;
 }

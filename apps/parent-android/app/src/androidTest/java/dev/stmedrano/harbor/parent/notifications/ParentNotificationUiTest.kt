@@ -17,6 +17,16 @@ import org.junit.Test
 class ParentNotificationUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
+    @Test fun signOutRemainsAvailableDuringNotificationRegistration() {
+        var logouts = 0
+        compose.setContent { HarborTheme { ParentApp {
+            SettingsScreen(ParentNotificationState(busy = true), ParentRuntimeState(), true, {}, {}, { logouts++ })
+        } } }
+        compose.onNodeWithText("Enable notifications").assertIsNotEnabled()
+        compose.onNodeWithText("Sign out this device").performScrollTo().assertIsEnabled().performClick()
+        assertEquals(1, logouts)
+    }
+
     @Test fun developmentReceiptViewExportsOnlyAnObservedReferenceOnExplicitTap() {
         val receipt = ParentReceipt("00000000-0000-4000-8000-000000000001",
             ParentRoute(1,"device.state.changed", resourceId = "00000000-0000-4000-8000-000000000002"), 1_000_000L)

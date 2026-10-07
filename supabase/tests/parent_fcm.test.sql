@@ -15,7 +15,7 @@ begin execute 'select private.harbor_parent_session_active($1,$2)' into result u
 create function pg_temp.fcm_count(query text) returns bigint language plpgsql as $$
 declare result bigint;begin execute query into result;return result;exception when others then return -1;end $$;
 create function pg_temp.fcm_remove(actor uuid,installation text) returns boolean language plpgsql as $$
-begin execute 'select private.harbor_remove_parent_fcm($1,$2)' using actor,installation;return true;exception when others then return false;end $$;
+begin execute 'select private.harbor_remove_parent_fcm($1,$2,$3)' using actor,'30000000-0000-4000-8000-000000000111'::uuid,installation;return true;exception when others then return false;end $$;
 create function pg_temp.fcm_mutation_rejected(query text) returns boolean language plpgsql as $$
 begin execute query;return false;exception when others then return SQLSTATE='22023';end $$;
 select ok(to_regclass('private.parent_fcm_registrations') is not null,'parent FCM registry is private and durable');

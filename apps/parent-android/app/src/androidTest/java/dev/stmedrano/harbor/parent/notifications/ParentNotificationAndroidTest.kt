@@ -7,7 +7,7 @@ import org.junit.Test
 
 class ParentNotificationAndroidTest {
     private val registration = "00000000-0000-4000-8000-000000000001"
-    private val route = """{"version":1,"kind":"device.state.changed","familyId":"00000000-0000-4000-8000-000000000002"}"""
+    private val route = """{"version":1,"kind":"device.state.changed","familyId":"00000000-0000-4000-8000-000000000002","childId":"00000000-0000-4000-8000-000000000003","deviceId":"00000000-0000-4000-8000-000000000004","resourceId":"00000000-0000-4000-8000-000000000005"}"""
     @Test fun tapEnvelopeIsStrictAndClearedBeforeRouting() {
         fun intent() = Intent(ParentNotificationRenderer.TAP_ACTION).putExtra("route", route).putExtra("parentRegistrationId", registration)
         val accepted = intent()

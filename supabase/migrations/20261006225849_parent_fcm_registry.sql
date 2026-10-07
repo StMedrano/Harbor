@@ -64,14 +64,14 @@ end $$;
 revoke all on function private.harbor_register_parent_fcm(uuid,uuid,text,text) from public,anon,authenticated;
 grant execute on function private.harbor_register_parent_fcm(uuid,uuid,text,text) to service_role;
 
-create function private.harbor_remove_parent_fcm(actor uuid,installation text) returns void
+create function private.harbor_remove_parent_fcm(actor uuid,session uuid,installation text) returns void
 language plpgsql security invoker set search_path='' as $$
 declare v_id uuid;
 begin
  update private.parent_fcm_registrations r set active=false,removed_at=clock_timestamp(),updated_at=clock_timestamp()
- where r.user_id=actor and r.client_installation_id=btrim(installation) and r.active returning r.id into v_id;
+ where r.user_id=actor and r.session_id=session and r.client_installation_id=btrim(installation) and r.active returning r.id into v_id;
  if v_id is not null then insert into private.audit_events(event_kind,actor_user_id,resource_type,resource_id,metadata)
  values('parent.fcm.removed',actor,'parent_fcm_registration',v_id,'{}'::jsonb);end if;
 end $$;
-revoke all on function private.harbor_remove_parent_fcm(uuid,text) from public,anon,authenticated;
-grant execute on function private.harbor_remove_parent_fcm(uuid,text) to service_role;
+revoke all on function private.harbor_remove_parent_fcm(uuid,uuid,text) from public,anon,authenticated;
+grant execute on function private.harbor_remove_parent_fcm(uuid,uuid,text) to service_role;

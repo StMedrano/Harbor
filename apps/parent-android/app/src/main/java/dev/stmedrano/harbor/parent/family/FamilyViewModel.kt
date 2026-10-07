@@ -71,19 +71,29 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
         requireCurrent(identity)
         store.write(slot, null)
         store.write("selected-family:${identity.userId}", created.familyId)
-        val families = api.listFamilies()
-        requireCurrent(identity)
-        mutableState.value = state.value.copy(families = families)
-        selectUnlocked(identity, created.familyId)
+        refreshAfterCreate(identity, "Family") {
+            val families = api.listFamilies()
+            requireCurrent(identity)
+            mutableState.value = state.value.copy(families = families)
+            selectUnlocked(identity, created.familyId)
+        }
     }
     suspend fun cancelFamily(identity: ParentIdentity) = operation(identity) { store.write("pending-family:${identity.userId}", null) }
     suspend fun submitChild(identity: ParentIdentity, name: String) = operation(identity) {
         requireOnline()
         val familyId = checkNotNull(repository.state.value.snapshot).family.id
         val child = children.submit(identity, familyId, name)
-        repository.refresh(identity, familyId)
         requireCurrent(identity)
         mutableState.value = state.value.copy(selectedChildId = child.id)
+        refreshAfterCreate(identity, "Child") { repository.refresh(identity, familyId) }
+    }
+    private suspend fun refreshAfterCreate(identity: ParentIdentity, entity: String, read: suspend () -> Unit) {
+        try { read() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            requireCurrent(identity)
+            mutableState.value = state.value.copy(message = "$entity created. Refresh to load the latest view.")
+        }
     }
     suspend fun cancelChild(identity: ParentIdentity) = operation(identity) {
         repository.state.value.snapshot?.family?.id?.let { children.cancel(identity, it) }
@@ -99,6 +109,7 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
     }
     fun hideVisible() { generation.incrementAndGet(); owner = null; mutableState.value = FamilyControlState(); pairing.clear(); repository.hideVisible() }
     suspend fun clear() { hideVisible(); repository.clearAll() }
+    suspend fun retainUser(identity: ParentIdentity) { hideVisible(); repository.retainUser(identity) }
     private fun requireOnline() { require(!repository.state.value.cached && repository.state.value.failure == null && repository.state.value.snapshot != null) { "Refresh online before making changes" } }
     private fun requireCurrent(identity: ParentIdentity) { if (currentIdentity() != identity || activeGeneration != generation.get()) throw AuthSessionRejected() }
     private suspend fun operation(identity: ParentIdentity, block: suspend () -> Unit) = mutex.withLock {

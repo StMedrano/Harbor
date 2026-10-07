@@ -41,6 +41,7 @@ export function createRemoveParentFcmHandler(
       }
       await deps.removeParentFcmAtomic({
         userId: parent.userId,
+        sessionId: parent.sessionId,
         clientInstallationId,
       });
       return new Response(null, { status: 204 });

@@ -11,15 +11,11 @@ import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.security.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 data class ParentTapState(val device: DevicePublicV1? = null, val message: String? = null)
 
 class ParentApplication : Application() {
     val accountScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val contextChanges = Mutex()
-    private var boundIdentity: ParentIdentity? = null
     private val mutableTap = MutableStateFlow(ParentTapState())
     val tapState = mutableTap.asStateFlow()
     private val secureStore by lazy { SecureAuthStore.open(this) }
@@ -67,7 +63,7 @@ class ParentApplication : Application() {
     val runtime: ParentRuntime? by lazy {
         authRepository?.let { auth -> ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
-            { notifications?.invalidate(); renderer.clear() }, { realtime?.disconnect() },
+            { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
             { familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> fcmApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
@@ -76,7 +72,7 @@ class ParentApplication : Application() {
                     try { familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
-                        finally { registrationStore.clearMarker(); boundIdentity = null }
+                        finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
                     }
                 }
             }) }
@@ -110,31 +106,16 @@ class ParentApplication : Application() {
             }
         }
     }
-    private suspend fun ensureContext() = contextChanges.withLock {
-        val identity = currentIdentity() ?: return@withLock
-        if (boundIdentity == identity) return@withLock
-        val optedIn = registrationStore.marker(identity) != null
-        realtime?.disconnect(); notifications?.invalidate(); renderer.clear()
-        securityViewModel?.clear()
-        mutableTap.value = ParentTapState()
-        familyViewModel?.clear()
-        check(currentIdentity() == identity)
-        familyViewModel?.load(identity)
-        check(currentIdentity() == identity)
-        if (optedIn) notifications?.enable()
-        check(currentIdentity() == identity)
-        boundIdentity = identity
-    }
+    private val contextBinding by lazy { ParentContextBinding(::currentIdentity, checkNotNull(familyViewModel), registrationStore,
+        { realtime?.disconnect(); notifications?.invalidate(); renderer.clear(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+        { notifications?.enable() }) }
+    private suspend fun ensureContext() = contextBinding.ensure()
     private suspend fun refreshHint(hint: ParentHint): Boolean {
         val identity = currentIdentity() ?: return false
         val model = familyViewModel ?: return false
         model.refresh(identity)
         val state = model.repository.state.value
-        val snapshot = state.snapshot ?: return false
-        return currentIdentity() == identity && !state.cached && state.failure == null &&
-            snapshot.family.id == hint.route.familyId && snapshot.membership.userId == identity.userId &&
-            (hint.route.childId == null || snapshot.children.any { it.id == hint.route.childId }) &&
-            (hint.route.deviceId == null || snapshot.devices.any { it.id == hint.route.deviceId && it.status == "active" })
+        return currentIdentity() == identity && hint.matchesFamily(identity, state)
     }
     suspend fun accountWork(action: suspend () -> Unit) {
         try { runtime?.authAction(action) }

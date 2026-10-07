@@ -20,6 +20,38 @@ class FamilyViewModelTest {
         override fun decrypt(slot: String, value: ByteArray) = value
     })
 
+    @Test fun confirmedFamilyCreationClosesCreateFlowWhenFollowupReadFails() = runTest {
+        var creates = 0
+        val api = object : TestParentApi() {
+            override suspend fun createFamily(name: String, key: String): CreatedFamily { creates++; return super.createFamily(name, key) }
+            override suspend fun listFamilies(): List<FamilyV1> = error("read offline after commit")
+        }
+        val dao = MemoryFamilyDao(); val encrypted = store()
+        val model = FamilyViewModel(api, FamilyRepository(api, dao) { identity }, PendingChildCreation(api, dao, { identity }), PairingModel(api, { identity }), encrypted, { identity })
+        assertTrue(runCatching { model.createFamily(identity, "Family") }.isSuccess)
+        assertEquals("Family created. Refresh to load the latest view.", model.state.value.message)
+        assertNull(encrypted.read("pending-family:${identity.userId}"))
+        assertTrue(runCatching { model.refresh(identity) }.isSuccess)
+        assertEquals(1, creates)
+    }
+
+    @Test fun confirmedChildCreationClosesCreateFlowWhenFollowupReadFails() = runTest {
+        var offline = false; var creates = 0
+        val api = object : TestParentApi() {
+            override suspend fun createChild(request: CreateChildRequest): ChildV1 { creates++; offline = true; return super.createChild(request) }
+            override suspend fun readFamily(familyId: String) = if (offline) error("read offline after commit") else super.readFamily(familyId)
+        }
+        val dao = MemoryFamilyDao()
+        val model = FamilyViewModel(api, FamilyRepository(api, dao) { identity }, PendingChildCreation(api, dao, { identity }), PairingModel(api, { identity }), store(), { identity })
+        model.load(identity)
+        assertTrue(runCatching { model.submitChild(identity, "Child") }.isSuccess)
+        assertEquals("Child created. Refresh to load the latest view.", model.state.value.message)
+        offline = false
+        model.refresh(identity)
+        assertEquals(1, creates)
+        assertNull(dao.getPending(identity.userId, "family-a"))
+    }
+
     @Test fun familyCreationTimeoutReusesKeyAcrossControllerRecreation() = runTest {
         val requests = mutableListOf<Pair<String, String>>()
         val api = object : TestParentApi() {

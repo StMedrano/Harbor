@@ -11,6 +11,8 @@ internal class MemoryFamilyDao : FamilyCacheDao() {
     override suspend fun clearAll() { snapshots.clear(); operations.clear() }
     override suspend fun deleteSnapshots() { snapshots.clear() }
     override suspend fun deleteOperations() { operations.clear() }
+    override suspend fun deleteOtherSnapshots(userId: String) { snapshots.keys.removeAll { it.first != userId } }
+    override suspend fun deleteOtherOperations(userId: String) { operations.keys.removeAll { it.first != userId } }
     override suspend fun getPending(userId: String, familyId: String) = operations[userId to familyId]
     override suspend fun insertPending(row: PendingChildRow) { operations.putIfAbsent(row.userId to row.familyId, row) }
     override suspend fun deletePending(userId: String, familyId: String, key: String) {

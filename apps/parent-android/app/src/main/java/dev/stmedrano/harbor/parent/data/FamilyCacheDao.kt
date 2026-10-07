@@ -22,6 +22,12 @@ abstract class FamilyCacheDao {
     protected abstract suspend fun deleteOperations()
     @Transaction
     open suspend fun clearAll() { deleteSnapshots(); deleteOperations() }
+    @Query("DELETE FROM family_snapshots WHERE userId != :userId")
+    protected abstract suspend fun deleteOtherSnapshots(userId: String)
+    @Query("DELETE FROM pending_child_creation WHERE userId != :userId")
+    protected abstract suspend fun deleteOtherOperations(userId: String)
+    @Transaction
+    open suspend fun retainUser(userId: String) { deleteOtherSnapshots(userId); deleteOtherOperations(userId) }
     @Query("SELECT * FROM pending_child_creation WHERE userId = :userId AND familyId = :familyId")
     abstract suspend fun getPending(userId: String, familyId: String): PendingChildRow?
     @Insert(onConflict = OnConflictStrategy.IGNORE)
