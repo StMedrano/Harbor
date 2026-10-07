@@ -31,7 +31,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackC
     var busy by remember { mutableStateOf(false) }
     var restored by remember { mutableStateOf(false) }
     var recoveryReady by remember { mutableStateOf(false) }
-    var signedIn by remember { mutableStateOf(false) }
+    val identity = repository?.identity?.collectAsState()?.value
     var message by remember { mutableStateOf(if (repository == null) "Development preview · offline fixture. Live sign-in is disabled." else "Sign in to your parent account.") }
     val scope = rememberCoroutineScope()
 
@@ -42,14 +42,13 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackC
         try {
             val state = withContext(Dispatchers.IO) {
                 action(repo)
-                repo.hasVerifiedRecovery() to (repo.identity.value != null)
+                repo.hasVerifiedRecovery()
             }
-            recoveryReady = state.first
-            signedIn = state.second
+            recoveryReady = state
             message = success
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: AuthSessionRejected) { message = "Session rejected. Sign in again."; recoveryReady = false; signedIn = false }
-        catch (_: AuthStorageLost) { message = "Secure storage reset. Sign in again."; recoveryReady = false; signedIn = false }
+        catch (_: AuthSessionRejected) { message = "Session rejected. Sign in again."; recoveryReady = false }
+        catch (_: AuthStorageLost) { message = "Secure storage reset. Sign in again."; recoveryReady = false }
         catch (_: Exception) { message = "Request failed. Check your connection, or cancel the email flow and request a fresh link." }
         finally { password = ""; newPassword = ""; confirmPassword = ""; busy = false }
     }
@@ -71,7 +70,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackC
 
     val enabled = repository != null && !busy
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(if (signedIn) "Parent session verified" else "Parent account", style = MaterialTheme.typography.headlineSmall)
+        Text(if (identity != null) "Parent session verified" else "Parent account", style = MaterialTheme.typography.headlineSmall)
         Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true,
             enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
