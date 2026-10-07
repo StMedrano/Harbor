@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.family.*
 import java.time.Instant
@@ -44,6 +45,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                     snapshot.children.forEach { child ->
                         FilterChip(selected = selectedChildId == child.id, onClick = { onSelectChild(child.id) },
                             label = { Text(child.displayName) }, shape = CircleShape,
+                            border = BorderStroke(1.5.dp, if (selectedChildId == child.id) MaterialTheme.colorScheme.primary else Color.Transparent),
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 selectedContainerColor = MaterialTheme.colorScheme.surface,
