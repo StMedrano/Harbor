@@ -1,6 +1,6 @@
 # Harbor Family — Unified Android App Design
 
-**Status:** Draft for written specification approval. The user has selected one product app and the parent/child entry flow. This document proposes the implementation boundaries; it does not authorize product code, dependency changes or deployment. A written implementation plan follows specification approval.
+**Status:** Written specification explicitly approved by the user on 2026-10-07. The implementation plan requires its own approval before product code, dependency changes or deployment.
 
 **Baseline:** Parent Android revision `be539efb3787f31065e56bce3c3fca00812d31f2`, all six CI gates passed in `37676497952`. Issue #1 and the approved backend/security contracts remain authoritative. This is an Android product-structure amendment to the separate Parent/Child app assumption, not a backend authorization rewrite. Parent PWA remains unchanged. Hourly work remains paused.
 
