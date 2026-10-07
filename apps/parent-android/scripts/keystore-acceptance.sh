@@ -19,7 +19,10 @@ run_test restoreColdStart
 run_test keyLossClearsCiphertextAndAllowsFreshSignIn
 run_test callbackIsScrubbedBeforeActivityCanAcceptIt
 
-run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest
+frontend_status=0
+run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
+run_test frontendChildSelectorTracksSelectionWithoutEnablingCachedMutation dev.stmedrano.harbor.parent.ui.FamilyScreenTest || frontend_status=1
+[[ "$frontend_status" == 0 ]]
 run_test recoveryScreenRequiresVerifiedCallbackAndBackClearsAuthorization dev.stmedrano.harbor.parent.ui.AuthScreenTest
 
 run_test credentialsAreExcludedFromLegacyCloudAndDeviceTransfer

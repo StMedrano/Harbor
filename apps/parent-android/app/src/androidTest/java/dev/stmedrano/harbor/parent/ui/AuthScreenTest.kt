@@ -77,6 +77,7 @@ class AuthScreenTest {
         compose.onNodeWithText("New password").assertDoesNotExist()
         compose.onNodeWithText("Back to sign in").performScrollTo().performClick()
         compose.onNodeWithText("Create account").performScrollTo().performClick()
+        compose.onNodeWithText("Confirm password").assertExists()
         compose.onNodeWithTag("auth-submit").assertIsNotEnabled()
         compose.onNodeWithText("Forgot password?").assertDoesNotExist()
     }
