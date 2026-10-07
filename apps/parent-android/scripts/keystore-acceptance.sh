@@ -22,7 +22,6 @@ profile_status=0
 run_test parent04StoresSurviveProfileBootstrap dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
 run_test corruptModeHintDoesNotStartRuntime dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
 run_test offlineFixtureBootstrapsWithoutProtectedRuntime dev.stmedrano.harbor.parent.profile.ProfileStartupTest || profile_status=1
-[[ "$profile_status" == 0 ]]
 child_crypto_status=0
 run_test encryptedChildReopenAndRefreshPreserveParentCredentials dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
 run_test nonExportableChildP256ProofVerifiesAfterKeyReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
@@ -34,6 +33,11 @@ for method in setupHasNoMenu parentLoginOpensOnlyParent childCodeCannotOpenParen
   run_test "$method" dev.stmedrano.harbor.parent.ui.FamilyRoleNavigationTest || family_ui_status=1
 done
 [[ "$family_ui_status" == 0 ]]
+pairing_status=0
+run_test confirmedClaimAloneOpensChildAndClearsCode dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
+run_test lostReplyDoesNotOpenDashboardOrPermitBlindRetry dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
+[[ "$pairing_status" == 0 ]]
+[[ "$profile_status" == 0 ]]
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
