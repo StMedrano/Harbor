@@ -2,6 +2,9 @@ package dev.stmedrano.harbor.parent.family
 
 import dev.stmedrano.harbor.parent.auth.*
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -44,5 +47,29 @@ class FamilyViewModelTest {
         assertTrue(controller.state.value.families.isEmpty())
         assertNull(repository.state.value.snapshot)
         assertFalse(controller.state.value.busy)
+    }
+
+    @Test fun immediateHideRefusesLateFamilyAndPairingCompletion() = runTest {
+        val release = CompletableDeferred<Unit>()
+        val api = object : TestParentApi() {
+            override suspend fun listFamilies(): List<FamilyV1> { release.await(); return super.listFamilies() }
+            override suspend fun createPairing(childId: String): PairingCode { release.await(); return PairingCode("123456", "2099-01-01T00:00:00Z") }
+        }
+        val dao = MemoryFamilyDao()
+        val repository = FamilyRepository(api, dao) { identity }
+        val pairing = PairingModel(api, { identity })
+        val controller = FamilyViewModel(api, repository, PendingChildCreation(api, dao, { identity }), pairing, store(), { identity })
+        val loading = async { runCatching { controller.load(identity) } }
+        val issuing = async { runCatching { pairing.issue(identity, "child") } }
+        runCurrent()
+        controller.hideVisible()
+        assertFalse(controller.state.value.busy)
+        assertNull(pairing.state.value.code)
+        release.complete(Unit)
+        assertTrue(loading.await().isFailure)
+        assertTrue(issuing.await().isFailure)
+        assertTrue(controller.state.value.families.isEmpty())
+        assertNull(repository.state.value.snapshot)
+        assertNull(pairing.state.value.code)
     }
 }

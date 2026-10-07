@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import dev.stmedrano.harbor.parent.family.*
+import dev.stmedrano.harbor.parent.ParentRuntime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -13,7 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
 @Composable
-fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity) {
+fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null) {
     val family by model.repository.state.collectAsState()
     val control by model.state.collectAsState()
     val pairing by model.pairing.state.collectAsState()
@@ -26,7 +27,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity) {
 
     suspend fun request(action: suspend () -> Unit): Boolean = try {
         error = null
-        withContext(Dispatchers.IO) { action() }
+        withContext(Dispatchers.IO) { if (runtime == null) action() else runtime.authAction { action() } }
         true
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { error = "Request failed. Keep the same name to retry, or cancel the request."; false }

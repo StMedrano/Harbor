@@ -16,13 +16,14 @@ import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.auth.AuthSessionRejected
 import dev.stmedrano.harbor.parent.auth.AuthStorageLost
 import dev.stmedrano.harbor.parent.auth.ParentAuthRepository
+import dev.stmedrano.harbor.parent.ParentRuntime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackConsumed: () -> Unit) {
+fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: ParentRuntime? = null, onCallbackConsumed: () -> Unit) {
     // Credentials never enter saved-instance state; rotation clears typed passwords.
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -32,6 +33,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackC
     var restored by remember { mutableStateOf(false) }
     var recoveryReady by remember { mutableStateOf(false) }
     val identity = repository?.identity?.collectAsState()?.value
+    val closing = runtime?.state?.collectAsState()?.value?.signingOut == true
     var message by remember { mutableStateOf(if (repository == null) "Development preview · offline fixture. Live sign-in is disabled." else "Sign in to your parent account.") }
     val scope = rememberCoroutineScope()
 
@@ -41,7 +43,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackC
         message = "Working…"
         try {
             val state = withContext(Dispatchers.IO) {
-                action(repo)
+                if (runtime == null) action(repo) else runtime.authAction { action(repo) }
                 repo.hasVerifiedRecovery()
             }
             recoveryReady = state
@@ -68,7 +70,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, onCallbackC
         }
     }
 
-    val enabled = repository != null && !busy
+    val enabled = repository != null && !busy && !closing
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(if (identity != null) "Parent session verified" else "Parent account", style = MaterialTheme.typography.headlineSmall)
         Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })

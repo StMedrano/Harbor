@@ -7,41 +7,84 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
 import dev.stmedrano.harbor.parent.ui.ParentApp
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
+import dev.stmedrano.harbor.parent.ui.SettingsScreen
+import dev.stmedrano.harbor.parent.ui.DeviceScreen
+import dev.stmedrano.harbor.parent.notifications.*
 
 class MainActivity : ComponentActivity() {
     private val callback = mutableStateOf<String?>(null)
     private val accountPage = mutableStateOf(true)
+    private val settingsPage = mutableStateOf(false)
+    private var requestedHint: ParentHint? = null
+    private val logoutRequested = mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {
         val requested = scrubCallback(intent)
+        requestedHint = ParentNotificationRenderer.consumeTap(intent)
         super.onCreate(savedInstanceState)
         callback.value = requested
         enableEdgeToEdge()
         setContent {
             val graph = application as ParentApplication
             val identity = graph.authRepository?.identity?.collectAsState()?.value
+            val runtime = graph.runtime?.state?.collectAsState()?.value
+            val notifications = graph.notifications?.state?.collectAsState()?.value ?: ParentNotificationState()
+            val tap = graph.tapState.collectAsState().value
+            fun enableNotifications() { graph.accountScope.launch { graph.accountWork { graph.notifications?.enable() } } }
+            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { enableNotifications() }
             HarborTheme {
                 ParentApp {
-                    if (identity != null) TextButton({ accountPage.value = !accountPage.value }) { Text(if (accountPage.value) "Open family" else "Account") }
-                    if (identity == null || accountPage.value || callback.value != null) AuthScreen(graph.authRepository, callback.value) { callback.value = null }
-                    else FamilyRoute(checkNotNull(graph.familyViewModel), identity)
+                    if (runtime?.signingOut == true) Text("Signing out…")
+                    else {
+                        if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
+                        if (identity != null) {
+                            TextButton({ accountPage.value = !accountPage.value; settingsPage.value = false; graph.closeNotification() }) { Text(if (accountPage.value) "Open family" else "Account") }
+                            TextButton({ settingsPage.value = !settingsPage.value; graph.closeNotification() }) { Text(if (settingsPage.value) "Back to family" else "Settings") }
+                        }
+                        tap.message?.let { Text(it) }
+                        val snapshot = graph.familyViewModel?.repository?.state?.collectAsState()?.value?.snapshot
+                        val visibleDevice = tap.device?.takeIf { identity != null && snapshot?.membership?.userId == identity.userId && snapshot.devices.any { device -> device == it } }
+                        if (identity != null && visibleDevice != null) DeviceScreen(visibleDevice) { graph.closeNotification() }
+                        else if (identity == null || (accountPage.value && !settingsPage.value) || callback.value != null) AuthScreen(graph.authRepository, callback.value, graph.runtime) { callback.value = null }
+                        else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
+                            onEnable = {
+                                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                else enableNotifications()
+                            },
+                            onRemove = { graph.accountScope.launch { graph.accountWork { graph.notifications?.remove() } } },
+                            onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } })
+                        else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime) }
+                    }
                 }
             }
         }
+        requestedHint?.let { (application as ParentApplication).openNotification(it); accountPage.value = false }
+        requestedHint = null
     }
 
     override fun onNewIntent(intent: Intent) {
         val requested = scrubCallback(intent)
+        val hint = ParentNotificationRenderer.consumeTap(intent)
         super.onNewIntent(intent)
         setIntent(intent)
         callback.value = requested
-        accountPage.value = true
+        accountPage.value = hint == null
+        settingsPage.value = false
+        hint?.let { (application as ParentApplication).openNotification(it) }
     }
+    override fun onStart() { super.onStart(); (application as ParentApplication).foreground() }
 
     private fun scrubCallback(intent: Intent): String? {
         val requested = intent.dataString
