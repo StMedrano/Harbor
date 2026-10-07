@@ -2,10 +2,14 @@ package dev.stmedrano.harbor.parent.ui
 
 import android.graphics.Bitmap
 import android.view.KeyEvent
+import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.stmedrano.harbor.parent.auth.*
@@ -18,7 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 
 class FamilyRouteTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val identity = ParentIdentity("synthetic-parent", "synthetic-session")
@@ -27,7 +31,21 @@ class FamilyRouteTest {
 
     @After fun cleanup() { database?.close(); context.deleteDatabase(databaseName) }
 
+    @Test fun pairingDialogUsesVercelSurface() {
+        compose.setContent { HarborTheme(dark = false) {
+            PairingSheet(PairingState("child", PairingCode("123456", "2099-01-01T00:10:00Z")), false, null, {}, {}, {})
+        } }
+        val pixels = compose.onNode(isDialog()).captureToImage().toPixelMap()
+        var surfacePixels = 0
+        for (x in 0 until pixels.width) for (y in 0 until pixels.height) {
+            if (pixels[x, y] == Color(0xFFFBF8F2)) surfacePixels++
+        }
+        assertTrue("Dialog should use the existing Vercel light surface", surfacePixels > pixels.width * pixels.height / 2)
+    }
+
     @Test fun largeTextPairingRequiresFreshReadAndBackReturnsToFamily() {
+        assertEquals(1.8f, context.resources.configuration.fontScale, 0.01f)
+        compose.runOnUiThread { compose.activity.enableEdgeToEdge() }
         val date = "2026-01-01T00:00:00Z"
         val family = FamilyV1(1, "family", "Family", "UTC", date, date)
         val child = ChildV1(1, "child", family.id, "Child", date, date)

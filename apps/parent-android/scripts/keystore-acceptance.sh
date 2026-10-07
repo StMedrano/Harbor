@@ -27,6 +27,11 @@ run_test otherSubjectCannotReadCachedFamily dev.stmedrano.harbor.parent.data.Fam
 run_test concurrentPendingOperationsKeepOneDurableKeyAcrossReopen dev.stmedrano.harbor.parent.data.FamilyCacheTest
 run_test cachedFamilyLabelsStalenessAndDisablesMutations dev.stmedrano.harbor.parent.ui.FamilyScreenTest
 run_test deviceViewReportsActualMetadataWithoutClaimingAppliedPolicy dev.stmedrano.harbor.parent.ui.FamilyScreenTest
-run_test largeTextPairingRequiresFreshReadAndBackReturnsToFamily dev.stmedrano.harbor.parent.ui.FamilyRouteTest
+visual_status=0
+run_test pairingDialogUsesVercelSurface dev.stmedrano.harbor.parent.ui.FamilyRouteTest || visual_status=1
+adb shell settings put system font_scale 1.8
+run_test largeTextPairingRequiresFreshReadAndBackReturnsToFamily dev.stmedrano.harbor.parent.ui.FamilyRouteTest || visual_status=1
+adb shell settings put system font_scale 1.0
+[[ "$visual_status" == 0 ]]
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-pairing-large-text.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-device-large-text.png keystore-evidence/
