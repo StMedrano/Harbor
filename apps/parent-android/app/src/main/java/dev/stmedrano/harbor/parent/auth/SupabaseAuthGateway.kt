@@ -6,6 +6,8 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.SignOutScope
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.exception.InvalidJwtException
+import io.github.jan.supabase.auth.exception.TokenExpiredException
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.createSupabaseClient
@@ -28,7 +30,7 @@ class SupabaseAuthGateway(private val client: SupabaseClient, private val store:
     override suspend fun requestRecovery(email: String) = client.auth.resetPasswordForEmail(email, redirectUrl = CALLBACK)
     override suspend fun exchangeCode(code: String) = client.auth.exchangeCodeForSession(code)
 
-    override suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?): ParentIdentity {
+    override suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?): ParentIdentity = try {
         val claims = client.auth.getClaims(session.accessToken).claims
         val user = client.auth.retrieveUser(session.accessToken)
         val sessionId = claims.sessionId ?: throw AuthSessionRejected()
@@ -40,7 +42,14 @@ class SupabaseAuthGateway(private val client: SupabaseClient, private val store:
             (expectedEmail != null && email.trim().lowercase(Locale.ROOT) != expectedEmail)) throw AuthSessionRejected()
         try { UUID.fromString(subject); UUID.fromString(sessionId) }
         catch (_: IllegalArgumentException) { throw AuthSessionRejected() }
-        return ParentIdentity(subject, sessionId)
+        ParentIdentity(subject, sessionId)
+    } catch (failure: RestException) {
+        if (failure.statusCode in setOf(401, 403)) throw AuthSessionRejected()
+        throw failure
+    } catch (_: TokenExpiredException) {
+        throw AuthSessionRejected()
+    } catch (_: InvalidJwtException) {
+        throw AuthSessionRejected()
     }
 
     override suspend fun changePassword(password: String) { client.auth.updateUser { this.password = password } }

@@ -6,11 +6,13 @@ import android.net.Uri
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.stmedrano.harbor.parent.MainActivity
+import dev.stmedrano.harbor.parent.R
 import io.github.jan.supabase.auth.user.UserSession
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import java.security.KeyStore
+import org.xmlpull.v1.XmlPullParser
 
 class KeystorePersistenceTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
@@ -55,6 +57,26 @@ class KeystorePersistenceTest {
         val intent = Intent(context, MainActivity::class.java).setData(Uri.parse("harbor-parent://auth/callback#access_token=synthetic-secret"))
         ActivityScenario.launch<MainActivity>(intent).use { scenario ->
             scenario.onActivity { assertNull(it.intent.data); assertNull(it.intent.clipData) }
+        }
+    }
+
+    @Test fun credentialsAreExcludedFromLegacyCloudAndDeviceTransfer() {
+        assertEquals(0, context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP)
+        val rules = listOf(R.xml.backup_rules to setOf("full-backup-content"), R.xml.data_extraction_rules to setOf("cloud-backup", "device-transfer"))
+        for ((resource, modes) in rules) {
+            val excluded = mutableSetOf<String>()
+            var mode = ""
+            context.resources.getXml(resource).use { parser ->
+                while (parser.eventType != XmlPullParser.END_DOCUMENT) {
+                    if (parser.eventType == XmlPullParser.START_TAG) {
+                        if (parser.name in modes) mode = parser.name
+                        if (parser.name == "exclude" && parser.getAttributeValue(null, "domain") == "sharedpref" &&
+                            parser.getAttributeValue(null, "path") == ".") excluded += mode
+                    }
+                    parser.next()
+                }
+            }
+            assertEquals(modes, excluded)
         }
     }
 }

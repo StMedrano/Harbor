@@ -1,5 +1,7 @@
 package dev.stmedrano.harbor.parent.auth
 
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.mfa.FactorType
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
@@ -106,6 +108,65 @@ class SupabaseAuthGatewayTest {
             assertEquals("new-refresh", gateway.refresh().refreshToken)
             assertEquals("refresh_token", requests.single().url.parameters["grant_type"])
             assertEquals("stored-refresh", body(requests.single())["refresh_token"]?.jsonPrimitive?.content)
+        } finally { client.close() }
+    }
+
+    @Test fun rejectedServerSessionCannotSurviveRestore() = runTest {
+        val store = store()
+        val session = Json { ignoreUnknownKeys = true }.decodeFromString<io.github.jan.supabase.auth.user.UserSession>(response())
+        EncryptedSessionManager(store).saveSession(session)
+        val engine = MockEngine { respond("""{"code":"bad_jwt","message":"Rejected"}""", HttpStatusCode.Unauthorized, headersOf(HttpHeaders.ContentType, "application/json")) }
+        val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
+        try {
+            val repository = ParentAuthRepository(SupabaseAuthGateway(client, store), store)
+            repository.restore()
+            assertNull(repository.identity.value)
+            assertNull(EncryptedSessionManager(store).loadSessionOrNull())
+        } finally { client.close() }
+    }
+
+    @Test fun serverSubjectMismatchCannotUseVerifiedClaimsFromAnotherIdentity() = runTest {
+        val store = store()
+        val engine = MockEngine { respond(user(), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json")) }
+        val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
+        try {
+            val session = Json { ignoreUnknownKeys = true }.decodeFromString<io.github.jan.supabase.auth.user.UserSession>(response()).copy(accessToken = token("00000000-0000-4000-8000-000000000003"))
+            var rejected = false
+            try { SupabaseAuthGateway(client, store).fetchVerifiedIdentity(session, "parent@example.invalid", uid) }
+            catch (_: AuthSessionRejected) { rejected = true }
+            assertTrue(rejected)
+        } finally { client.close() }
+    }
+
+    // Approved version capability proof: product MFA remains the Task 8 seam.
+    @Test fun pinnedSdkMfaChallengeImportsIntoOurEncryptedSessionManager() = runTest {
+        val store = store()
+        val requests = mutableListOf<HttpRequestData>()
+        val factor = "00000000-0000-4000-8000-000000000004"
+        val challenge = "00000000-0000-4000-8000-000000000005"
+        val engine = MockEngine { request ->
+            requests += request
+            respond(when (request.url.encodedPath) {
+                "/auth/v1/factors/" -> """{"id":"$factor","totp":{"secret":"SYNTHETIC","qr_code":"synthetic","uri":"otpauth://totp/synthetic"}}"""
+                "/auth/v1/factors/$factor/challenge" -> """{"id":"$challenge","type":"totp","expires_at":4102444800}"""
+                "/auth/v1/factors/$factor/verify" -> response()
+                else -> error("Unexpected MFA route")
+            }, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
+        try {
+            val existing = Json { ignoreUnknownKeys = true }.decodeFromString<io.github.jan.supabase.auth.user.UserSession>(response())
+            EncryptedSessionManager(store).saveSession(existing)
+            SupabaseAuthGateway(client, store).restoreStoredSession()
+            val enrolled = client.auth.mfa.enroll(FactorType.TOTP, friendlyName = "Harbor")
+            assertEquals(factor, enrolled.id)
+            assertEquals("totp", body(requests.single())["factor_type"]?.jsonPrimitive?.content)
+            val created = client.auth.mfa.createChallenge(factor)
+            assertEquals(challenge, created.id)
+            val verified = client.auth.mfa.verifyChallenge(factor, challenge, "123456")
+            assertEquals(challenge, body(requests.last())["challenge_id"]?.jsonPrimitive?.content)
+            assertEquals("123456", body(requests.last())["code"]?.jsonPrimitive?.content)
+            assertEquals(verified, EncryptedSessionManager(store).loadSession())
         } finally { client.close() }
     }
 }

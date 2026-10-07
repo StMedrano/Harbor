@@ -27,7 +27,7 @@ class ParentAuthRepository(
 
     suspend fun restore() = mutex.withLock {
         try {
-            val restored = gateway.restoreStoredSession() ?: return@withLock
+            val restored = gateway.restoreStoredSession() ?: run { clearUnlocked(); return@withLock }
             val refreshed = if (restored.expiresAt.toEpochMilliseconds() <= now()) gateway.refresh() else restored
             accept(refreshed, null, null)
         } catch (_: AuthSessionRejected) { clearUnlocked() }
@@ -93,6 +93,11 @@ class ParentAuthRepository(
     }
 
     suspend fun clearLocal() = mutex.withLock { clearUnlocked() }
+    suspend fun cancelEmailFlow() = mutex.withLock { clearFlow() }
+    fun hasVerifiedRecovery(): Boolean = store.transaction?.let {
+        it.kind == AuthKind.RECOVERY && it.acceptedRecoverySubject != null &&
+            now() - it.startedAtMillis in 0..900_000
+    } == true
 
     private suspend fun accept(value: UserSession, expectedEmail: String?, expectedUserId: String?) {
         val verified = gateway.fetchVerifiedIdentity(value, expectedEmail, expectedUserId)

@@ -60,8 +60,31 @@ class ParentAuthRepositoryTest {
         val gateway = Gateway(session())
         val repo = repo(gateway)
         repo.signIn("parent@example.invalid", "memory-only")
+        assertFalse(repo.hasVerifiedRecovery())
         rejected { repo.changePassword("different-memory-only") }
         assertEquals(0, gateway.changes)
+    }
+
+    @Test fun restoreMissingSessionClearsVisibleIdentity() = runTest {
+        val gateway = Gateway(session())
+        val repo = repo(gateway)
+        repo.signIn("parent@example.invalid", "memory-only")
+        gateway.stored = null
+        repo.restore()
+        assertNull(repo.identity.value)
+        rejected { repo.withAccessToken { it } }
+    }
+
+    @Test fun cancelPendingFlowAllowsConfirmedSignupFreshSignIn() = runTest {
+        val gateway = Gateway(session())
+        val store = store()
+        val repo = repo(gateway, store)
+        repo.beginSignup("parent@example.invalid", "memory-only")
+        rejected { repo.signIn("parent@example.invalid", "memory-only") }
+        repo.cancelEmailFlow()
+        assertNull(store.transaction)
+        repo.signIn("parent@example.invalid", "memory-only")
+        assertEquals(ParentIdentity("user", "session"), repo.identity.value)
     }
 
     @Test fun successfulRecoveryPinsIdentityAcrossRecreationAndConsumesGate() = runTest {
@@ -71,9 +94,11 @@ class ParentAuthRepositoryTest {
         assertEquals("parent@example.invalid", store.transaction?.expectedEmail)
         val recreated = repo(gateway, store)
         recreated.consumeCallback("harbor-parent://auth/callback?code=one")
+        assertTrue(recreated.hasVerifiedRecovery())
         assertEquals("user", store.transaction?.acceptedRecoverySubject)
         repo(gateway, store).changePassword("new-memory-only")
         assertNull(store.transaction)
+        assertFalse(recreated.hasVerifiedRecovery())
         assertEquals(1, gateway.changes)
         rejected { recreated.changePassword("again") }
         rejected { recreated.consumeCallback("harbor-parent://auth/callback?code=one") }

@@ -22,7 +22,8 @@ class AuthCallbackRouterTest {
         assertNull(router.parse(uri, pending.copy(startedAtMillis = now + 1)))
     }
 
-    @Test fun rejectsWrongDestinationFragmentsAndUrlFlowLabels() {
+    @Test fun ordinaryTokenLabelCannotUnlockRecovery() {
+        assertNull(router.parse("harbor-parent://auth/callback?type=recovery#access_token=test_only", null))
         listOf(
             "https://auth/callback?code=code", "harbor-parent://other/callback?code=code",
             "harbor-parent://auth/callback/extra?code=code", "harbor-parent://auth:9/callback?code=code",
