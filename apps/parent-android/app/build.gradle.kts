@@ -49,6 +49,7 @@ android {
     }
 }
 androidComponents.beforeVariants { variant -> variant.enable = variant.buildType == "debug" }
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 dependencies {
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.auth)

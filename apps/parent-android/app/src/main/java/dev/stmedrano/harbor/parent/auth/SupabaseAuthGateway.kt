@@ -13,6 +13,8 @@ import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.logging.LogLevel
+import io.github.jan.supabase.functions.Functions
+import io.github.jan.supabase.postgrest.Postgrest
 import io.ktor.client.engine.HttpClientEngine
 import java.util.Locale
 import java.util.UUID
@@ -90,6 +92,8 @@ class SupabaseAuthGateway(private val client: SupabaseClient, private val store:
                     // This app owns exact URI routing; SDK platform auto-handlers must not import unsolicited links.
                     autoSetupPlatform = false
                 }
+                install(Postgrest)
+                install(Functions)
             }
     }
 }
