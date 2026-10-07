@@ -35,3 +35,4 @@ adb shell settings put system font_scale 1.0
 [[ "$visual_status" == 0 ]]
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-pairing-large-text.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-device-large-text.png keystore-evidence/
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-large-text.png keystore-evidence/

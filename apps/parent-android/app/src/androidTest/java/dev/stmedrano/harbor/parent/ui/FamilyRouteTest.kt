@@ -99,6 +99,7 @@ class FamilyRouteTest {
         instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
         compose.onNodeWithText("Refresh family").performScrollTo().assertIsDisplayed()
+        saveScreenshot("family-large-text.png")
     }
 
     private fun saveScreenshot(name: String) {
