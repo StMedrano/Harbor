@@ -9,10 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ParentApp(content: @Composable () -> Unit) {
+fun ParentApp(showBrand: Boolean = true, content: @Composable () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text("Harbor", style = MaterialTheme.typography.headlineLarge)
+            if (showBrand) Text("Harbor", style = MaterialTheme.typography.headlineLarge)
             content()
         }
     }

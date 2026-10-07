@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
             fun enableNotifications() { graph.accountScope.launch { graph.accountWork { graph.notifications?.enable() } } }
             val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { enableNotifications() }
             HarborTheme {
-                ParentApp {
+                ParentApp(showBrand = identity != null && (!accountPage.value || settingsPage.value) && callback.value == null) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
