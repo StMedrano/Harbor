@@ -6,7 +6,7 @@ import {
   createPersistentDispatchOne,
   privateOutboxStore,
 } from "../../supabase/functions/_shared/outbox.ts";
-Deno.test("authorized old-session removal delayed across new-session registration preserves the new binding", async () => {
+async function checkDelayedSessionRemoval() {
   const sql = getPrivateSql();
   const user = crypto.randomUUID(),
     oldSession = crypto.randomUUID(),
@@ -73,9 +73,8 @@ Deno.test("authorized old-session removal delayed across new-session registratio
     await pending?.catch(() => {});
     await sql`delete from private.audit_events where actor_user_id=${user}::uuid`;
     await sql`delete from auth.users where id=${user}::uuid`;
-    await sql.end();
   }
-});
+}
 Deno.test("parent fanout persists independent delivery, current authorization and generation/lease-safe cleanup", async () => {
   const sql = getPrivateSql();
   const user = crypto.randomUUID(),
@@ -88,6 +87,9 @@ Deno.test("parent fanout persists independent delivery, current authorization an
     device = crypto.randomUUID();
   let ids: string[] = [];
   try {
+    // Both scenarios use the shared production SQL pool; close it once in this
+    // owning test's final cleanup rather than ending it before fanout runs.
+    await checkDelayedSessionRemoval();
     await sql`insert into auth.users(id,is_anonymous) values(${user}::uuid,false),(${childUser}::uuid,true),(${other}::uuid,false)`;
     await sql`insert into auth.sessions(id,user_id,created_at,updated_at) values(${session}::uuid,${user}::uuid,now(),now()),(${otherSession}::uuid,${other}::uuid,now(),now())`;
     await sql`insert into public.families(id,name) values(${family}::uuid,'Parent fanout integration')`;
