@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(27);
 insert into auth.users(id,is_anonymous) values('30000000-0000-4000-8000-000000000101',false),('30000000-0000-4000-8000-000000000102',false);
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values
 ('30000000-0000-4000-8000-000000000111','30000000-0000-4000-8000-000000000101',now(),now(),now()+interval '1 hour'),
@@ -49,6 +49,15 @@ select ok(pg_temp.fcm_remove('30000000-0000-4000-8000-000000000102','two') and p
 select ok(pg_temp.fcm_remove('30000000-0000-4000-8000-000000000101','two') and pg_temp.fcm_remove('30000000-0000-4000-8000-000000000101','two') and pg_temp.fcm_count($q$select count(*) from private.parent_fcm_registrations where client_installation_id='two' and active$q$)=0,'explicit/repeated removal is idempotent');
 select ok((select bool_and(not(result ? 'token') and not(result ? 'token_hash')) from results),'registration replies expose no token or hash');
 select ok((select bool_and(metadata::text not like '%parent-fcm-fixture%') from private.audit_events where event_kind like 'parent.fcm.%'),'audit metadata excludes token material');
+
+-- Session A was authorized before B replaced the same installation. Delayed A cleanup
+-- must not deactivate B, even while both Auth sessions still exist.
+insert into auth.sessions(id,user_id,created_at,updated_at) values('30000000-0000-4000-8000-000000000114','30000000-0000-4000-8000-000000000101',now(),now());
+select pg_temp.fcm_register('30000000-0000-4000-8000-000000000101','30000000-0000-4000-8000-000000000111','restart-race','parent-fcm-session-a');
+select pg_temp.fcm_register('30000000-0000-4000-8000-000000000101','30000000-0000-4000-8000-000000000114','restart-race','parent-fcm-session-b');
+select ok(pg_temp.fcm_remove('30000000-0000-4000-8000-000000000101','restart-race') and pg_temp.fcm_count($q$select count(*) from private.parent_fcm_registrations where client_installation_id='restart-race' and session_id='30000000-0000-4000-8000-000000000114' and active$q$)=1,'delayed old-session removal preserves newer same-owner binding');
+
+delete from auth.sessions where id='30000000-0000-4000-8000-000000000114';
 delete from auth.sessions where id='30000000-0000-4000-8000-000000000111';
 select is(pg_temp.fcm_count($q$select count(*) from private.parent_fcm_registrations where user_id='30000000-0000-4000-8000-000000000101'$q$),0::bigint,'session FK removes bindings when Auth session is deleted');
 select * from finish();rollback;

@@ -102,7 +102,7 @@ Deno.test("inactive session cannot register and leaves persistence untouched", a
   assertEquals(response.status, 401);
   assertEquals(calls, 0);
 });
-Deno.test("parent FCM remove binds owner and returns204 without token/identity body", async () => {
+Deno.test("parent FCM remove binds verified owner/session and returns204 without body authority", async () => {
   let seen: unknown;
   const response = await createRemoveParentFcmHandler(
     remove({
@@ -113,9 +113,11 @@ Deno.test("parent FCM remove binds owner and returns204 without token/identity b
   )(request({
     clientInstallationId: body.clientInstallationId,
     userId: crypto.randomUUID(),
+    sessionId: crypto.randomUUID(),
   }));
   assertEquals(seen, {
     userId,
+    sessionId,
     clientInstallationId: body.clientInstallationId,
   });
   assertEquals(response.status, 204);
