@@ -40,3 +40,8 @@ adb shell settings put system font_scale 1.0
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-pairing-large-text.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-device-large-text.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-large-text.png keystore-evidence/
+security_status=0
+adb shell settings put system font_scale 1.8
+run_test nativeLargeTextMfaRequiresDeliberateRetryAndSensitiveWindowProtection dev.stmedrano.harbor.parent.security.SecurityUiTest || security_status=1
+adb shell settings put system font_scale 1.0
+[[ "$security_status" == 0 ]]

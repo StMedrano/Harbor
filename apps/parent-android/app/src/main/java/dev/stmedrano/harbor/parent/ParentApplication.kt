@@ -8,6 +8,7 @@ import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import dev.stmedrano.harbor.parent.data.ParentDatabase
 import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.notifications.*
+import dev.stmedrano.harbor.parent.security.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -30,14 +31,21 @@ class ParentApplication : Application() {
     val authRepository: ParentAuthRepository? by lazy {
         client?.let { ParentAuthRepository(SupabaseAuthGateway(it, secureStore), secureStore) }
     }
+    private val parentApi by lazy { authRepository?.let { SdkParentApi(checkNotNull(client), it) } }
     val familyViewModel: FamilyViewModel? by lazy {
         authRepository?.let { auth ->
-            val api = SdkParentApi(checkNotNull(client), auth)
+            val api = checkNotNull(parentApi)
             val cache = ParentDatabase.open(this).familyCache()
             val current = { currentIdentity() }
             FamilyViewModel(api, FamilyRepository(api, cache, current), PendingChildCreation(api, cache, current),
                 PairingModel(api, current), secureStore, current)
         }
+    }
+    val securityViewModel: SecurityViewModel? by lazy {
+        authRepository?.let { auth -> SecurityViewModel(SdkMfaGateway(checkNotNull(client), auth),
+            { currentIdentity() }, { checkNotNull(familyViewModel).repository.state.value },
+            { family, device -> checkNotNull(parentApi).revokeDevice(family, device) },
+            { currentIdentity()?.let { checkNotNull(familyViewModel).refresh(it) } }) }
     }
     private val registrationStore by lazy { ParentRegistrationStore.open(this) }
     private val tokenProvider by lazy { AndroidFirebaseTokenProvider.create() }
@@ -60,7 +68,7 @@ class ParentApplication : Application() {
         authRepository?.let { auth -> ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.invalidate(); renderer.clear() }, { realtime?.disconnect() },
-            { familyViewModel?.hideVisible(); mutableTap.value = ParentTapState() },
+            { familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> fcmApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
@@ -85,13 +93,14 @@ class ParentApplication : Application() {
         accountScope.launch {
             auth.identity.collectLatest { identity ->
                 if (identity != null) accountWork { ensureContext() }
-                else { realtime?.disconnect(); familyViewModel?.hideVisible(); mutableTap.value = ParentTapState() }
+                else { realtime?.disconnect(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() }
             }
         }
         accountScope.launch {
             combine(auth.identity, checkNotNull(familyViewModel).repository.state) { identity, family ->
                 identity to family.snapshot?.takeIf { family.failure != FamilyFailure.ACCESS_DENIED && it.membership.userId == identity?.userId }?.family?.id
             }.distinctUntilChanged().collectLatest { (identity, family) ->
+                securityViewModel?.clear()
                 realtime?.disconnect()
                 if (identity != null && family != null && currentIdentity() == identity) {
                     try { realtime?.connect(identity, family) }
@@ -106,6 +115,7 @@ class ParentApplication : Application() {
         if (boundIdentity == identity) return@withLock
         val optedIn = registrationStore.marker(identity) != null
         realtime?.disconnect(); notifications?.invalidate(); renderer.clear()
+        securityViewModel?.clear()
         mutableTap.value = ParentTapState()
         familyViewModel?.clear()
         check(currentIdentity() == identity)

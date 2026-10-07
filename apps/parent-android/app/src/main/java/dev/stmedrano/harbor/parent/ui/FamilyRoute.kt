@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
 @Composable
-fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null) {
+fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null, onRevoke: ((DevicePublicV1) -> Unit)? = null) {
     val family by model.repository.state.collectAsState()
     val control by model.state.collectAsState()
     val pairing by model.pairing.state.collectAsState()
@@ -38,7 +38,8 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
         while (pairing.code != null) { expired = model.pairing.expired(); delay(1000) }
     }
     BackHandler(sheet != null || device != null) { sheet = null; device = null }
-    if (device != null) DeviceScreen(device!!) { device = null } else {
+    val canRevoke = !family.cached && !family.loading && family.failure == null && !control.busy
+    if (device != null) DeviceScreen(device!!, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device!!) } }) { device = null } else {
         FamilyScreen(family.copy(loading = family.loading || control.busy), control.families, control.selectedChildId,
             onRefresh = { submit { model.refresh(identity) } },
             onSelectFamily = { id -> submit { model.selectFamily(identity, id) } },

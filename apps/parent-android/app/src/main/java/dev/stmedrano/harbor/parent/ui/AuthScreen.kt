@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: ParentRuntime? = null, onCallbackConsumed: () -> Unit) {
+    ProtectSensitiveScreen()
     // Credentials never enter saved-instance state; rotation clears typed passwords.
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }

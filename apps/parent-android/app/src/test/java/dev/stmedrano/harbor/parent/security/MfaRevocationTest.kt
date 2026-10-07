@@ -41,6 +41,7 @@ class MfaRevocationTest {
         model.challenge("factor", "123456")
         steppedUp = true
         assertEquals(SecurityPhase.READY_TO_RETRY, model.state.value.phase)
+        assertEquals(listOf("factor"), model.state.value.factors)
         assertEquals(1, calls)
         model.confirmRetry()
         assertEquals(2, calls); assertEquals(1, refreshed)

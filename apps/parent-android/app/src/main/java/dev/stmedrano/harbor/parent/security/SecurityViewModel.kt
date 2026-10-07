@@ -19,6 +19,7 @@ class SecurityViewModel(private val mfa: MfaGateway, private val currentIdentity
     private val refresh: suspend () -> Unit, private val now: () -> Long = System::currentTimeMillis) {
     private val mutableState = MutableStateFlow(SecurityState())
     val state = mutableState.asStateFlow()
+    fun targetName(): String? = state.value.target?.let { target -> familyState().snapshot?.devices?.firstOrNull { it.id == target.deviceId && it.familyId == target.familyId }?.displayName }
     private val operations = Mutex()
     private val frames = Any()
     private var generation = 0L
@@ -47,7 +48,7 @@ class SecurityViewModel(private val mfa: MfaGateway, private val currentIdentity
         synchronized(frames) {
             if (current(actor, ticket)) {
                 readyAt = now()
-                mutableState.value = state.value.copy(enrollment = null,
+                mutableState.value = state.value.copy(enrollment = null, factors = (state.value.factors + factorId).distinct(),
                     phase = if (state.value.target != null) SecurityPhase.READY_TO_RETRY else SecurityPhase.IDLE,
                     message = "Authenticator verified. Revocation requires a separate deliberate confirmation.")
             }
