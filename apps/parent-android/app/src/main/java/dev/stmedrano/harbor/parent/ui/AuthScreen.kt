@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -30,6 +32,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     // Credentials never enter saved-instance state; rotation and navigation clear typed passwords.
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var signupConfirmation by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var page by remember { mutableStateOf(AccountPage.SIGN_IN) }
@@ -42,7 +45,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     val scope = rememberCoroutineScope()
 
     fun navigate(destination: AccountPage) {
-        password = ""; newPassword = ""; confirmPassword = ""
+        password = ""; signupConfirmation = ""; newPassword = ""; confirmPassword = ""
         page = destination
     }
 
@@ -65,7 +68,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
             recoveryReady = repo.hasVerifiedRecovery()
             message = "Request failed. Check your connection, or cancel the email flow and request a fresh link."
         }
-        finally { password = ""; newPassword = ""; confirmPassword = ""; busy = false }
+        finally { password = ""; signupConfirmation = ""; newPassword = ""; confirmPassword = ""; busy = false }
     }
 
     fun submit(success: String, action: suspend (ParentAuthRepository) -> Unit) {
@@ -99,77 +102,89 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     val navigationEnabled = !busy && !closing
     val accountForm = page == AccountPage.SIGN_IN || page == AccountPage.SIGN_UP
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Surface(color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.background,
-            shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Harbor", style = MaterialTheme.typography.headlineLarge)
-                Text("A calmer connection for your family.", style = MaterialTheme.typography.bodyLarge)
-                if (accountForm) {
-                    Row(Modifier.fillMaxWidth()) {
-                        Tab(selected = page == AccountPage.SIGN_IN,
-                            enabled = navigationEnabled, onClick = { if (page != AccountPage.SIGN_IN) backToSignIn() },
-                            selectedContentColor = MaterialTheme.colorScheme.background,
-                            unselectedContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
-                            modifier = Modifier.weight(1f), text = { Text("Sign in") })
-                        Tab(selected = page == AccountPage.SIGN_UP,
-                            enabled = navigationEnabled, onClick = { navigate(AccountPage.SIGN_UP) },
-                            selectedContentColor = MaterialTheme.colorScheme.background,
-                            unselectedContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
-                            modifier = Modifier.weight(1f), text = { Text("Create account") })
-                    }
-                }
+        HarborBrand()
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(when (page) {
+                AccountPage.SIGN_IN -> "Welcome back"
+                AccountPage.SIGN_UP -> "Create your account"
+                AccountPage.RECOVERY -> "Reset your password"
+                AccountPage.RESET -> "Choose a new password"
+            }, style = MaterialTheme.typography.headlineSmall)
+            Text(when (page) {
+                AccountPage.SIGN_IN -> "Sign in to see how your family is doing."
+                AccountPage.SIGN_UP -> "Set up Harbor for your family."
+                AccountPage.RECOVERY -> "Enter your email and we'll send you a reset link."
+                AccountPage.RESET -> "Use a new password for your Harbor account."
+            }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (identity != null) Text("Parent session verified", style = MaterialTheme.typography.labelLarge)
+            Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (page != AccountPage.RESET) {
+                OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true,
+                    enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth())
             }
-        }
-        Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(when (page) {
-                    AccountPage.SIGN_IN -> "Welcome back"
-                    AccountPage.SIGN_UP -> "Create your account"
-                    AccountPage.RECOVERY -> "Forgot password"
-                    AccountPage.RESET -> "Choose a new password"
-                }, style = MaterialTheme.typography.headlineSmall)
-                if (identity != null) Text("Parent session verified", style = MaterialTheme.typography.labelLarge)
-                Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                if (page != AccountPage.RESET) {
-                    OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true,
-                        enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
-                }
-                if (accountForm) {
-                    OutlinedTextField(password, { password = it }, label = { Text("Password") }, singleLine = true,
-                        enabled = enabled, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    if (page == AccountPage.SIGN_IN) {
-                        TextButton(onClick = { navigate(AccountPage.RECOVERY) }, enabled = navigationEnabled) { Text("Forgot password?") }
+            if (accountForm) {
+                key(page) {
+                    HarborPasswordField(password, { password = it }, "Password", enabled)
+                    if (page == AccountPage.SIGN_UP) {
+                        HarborPasswordField(signupConfirmation, { signupConfirmation = it }, "Confirm password", enabled)
                     }
-                    Button(onClick = {
-                        val secret = password
-                        if (page == AccountPage.SIGN_IN) submit("Parent session verified.") { it.signIn(email, secret) }
-                        else submit("Check your email. Open the confirmation link on this device. Return to sign in after confirmation.") { it.beginSignup(email, secret) }
-                    }, enabled = enabled && email.isNotBlank() && password.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth().testTag("auth-submit"),
-                        colors = ButtonDefaults.buttonColors(contentColor = MaterialTheme.colorScheme.background)) {
-                        Text(if (page == AccountPage.SIGN_IN) "Sign in" else "Create account")
-                    }
-                } else if (page == AccountPage.RECOVERY) {
-                    Text("We'll email you a recovery link. Open it on this device to choose a new password.")
-                    Button(onClick = { submit("Recovery email requested. Open its link on this device; keep this app installed.") { it.beginRecovery(email) } },
-                        enabled = enabled && email.isNotBlank(), modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(contentColor = MaterialTheme.colorScheme.background)) { Text("Request recovery email") }
-                } else {
-                    Text(if (recoveryReady) "Recovery verified. Choose a new password." else "Request and verify a fresh recovery link first.")
-                    OutlinedTextField(newPassword, { newPassword = it }, label = { Text("New password") }, singleLine = true,
-                        enabled = enabled && recoveryReady, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(confirmPassword, { confirmPassword = it }, label = { Text("Confirm new password") }, singleLine = true,
-                        enabled = enabled && recoveryReady, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { val secret = newPassword; submit("Password updated. You can now sign in with your new password.") { it.changePassword(secret); navigate(AccountPage.SIGN_IN) } },
-                        enabled = enabled && recoveryReady && newPassword.isNotBlank() && newPassword == confirmPassword,
-                        modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(contentColor = MaterialTheme.colorScheme.background)) { Text("Update password") }
                 }
-                if (page != AccountPage.SIGN_IN) {
-                    TextButton(onClick = { backToSignIn() }, enabled = navigationEnabled) { Text("Back to sign in") }
+                Button(onClick = {
+                    val secret = password
+                    if (page == AccountPage.SIGN_IN) submit("Parent session verified.") { it.signIn(email, secret) }
+                    else submit("Check your email. Open the confirmation link on this device. Return to sign in after confirmation.") { it.beginSignup(email, secret) }
+                }, enabled = enabled && email.isNotBlank() && password.isNotBlank() &&
+                    (page == AccountPage.SIGN_IN || password == signupConfirmation),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("auth-submit"),
+                    shape = MaterialTheme.shapes.medium) {
+                    Text(if (page == AccountPage.SIGN_IN) "Sign in" else "Create account")
                 }
-                if (busy) CircularProgressIndicator()
+                if (page == AccountPage.SIGN_IN) {
+                    TextButton(onClick = { navigate(AccountPage.RECOVERY) }, enabled = navigationEnabled) { Text("Forgot password?") }
+                    Text("New to Harbor?", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { navigate(AccountPage.SIGN_UP) }, enabled = navigationEnabled) { Text("Create account") }
+                }
+            } else if (page == AccountPage.RECOVERY) {
+                Text("Open the email link on this device. Keep Harbor installed until recovery is complete.", style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { submit("If an account exists for that address, a recovery link is on its way. Open it on this device.") { it.beginRecovery(email) } },
+                    enabled = enabled && email.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = MaterialTheme.shapes.medium) { Text("Request recovery email") }
+            } else {
+                Text(if (recoveryReady) "Recovery verified. Choose a new password." else "Request and verify a fresh recovery link first.")
+                HarborPasswordField(newPassword, { newPassword = it }, "New password", enabled && recoveryReady)
+                HarborPasswordField(confirmPassword, { confirmPassword = it }, "Confirm new password", enabled && recoveryReady)
+                Button(onClick = { val secret = newPassword; submit("Password updated. You can now sign in with your new password.") { it.changePassword(secret); navigate(AccountPage.SIGN_IN) } },
+                    enabled = enabled && recoveryReady && newPassword.isNotBlank() && newPassword == confirmPassword,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.medium) { Text("Update password") }
             }
+            if (page != AccountPage.SIGN_IN) {
+                TextButton(onClick = { backToSignIn() }, enabled = navigationEnabled) { Text("Back to sign in") }
+            }
+            if (busy) CircularProgressIndicator()
         }
     }
+}
+
+@Composable
+private fun harborFieldColors() = OutlinedTextFieldDefaults.colors(
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    focusedContainerColor = MaterialTheme.colorScheme.surface,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+)
+
+@Composable
+private fun HarborPasswordField(value: String, onChange: (String) -> Unit, label: String, enabled: Boolean) {
+    var visible by remember(label) { mutableStateOf(false) }
+    OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, enabled = enabled,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        trailingIcon = {
+            TextButton(onClick = { visible = !visible }, enabled = enabled,
+                modifier = Modifier.semantics { contentDescription = "${if (visible) "Hide" else "Show"} ${label.lowercase()}" }) {
+                Text(if (visible) "Hide" else "Show")
+            }
+        }, shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth())
 }

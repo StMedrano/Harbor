@@ -1,6 +1,8 @@
 package dev.stmedrano.harbor.parent.ui
 
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -8,6 +10,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.runtime.mutableStateOf
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -115,6 +118,16 @@ class AuthScreenTest {
         compose.onNodeWithTag("auth-submit").performScrollTo().performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithText("Request failed. Check your connection, or cancel the email flow and request a fresh link.").fetchSemanticsNodes().size == 1 }
         compose.onNodeWithText("Parent session verified").assertDoesNotExist()
+        compose.onNodeWithText("Create account").performScrollTo().performClick()
+        compose.onNodeWithText("Password").performScrollTo().performTextInput("synthetic-new")
+        compose.onNodeWithText("Confirm password").performScrollTo().performTextInput("different")
+        compose.onNodeWithTag("auth-submit").assertIsNotEnabled()
+        compose.onNodeWithText("Confirm password").performTextClearance()
+        compose.onNodeWithText("Confirm password").performTextInput("synthetic-new")
+        compose.onNodeWithTag("auth-submit").assertIsEnabled()
+        compose.onNodeWithContentDescription("Show password").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Hide password").assertExists()
+        Unit
     }
 }
 

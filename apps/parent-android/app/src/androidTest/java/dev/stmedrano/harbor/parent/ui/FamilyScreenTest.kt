@@ -7,6 +7,11 @@ import dev.stmedrano.harbor.parent.family.*
 import org.junit.Rule
 import org.junit.Test
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.asAndroidBitmap
+import android.graphics.Bitmap
+import androidx.test.platform.app.InstrumentationRegistry
+import dev.stmedrano.harbor.parent.BuildConfig
+import java.io.File
 
 class FamilyScreenTest {
     @get:Rule val compose = createComposeRule()
@@ -19,17 +24,28 @@ class FamilyScreenTest {
         val first = snapshot()
         val snapshot = first.copy(children = first.children + first.children.first().copy(id = "second", displayName = "Second child"))
         val selected = mutableStateOf("child")
-        compose.setContent { HarborTheme { ParentApp {
+        val dark = mutableStateOf(false)
+        compose.setContent { HarborTheme(dark = dark.value) { ParentApp {
             FamilyScreen(FamilyState(snapshot, cached = true), listOf(snapshot.family), selected.value,
                 onRefresh = {}, onSelectFamily = {}, onSelectChild = { selected.value = it },
                 onCreateFamily = {}, onAddChild = {}, onPair = {}, onDevice = {})
         } } }
         compose.onNode(hasText("Child") and isSelectable()).assertIsSelected()
+        check(BuildConfig.CI_FIXTURE)
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.onRoot().captureToImage().asAndroidBitmap().let { image ->
+            File(context.getExternalFilesDir(null), "frontend-family-light.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
         compose.onNode(hasText("Second child") and isSelectable()).performScrollTo().performClick()
         compose.onNode(hasText("Second child") and isSelectable()).assertIsSelected()
         compose.onNode(hasText("Child") and isSelectable()).assertIsNotSelected()
         compose.onNodeWithText("Add child").assertIsNotEnabled()
         compose.onNodeWithText("Pair device").assertIsNotEnabled()
+        compose.runOnIdle { dark.value = true }
+        compose.onNodeWithText(snapshot.family.name).performScrollTo()
+        compose.onRoot().captureToImage().asAndroidBitmap().let { image ->
+            File(context.getExternalFilesDir(null), "frontend-family-dark.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
     }
 
     @Test fun cachedFamilyLabelsStalenessAndDisablesMutations() {

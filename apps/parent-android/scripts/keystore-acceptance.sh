@@ -23,6 +23,8 @@ frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
 run_test frontendChildSelectorTracksSelectionWithoutEnablingCachedMutation dev.stmedrano.harbor.parent.ui.FamilyScreenTest || frontend_status=1
 [[ "$frontend_status" == 0 ]]
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/frontend-family-light.png keystore-evidence/
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/frontend-family-dark.png keystore-evidence/
 run_test recoveryScreenRequiresVerifiedCallbackAndBackClearsAuthorization dev.stmedrano.harbor.parent.ui.AuthScreenTest
 
 run_test credentialsAreExcludedFromLegacyCloudAndDeviceTransfer
