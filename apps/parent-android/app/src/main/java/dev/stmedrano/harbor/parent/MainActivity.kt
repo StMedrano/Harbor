@@ -8,12 +8,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.json.Json
+import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
@@ -45,6 +50,21 @@ class MainActivity : ComponentActivity() {
             val runtime = graph.runtime?.state?.collectAsState()?.value
             val notifications = graph.notifications?.state?.collectAsState()?.value ?: ParentNotificationState()
             val tap = graph.tapState.collectAsState().value
+            val pendingExport = remember { mutableStateOf<Pair<ParentIdentity, ParentReceipt>?>(null) }
+            val exportReceipt = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+                val captured = pendingExport.value
+                pendingExport.value = null
+                if (uri != null && captured != null) graph.accountScope.launch {
+                    if (graph.authRepository?.identity?.value == captured.first && graph.runtime?.state?.value?.signingOut != true &&
+                        graph.notifications?.state?.value?.receipt == captured.second) {
+                        try { withContext(Dispatchers.IO) {
+                            checkNotNull(contentResolver.openOutputStream(uri)).use { stream ->
+                                stream.write(Json.encodeToString(listOf(captured.second)).toByteArray(Charsets.UTF_8))
+                            }
+                        } } catch (_: Exception) { /* No credentials or errors are logged. Retry from current evidence. */ }
+                    }
+                }
+            }
             fun openRevocation(device: DevicePublicV1) {
                 graph.securityViewModel?.requestRevocation(device.familyId, device.id)
                 graph.closeNotification(); securityPage.value = true; accountPage.value = false; settingsPage.value = false
@@ -75,7 +95,12 @@ class MainActivity : ComponentActivity() {
                                 else enableNotifications()
                             },
                             onRemove = { graph.accountScope.launch { graph.accountWork { graph.notifications?.remove() } } },
-                            onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } })
+                            onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } },
+                            developmentReceipt = if (BuildConfig.DEBUG && !BuildConfig.CI_FIXTURE) notifications.receipt else null,
+                            onExport = { val receipt = notifications.receipt; if (identity != null && receipt != null) {
+                                pendingExport.value = identity to receipt
+                                exportReceipt.launch("harbor-parent-receipt.json")
+                            } })
                         else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation) }
                     }
                 }

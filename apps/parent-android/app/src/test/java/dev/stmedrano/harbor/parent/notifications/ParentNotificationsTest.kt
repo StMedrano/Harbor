@@ -140,4 +140,20 @@ class ParentNotificationsTest {
         assertFalse(notifications.state.value.confirmed)
         assertNull(store.marker(parent))
     }
+
+    @Test fun receiptEvidenceRequiresAuthorizedCurrentMessageAndIsClearedWithBinding() = runTest {
+        var accessible = false
+        val notifications = notifications(Api(), Tokens(), ParentRegistrationStore(Values()) { "installation" }, refresh = { accessible })
+        notifications.enable()
+        assertFalse(notifications.onMessage(envelope()))
+        assertNull(notifications.state.value.receipt)
+        accessible = true
+        assertTrue(notifications.onMessage(envelope()))
+        val receipt = checkNotNull(notifications.state.value.receipt)
+        assertEquals(REGISTRATION, receipt.registrationId)
+        assertEquals(EVENT, receipt.route.resourceId)
+        assertTrue(receipt.receivedAt > 0)
+        notifications.invalidate()
+        assertNull(notifications.state.value.receipt)
+    }
 }

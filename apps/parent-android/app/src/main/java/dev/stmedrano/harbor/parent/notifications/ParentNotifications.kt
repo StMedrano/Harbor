@@ -8,8 +8,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
 
-data class ParentNotificationState(val confirmed: Boolean = false, val busy: Boolean = false, val message: String? = null)
+@Serializable data class ParentReceipt(val registrationId: String, val route: ParentRoute, val receivedAt: Long)
+data class ParentNotificationState(val confirmed: Boolean = false, val busy: Boolean = false, val message: String? = null,
+    val receipt: ParentReceipt? = null)
 
 class ParentNotifications(private val api: ParentFcmApi, private val tokens: FirebaseTokenProvider,
     val store: ParentRegistrationStore, private val currentIdentity: () -> ParentIdentity?,
@@ -95,7 +98,9 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
         if (!refreshed(hint)) return false
         return synchronized(lock) {
             if (!allowed(identity, ticket, hint) || hint in seen || !permissionAllowed()) false
-            else { render(hint); seen.add(hint); if (seen.size > 100) seen.remove(seen.first()); true }
+            else { render(hint); seen.add(hint); if (seen.size > 100) seen.remove(seen.first())
+                mutableState.value = state.value.copy(receipt = ParentReceipt(hint.registrationId, hint.route, System.currentTimeMillis()))
+                true }
         }
     }
     suspend fun onTap(hint: ParentHint): Boolean {

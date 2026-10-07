@@ -17,6 +17,21 @@ import org.junit.Test
 class ParentNotificationUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
+    @Test fun developmentReceiptViewExportsOnlyAnObservedReferenceOnExplicitTap() {
+        val receipt = ParentReceipt("00000000-0000-4000-8000-000000000001",
+            ParentRoute(1,"device.state.changed", resourceId = "00000000-0000-4000-8000-000000000002"), 1_000_000L)
+        var exports = 0
+        compose.setContent { HarborTheme { ParentApp {
+            SettingsScreen(ParentNotificationState(confirmed = true, receipt = receipt), ParentRuntimeState(), true,
+                {}, {}, {}, developmentReceipt = receipt, onExport = { exports++ })
+        } } }
+        compose.onNodeWithText("Development receipt evidence").performScrollTo().assertIsDisplayed()
+        assertEquals(0,exports)
+        compose.onNodeWithText("Export latest receipt").performScrollTo().performClick()
+        assertEquals(1,exports)
+        compose.onNodeWithText("Event reference: ${receipt.route.resourceId}").assertExists()
+    }
+
     @Test fun notificationControlsReportUnconfirmedCleanupAndDisableDuringLogout() {
         var notification by mutableStateOf(ParentNotificationState())
         var runtime by mutableStateOf(ParentRuntimeState())
