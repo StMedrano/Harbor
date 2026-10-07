@@ -23,6 +23,12 @@ run_test parent04StoresSurviveProfileBootstrap dev.stmedrano.harbor.parent.profi
 run_test corruptModeHintDoesNotStartRuntime dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
 run_test offlineFixtureBootstrapsWithoutProtectedRuntime dev.stmedrano.harbor.parent.profile.ProfileStartupTest || profile_status=1
 [[ "$profile_status" == 0 ]]
+child_crypto_status=0
+run_test encryptedChildReopenAndRefreshPreserveParentCredentials dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+run_test nonExportableChildP256ProofVerifiesAfterKeyReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+run_test lostChildEncryptionKeyStaysBlockedAcrossReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+run_test interruptedEnrollmentMarkerSurvivesProcessReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+[[ "$child_crypto_status" == 0 ]]
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
