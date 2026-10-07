@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- CSP: Supabase origins are allowed in connect-src. If you use a custom Supabase domain, add it here. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#163a3a">
+<title>Harbor Family</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+  <section id="auth" hidden aria-live="polite"></section>
+  <div id="shell" hidden>
+    <header class="top"><div class="brand" id="brand"></div></header>
+    <nav class="kids" id="kids" aria-label="Choose child"></nav>
+    <main id="view"></main>
+    <nav class="tabs" id="tabs" aria-label="Main"></nav>
+  </div>
+  <div id="kshell" hidden>
+    <header class="top"><div class="brand" id="kbrand"></div><span class="tag" id="kwho"></span></header>
+    <main id="kview"></main>
+    <nav class="tabs" id="ktabs" aria-label="Main"></nav>
+  </div>
+  <div class="mod" id="mod" hidden><div class="bd" data-a="x"></div><div class="card" id="card" role="dialog" aria-modal="true"></div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
