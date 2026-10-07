@@ -3,6 +3,7 @@ package dev.stmedrano.harbor.parent.auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.mfa.FactorType
 import io.github.jan.supabase.auth.user.UserSession
+import dev.stmedrano.harbor.parent.security.SdkMfaGateway
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
@@ -20,12 +21,12 @@ class SupabaseAuthGatewayTest {
     private val sid = "00000000-0000-4000-8000-000000000002"
     private fun user(email: String = "parent@example.invalid", confirmed: Boolean = true, anonymous: Boolean = false) =
         """{"id":"$uid","aud":"authenticated","email":"$email","is_anonymous":$anonymous${if (confirmed) ",\"email_confirmed_at\":\"2026-01-01T00:00:00Z\"" else ""}}"""
-    private fun token(subject: String = uid): String {
+    private fun token(subject: String = uid, mfa: Boolean = false): String {
         fun b64(value: String) = Base64.getUrlEncoder().withoutPadding().encodeToString(value.toByteArray())
         return b64("""{"alg":"HS256","typ":"JWT"}""") + "." +
-            b64("""{"sub":"$subject","session_id":"$sid","exp":4102444800,"iss":"https://parent.test/auth/v1","aud":"authenticated","role":"authenticated","is_anonymous":false}""") + ".c2lnbmF0dXJl"
+            b64("""{"sub":"$subject","session_id":"$sid","exp":4102444800,"iss":"https://parent.test/auth/v1","aud":"authenticated","role":"authenticated","is_anonymous":false,"aal":"${if (mfa) "aal2" else "aal1"}"}""") + ".c2lnbmF0dXJl"
     }
-    private fun response() = """{"access_token":"${token()}","refresh_token":"new-refresh","expires_in":3600,"token_type":"bearer","user":${user()}}"""
+    private fun response(mfa: Boolean = false) = """{"access_token":"${token(mfa = mfa)}","refresh_token":"new-refresh","expires_in":3600,"token_type":"bearer","user":${user()}}"""
     private fun store() = SecureAuthStore(object : AuthValues {
         val values = mutableMapOf<String, String>()
         override fun read(key: String) = values[key]
@@ -193,7 +194,57 @@ class SupabaseAuthGatewayTest {
         } finally { client.close() }
     }
 
-    // Approved version capability proof: product MFA remains the Task 8 seam.
+    @Test fun productMfaGatewayAdoptsVerifiedStepUpIntoRepositoryAndEncryptedSdkSession() = runTest {
+        val store = store()
+        val factor = "00000000-0000-4000-8000-000000000004"
+        val challenge = "00000000-0000-4000-8000-000000000005"
+        val requests = mutableListOf<HttpRequestData>()
+        var steppedUpReply = false
+        val engine = MockEngine { request ->
+            requests += request
+            respond(when (request.url.encodedPath) {
+                "/auth/v1/token" -> response()
+                "/auth/v1/user" -> user()
+                "/auth/v1/factors/" -> """{"id":"$factor","totp":{"secret":"SYNTHETIC","qr_code":"synthetic","uri":"otpauth://totp/synthetic"}}"""
+                "/auth/v1/factors/$factor/challenge" -> """{"id":"$challenge","type":"totp","expires_at":4102444800}"""
+                "/auth/v1/factors/$factor/verify" -> response(mfa = steppedUpReply)
+                else -> error("Unexpected product MFA route")
+            }, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
+        try {
+            val repository = ParentAuthRepository(SupabaseAuthGateway(client, store), store)
+            repository.signIn("parent@example.invalid", "synthetic-only")
+            val before = repository.withAccessToken { it }
+            val mfa = SdkMfaGateway(client, repository)
+            assertTrue(mfa.listFactors().isEmpty())
+            val original = checkNotNull(client.auth.currentSessionOrNull())
+            client.auth.importSession(original.copy(accessToken = "synthetic-changed-session"), autoRefresh = false)
+            val beforeRefusal = requests.size
+            assertTrue(runCatching { mfa.enrollTotp() }.isFailure)
+            assertEquals(beforeRefusal, requests.size)
+            client.auth.importSession(original, autoRefresh = false)
+            val enrollment = mfa.enrollTotp()
+            assertEquals(factor, enrollment.factorId)
+            assertFalse(enrollment.toString().contains("SYNTHETIC"))
+            assertTrue(runCatching { mfa.challenge(factor, "123456") }.isFailure)
+            assertEquals(before, repository.withAccessToken { it })
+            steppedUpReply = true
+            mfa.challenge(factor, "123456")
+            val after = repository.withAccessToken { it }
+            assertNotEquals(before, after)
+            assertEquals(token(mfa = true), after)
+            assertEquals(after, EncryptedSessionManager(store).loadSession().accessToken)
+            assertEquals(after, client.auth.currentSessionOrNull()?.accessToken)
+            assertEquals(ParentIdentity(uid, sid), repository.identity.value)
+            val verification = requests.last { it.url.encodedPath.endsWith("/verify") }
+            assertEquals("123456", body(verification)["code"]?.jsonPrimitive?.content)
+            assertEquals(challenge, body(verification)["challenge_id"]?.jsonPrimitive?.content)
+            assertFalse(requests.any { it.url.encodedPath.contains("revoke-device") })
+        } finally { client.close() }
+    }
+
+    // SDK capability proof from Task 5 is retained separately from product wiring.
     @Test fun pinnedSdkMfaChallengeImportsIntoOurEncryptedSessionManager() = runTest {
         val store = store()
         val requests = mutableListOf<HttpRequestData>()

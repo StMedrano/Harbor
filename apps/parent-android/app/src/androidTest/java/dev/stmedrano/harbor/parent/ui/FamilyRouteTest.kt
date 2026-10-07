@@ -52,6 +52,7 @@ class FamilyRouteTest {
         val device = DevicePublicV1(1, "device", family.id, child.id, "Phone", "standard", "active", null, date, date)
         val enrolled = java.util.concurrent.atomic.AtomicBoolean(false)
         val api = object : ParentApi {
+            override suspend fun revokeDevice(familyId: String, deviceId: String): Unit = error("Unexpected revocation")
             override suspend fun listFamilies() = listOf(family)
             override suspend fun createFamily(name: String, key: String): CreatedFamily = error("not used")
             override suspend fun createChild(request: CreateChildRequest): ChildV1 = error("not used")

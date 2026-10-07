@@ -27,6 +27,7 @@ internal fun snapshot(user: String = "parent-a", family: String = "family-a", de
 )
 
 internal open class TestParentApi : ParentApi {
+    override suspend fun revokeDevice(familyId: String, deviceId: String): Unit = error("Unexpected revocation")
     override suspend fun listFamilies() = listOf(snapshot().family)
     override suspend fun createFamily(name: String, key: String) = CreatedFamily("family-a", name, "owner")
     override suspend fun createChild(request: CreateChildRequest) = snapshot().children.single().copy(displayName = request.displayName)

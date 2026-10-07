@@ -93,6 +93,18 @@ class ParentAuthRepository(
     }
 
     suspend fun clearLocal() = mutex.withLock { clearUnlocked() }
+    suspend fun acceptMfaSession(owner: ParentIdentity, value: UserSession, persist: suspend (UserSession) -> Unit) = mutex.withLock {
+        // Verify the returned session before importing it into the SDK/store.
+        // A late challenge must leave a newer account/session untouched.
+        if (currentIdentity.value != owner) throw AuthSessionRejected()
+        try {
+            val verified = gateway.fetchVerifiedIdentity(value, null, owner.userId)
+            if (verified != owner) throw AuthSessionRejected()
+            persist(value)
+            session = value
+            currentIdentity.value = verified
+        } catch (failure: Exception) { clearUnlocked(); throw failure }
+    }
     suspend fun signOutCurrent(owner: ParentIdentity) = mutex.withLock {
         // The runtime blocks/cancels new Auth work before calling this bridge.
         // A stale screen cannot end a different verified session.

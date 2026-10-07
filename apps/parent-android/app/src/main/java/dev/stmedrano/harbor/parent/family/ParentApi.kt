@@ -13,6 +13,8 @@ import io.github.jan.supabase.exceptions.RestException
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import java.util.UUID
+import dev.stmedrano.harbor.parent.security.MfaRequired
+import io.ktor.client.request.setBody
 
 @Serializable data class FamilyV1(val version: Int, val id: String, val name: String, val timezone: String, val createdAt: String, val updatedAt: String)
 @Serializable data class FamilyMemberV1(val version: Int, val id: String, val familyId: String, val userId: String, val role: String, val status: String, val createdAt: String, val updatedAt: String)
@@ -31,6 +33,7 @@ interface ParentApi {
     suspend fun createChild(request: CreateChildRequest): ChildV1
     suspend fun createPairing(childId: String): PairingCode
     suspend fun readFamily(familyId: String): FamilySnapshot
+    suspend fun revokeDevice(familyId: String, deviceId: String)
 }
 
 class SdkParentApi(private val client: SupabaseClient, private val auth: ParentAuthRepository,
@@ -53,6 +56,22 @@ class SdkParentApi(private val client: SupabaseClient, private val auth: ParentA
     override suspend fun createPairing(childId: String): PairingCode = auth.withAccessToken {
         requireUuid(childId)
         json.decodeFromString<PairingCode>(client.functions.invoke("create-device-pairing", buildJsonObject { put("childId", childId) }, headers = jsonHeaders).bodyAsText())
+    }
+
+    override suspend fun revokeDevice(familyId: String, deviceId: String) = auth.withAccessToken { token ->
+        requireUuid(familyId); requireUuid(deviceId)
+        try {
+            val response = client.functions.invoke("revoke-device") {
+                headers.set(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(buildJsonObject { put("familyId", familyId); put("deviceId", deviceId) }))
+            }
+            check(response.status == HttpStatusCode.NoContent) { "Revocation response is unconfirmed" }
+        } catch (failure: RestException) {
+            val code = runCatching { Json.parseToJsonElement(failure.response.bodyAsText()).jsonObject["code"]?.jsonPrimitive?.content }.getOrNull()
+            if (failure.statusCode == 403 && code == "MFA_REQUIRED") throw MfaRequired()
+            throw failure
+        }
     }
 
     override suspend fun readFamily(familyId: String): FamilySnapshot = auth.withAccessToken {

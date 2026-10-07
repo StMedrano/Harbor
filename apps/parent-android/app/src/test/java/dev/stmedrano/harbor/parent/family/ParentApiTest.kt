@@ -1,6 +1,8 @@
 package dev.stmedrano.harbor.parent.family
 
 import dev.stmedrano.harbor.parent.auth.*
+import dev.stmedrano.harbor.parent.security.MfaRequired
+import io.github.jan.supabase.auth.auth
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.*
@@ -30,6 +32,49 @@ class ParentApiTest {
         override fun encrypt(slot: String, value: ByteArray) = value
         override fun decrypt(slot: String, value: ByteArray) = value
     })
+
+    @Test fun revocationUsesCapturedBearerExactBodyAndOnlyMfaDenialRequestsStepUp() = runTest {
+        val device = "00000000-0000-4000-8000-000000000005"
+        val requests = mutableListOf<HttpRequestData>()
+        var status = HttpStatusCode.Forbidden
+        var code = "MFA_REQUIRED"
+        val userJson = """{"id":"$user","aud":"authenticated","email":"parent@example.invalid","is_anonymous":false,"email_confirmed_at":"$date"}"""
+        val engine = MockEngine { request ->
+            requests += request
+            when (request.url.encodedPath) {
+                "/auth/v1/token" -> respond("""{"access_token":"${token()}","refresh_token":"synthetic","expires_in":3600,"token_type":"bearer","user":$userJson}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                "/auth/v1/user" -> respond(userJson, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                "/functions/v1/revoke-device" -> respond(if (status == HttpStatusCode.NoContent) "" else """{"code":"$code","message":"synthetic refusal"}""", status, headersOf(HttpHeaders.ContentType, "application/json"))
+                else -> error("Unexpected revocation SDK request")
+            }
+        }
+        val store = store()
+        val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
+        try {
+            val auth = ParentAuthRepository(SupabaseAuthGateway(client, store), store)
+            auth.signIn("parent@example.invalid", "synthetic-only")
+            client.auth.importSession(checkNotNull(client.auth.currentSessionOrNull()).copy(accessToken = "synthetic-changed-sdk"), autoRefresh = false)
+            val api = SdkParentApi(client, auth)
+            requests.clear()
+            assertTrue(runCatching { api.revokeDevice(family, device) }.exceptionOrNull() is MfaRequired)
+            for ((nextStatus, nextCode) in listOf(HttpStatusCode.Forbidden to "FORBIDDEN", HttpStatusCode.InternalServerError to "MFA_REQUIRED", HttpStatusCode.OK to "MFA_REQUIRED")) {
+                status = nextStatus; code = nextCode
+                val failure = runCatching { api.revokeDevice(family, device) }.exceptionOrNull()
+                assertNotNull(failure); assertFalse(failure is MfaRequired)
+            }
+            status = HttpStatusCode.NoContent
+            api.revokeDevice(family, device)
+            assertEquals(5, requests.size)
+            for (request in requests) {
+                assertEquals(listOf("Bearer ${token()}"), request.headers.getAll(HttpHeaders.Authorization))
+                val body = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
+                assertEquals(setOf("familyId", "deviceId"), body.keys)
+                assertEquals(family, body["familyId"]?.jsonPrimitive?.content)
+                assertEquals(device, body["deviceId"]?.jsonPrimitive?.content)
+            }
+            assertEquals("synthetic-changed-sdk", client.auth.currentSessionOrNull()?.accessToken)
+        } finally { client.close() }
+    }
 
     @Test fun realSdkUsesAuthenticatedPublicReadsAndExactMutationBodies() = runTest {
         val requests = mutableListOf<HttpRequestData>()

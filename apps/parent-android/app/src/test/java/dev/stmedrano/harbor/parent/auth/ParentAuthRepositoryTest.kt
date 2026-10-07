@@ -33,13 +33,14 @@ class ParentAuthRepositoryTest {
         var exchanges = 0
         var logouts = 0
         var logoutFailure = false
+        var verifiedIdentity = ParentIdentity("user", "session")
         override suspend fun signIn(email: String, password: String) = stored!!
         override suspend fun signUp(email: String, password: String) = "user"
         override suspend fun requestRecovery(email: String) { if (recoveryFailure) error("offline") }
         override suspend fun exchangeCode(code: String): UserSession { exchanges++; return stored!! }
         override suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?): ParentIdentity {
             if (wrongIdentity) throw AuthSessionRejected()
-            return ParentIdentity("user", "session")
+            return verifiedIdentity
         }
         override suspend fun changePassword(password: String) { changes++ }
         override suspend fun restoreStoredSession() = stored
@@ -85,6 +86,27 @@ class ParentAuthRepositoryTest {
             assertNull(gateway.stored)
             rejected { repo.withAccessToken { it } }
         }
+    }
+
+    @Test fun mfaSessionMustBeVerifiedAndCannotOverwriteANewerSession() = runTest {
+        val gateway = Gateway(session())
+        val repo = repo(gateway)
+        repo.signIn("parent@example.invalid", "memory-only")
+        val owner = checkNotNull(repo.identity.value)
+        var persisted = 0
+        repo.acceptMfaSession(owner, session().copy(accessToken = "stepped-up")) { persisted++ }
+        assertEquals("stepped-up", repo.withAccessToken { it })
+        assertEquals(1, persisted)
+        gateway.verifiedIdentity = owner.copy(sessionId = "new-session")
+        repo.signIn("parent@example.invalid", "memory-only")
+        rejected { repo.acceptMfaSession(owner, session().copy(accessToken = "late-mfa")) { persisted++ } }
+        assertEquals(gateway.verifiedIdentity, repo.identity.value)
+        assertEquals("access", repo.withAccessToken { it })
+        assertEquals(1, persisted)
+        gateway.wrongIdentity = true
+        rejected { repo.acceptMfaSession(gateway.verifiedIdentity, session()) { persisted++ } }
+        assertNull(repo.identity.value)
+        assertEquals(1, persisted)
     }
 
     @Test fun restoreMissingSessionClearsVisibleIdentity() = runTest {
