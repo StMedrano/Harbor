@@ -28,7 +28,9 @@ run_test concurrentPendingOperationsKeepOneDurableKeyAcrossReopen dev.stmedrano.
 run_test cachedFamilyLabelsStalenessAndDisablesMutations dev.stmedrano.harbor.parent.ui.FamilyScreenTest
 run_test deviceViewReportsActualMetadataWithoutClaimingAppliedPolicy dev.stmedrano.harbor.parent.ui.FamilyScreenTest
 run_test notificationControlsReportUnconfirmedCleanupAndDisableDuringLogout dev.stmedrano.harbor.parent.notifications.ParentNotificationUiTest
-run_test signOutRemainsAvailableDuringNotificationRegistration dev.stmedrano.harbor.parent.notifications.ParentNotificationUiTest
+notification_status=0
+run_test signOutRemainsAvailableDuringNotificationRegistration dev.stmedrano.harbor.parent.notifications.ParentNotificationUiTest || notification_status=1
+run_test nativeJobUsesProtectedServiceAndQueuesReferencesWithoutProviderOrAuthTokens dev.stmedrano.harbor.parent.notifications.ParentNotificationJobTest
 run_test nativeControlsUsePermissionGateAndOfflineLogoutErasesVerifiedSession dev.stmedrano.harbor.parent.notifications.ParentNotificationUiTest
 run_test developmentReceiptViewExportsOnlyAnObservedReferenceOnExplicitTap dev.stmedrano.harbor.parent.notifications.ParentNotificationUiTest
 run_test tapEnvelopeIsStrictAndClearedBeforeRouting dev.stmedrano.harbor.parent.notifications.ParentNotificationAndroidTest
@@ -39,6 +41,7 @@ adb shell settings put system font_scale 1.8
 run_test largeTextPairingRequiresFreshReadAndBackReturnsToFamily dev.stmedrano.harbor.parent.ui.FamilyRouteTest || visual_status=1
 adb shell settings put system font_scale 1.0
 [[ "$visual_status" == 0 ]]
+[[ "$notification_status" == 0 ]]
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-pairing-large-text.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-device-large-text.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-large-text.png keystore-evidence/

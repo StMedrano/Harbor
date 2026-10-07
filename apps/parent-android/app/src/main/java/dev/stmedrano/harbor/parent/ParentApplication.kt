@@ -129,12 +129,16 @@ class ParentApplication : Application() {
             currentIdentity()?.let { familyViewModel?.refresh(it) }
         }
     } } }
-    fun receiveToken(token: String) { accountScope.launch { accountWork { notifications?.onTokenChanged(token) } } }
-    fun receiveMessage(data: Map<String, String>) { accountScope.launch { accountWork {
-        if (currentIdentity() == null) authRepository?.restore()
-        ensureContext()
-        notifications?.onMessage(data)
-    } } }
+    fun queueTokenRefresh() { registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this, it, null) } }
+    fun queueMessage(data: Map<String, String>) { registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this, it, data) } }
+    suspend fun processBackground(owner: ParentIdentity, data: Map<String, String>?) {
+        if (BuildConfig.CI_FIXTURE) return
+        runtime?.authAction {
+            ParentBackgroundProcessor(::currentIdentity, registrationStore::optedOwner,
+                { authRepository?.restore() }, ::ensureContext,
+                { expected -> notifications?.enable(expected) }, { payload -> notifications?.onMessage(payload) == true }).process(owner, data)
+        }
+    }
     fun openNotification(hint: ParentHint) { accountScope.launch { accountWork {
         if (currentIdentity() == null) authRepository?.restore()
         ensureContext()

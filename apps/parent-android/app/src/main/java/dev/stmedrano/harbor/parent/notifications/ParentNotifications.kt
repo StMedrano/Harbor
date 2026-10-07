@@ -32,8 +32,9 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
         mutableState.value = ParentNotificationState()
     }
     fun disableLocally() = synchronized(lock) { store.clearOptIn(); invalidate() }
-    suspend fun enable() = operations.withLock {
+    suspend fun enable(expectedIdentity: ParentIdentity? = null) = operations.withLock {
         val identity = currentIdentity()
+        if (expectedIdentity != null && (identity != expectedIdentity || !store.optedIn(expectedIdentity))) return@withLock
         if (identity == null || !permissionAllowed()) {
             invalidate(); mutableState.value = ParentNotificationState(message = "Sign in and allow notifications first.")
             return@withLock

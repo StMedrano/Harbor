@@ -9,7 +9,7 @@ class ParentMessagingService : FirebaseMessagingService() {
         // Parents accept only the strict data envelope. The SDK must never
         // bypass current access checks by rendering a server notification body.
         if (message.notification != null || ParentMessageParser.parse(message.data) == null) return
-        (application as ParentApplication).receiveMessage(message.data)
+        (application as ParentApplication).queueMessage(message.data)
     }
-    override fun onNewToken(token: String) { (application as ParentApplication).receiveToken(token) }
+    override fun onNewToken(token: String) { (application as ParentApplication).queueTokenRefresh() }
 }
