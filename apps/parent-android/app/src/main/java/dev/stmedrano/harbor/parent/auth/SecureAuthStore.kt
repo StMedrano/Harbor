@@ -18,6 +18,17 @@ interface AuthCipher {
 class AuthStorageLost : IllegalStateException("Secure Auth storage unavailable; sign in again")
 
 class SecureAuthStore(private val values: AuthValues, private val cipher: AuthCipher) {
+    internal var retainingCodeVerifier = false
+        private set
+
+    internal suspend fun retainingVerifier(block: suspend () -> Unit) {
+        // Repository Auth operations are serialized. Preserve the durable verifier
+        // while the SDK clears an invalid login session; a crash cannot erase it.
+        val previous = retainingCodeVerifier
+        retainingCodeVerifier = true
+        try { block() } finally { retainingCodeVerifier = previous }
+    }
+
     fun read(slot: String): String? {
         val encrypted = values.read(slot) ?: return null
         return try {

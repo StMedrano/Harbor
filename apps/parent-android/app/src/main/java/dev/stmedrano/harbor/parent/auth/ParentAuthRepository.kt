@@ -27,10 +27,10 @@ class ParentAuthRepository(
 
     suspend fun restore() = mutex.withLock {
         try {
-            val restored = gateway.restoreStoredSession() ?: run { clearUnlocked(); return@withLock }
+            val restored = gateway.restoreStoredSession() ?: run { clearInvalidSession(); return@withLock }
             val refreshed = if (restored.expiresAt.toEpochMilliseconds() <= now()) gateway.refresh() else restored
             accept(refreshed, null, null)
-        } catch (_: AuthSessionRejected) { clearUnlocked() }
+        } catch (_: AuthSessionRejected) { clearInvalidSession() }
         catch (_: AuthStorageLost) { clearUnlocked() }
     }
 
@@ -112,6 +112,16 @@ class ParentAuthRepository(
     }
 
     private fun clearFlow() { store.transaction = null; store.write("verifier", null) }
+    private suspend fun clearInvalidSession() {
+        val pending = store.transaction
+        if (pending != null && pending.acceptedRecoverySubject == null && now() - pending.startedAtMillis in 0..900_000) {
+            session = null
+            currentIdentity.value = null
+            // Auth.clearSession also deletes CodeVerifierCache. Our configured
+            // cache retains only this pending flow while SDK memory/session clear.
+            store.retainingVerifier { gateway.clearLocalSession() }
+        } else clearUnlocked()
+    }
     private suspend fun clearUnlocked() {
         session = null
         currentIdentity.value = null

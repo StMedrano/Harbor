@@ -2,6 +2,7 @@ package dev.stmedrano.harbor.parent.auth
 
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.mfa.FactorType
+import io.github.jan.supabase.auth.user.UserSession
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
@@ -123,6 +124,60 @@ class SupabaseAuthGatewayTest {
             assertNull(repository.identity.value)
             assertNull(EncryptedSessionManager(store).loadSessionOrNull())
         } finally { client.close() }
+    }
+
+    @Test fun signedOutRecoverySurvivesColdClientRestoreBeforeCodeExchange() = runTest { coldRecovery(false) }
+
+    @Test fun rejectedStoredRefreshCannotErasePendingRecoveryCode() = runTest { coldRecovery(true) }
+
+    @Test fun explicitLocalResetStillRemovesPendingEmailVerifier() = runTest {
+        val store = store()
+        val engine = MockEngine { respond("{}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json")) }
+        val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
+        try {
+            val repository = ParentAuthRepository(SupabaseAuthGateway(client, store), store)
+            repository.beginRecovery("parent@example.invalid")
+            repository.restore()
+            assertNotNull(EncryptedCodeVerifierCache(store).loadCodeVerifier())
+            repository.clearLocal()
+            assertNull(repository.identity.value)
+            assertNull(store.transaction)
+            assertNull(EncryptedCodeVerifierCache(store).loadCodeVerifier())
+        } finally { client.close() }
+    }
+
+    private suspend fun coldRecovery(rejectedRefresh: Boolean) {
+        val store = store()
+        fun engine() = MockEngine { request ->
+            if (request.url.parameters["grant_type"] == "refresh_token" && rejectedRefresh) {
+                return@MockEngine respond("""{"code":"refresh_token_not_found","message":"Rejected"}""", HttpStatusCode.BadRequest, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+            respond(when (request.url.encodedPath) {
+                "/auth/v1/recover" -> "{}"
+                "/auth/v1/token" -> response()
+                "/auth/v1/user" -> user()
+                else -> error("Unexpected cold-start Auth route")
+            }, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val first = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine())
+        try {
+            ParentAuthRepository(SupabaseAuthGateway(first, store), store).beginRecovery("parent@example.invalid")
+            if (rejectedRefresh) {
+                EncryptedSessionManager(store).saveSession(UserSession("synthetic-expired", "synthetic-rejected", expiresIn = 1, tokenType = "bearer", expiresAt = kotlin.time.Instant.fromEpochMilliseconds(0)))
+            }
+        } finally { first.close() }
+        val verifier = EncryptedCodeVerifierCache(store).loadCodeVerifier()
+        assertNotNull(verifier)
+        val recreated = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine())
+        try {
+            val repository = ParentAuthRepository(SupabaseAuthGateway(recreated, store), store)
+            repository.restore()
+            assertNotNull("Pending recovery must outlive absence of a login session", store.transaction)
+            assertEquals(verifier, EncryptedCodeVerifierCache(store).loadCodeVerifier())
+            repository.consumeCallback("harbor-parent://auth/callback?code=one-time")
+            assertEquals(ParentIdentity(uid, sid), repository.identity.value)
+            assertTrue(repository.hasVerifiedRecovery())
+        } finally { recreated.close() }
     }
 
     @Test fun serverSubjectMismatchCannotUseVerifiedClaimsFromAnotherIdentity() = runTest {
