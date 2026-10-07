@@ -47,14 +47,14 @@ class AuthScreenTest {
         compose.setContent { HarborTheme { ParentApp { AuthScreen(repository, callback.value) { callback.value = null } } } }
         compose.waitUntil(5000) { compose.onAllNodesWithText("Working…").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithText("Forgot password?").performScrollTo().performClick()
-        compose.onNodeWithText("Email").performTextInput("parent@example.invalid")
+        compose.onNodeWithText("Email").performScrollTo().performTextInput("parent@example.invalid")
         compose.onNodeWithText("Request recovery email").performClick()
         compose.waitUntil(5000) { store.transaction != null }
         compose.onNodeWithText("New password").assertDoesNotExist()
         assertFalse(repository.hasVerifiedRecovery())
         compose.runOnIdle { callback.value = "harbor-parent://auth/callback?code=synthetic" }
         compose.waitUntil(5000) { compose.onAllNodesWithText("New password").fetchSemanticsNodes().size == 1 }
-        compose.onNodeWithText("New password").performTextInput("synthetic-new")
+        compose.onNodeWithText("New password").performScrollTo().performTextInput("synthetic-new")
         compose.onNodeWithText("Back to sign in").performScrollTo().performClick()
         compose.waitUntil(5000) { store.transaction == null }
         assertNull(store.transaction)
@@ -71,7 +71,7 @@ class AuthScreenTest {
         compose.onNodeWithText("New password").assertDoesNotExist()
         compose.onNodeWithText("Request recovery email").assertDoesNotExist()
         compose.onNodeWithTag("auth-submit").assertIsNotEnabled()
-        compose.onNodeWithText("Forgot password?").performClick()
+        compose.onNodeWithText("Forgot password?").performScrollTo().performClick()
         compose.onNodeWithText("Request recovery email").assertIsNotEnabled()
         compose.onNodeWithText("Password").assertDoesNotExist()
         compose.onNodeWithText("New password").assertDoesNotExist()
@@ -109,10 +109,11 @@ class AuthScreenTest {
         val repository = ParentAuthRepository(gateway, store)
         compose.setContent { HarborTheme { ParentApp { AuthScreen(repository, null) {} } } }
         compose.waitUntil(5000) { compose.onAllNodesWithText("Parent session verified").fetchSemanticsNodes().size == 1 }
-        compose.onNodeWithText("Email").performTextInput("parent@example.invalid")
-        compose.onNodeWithText("Password").performTextInput("synthetic-wrong")
+        compose.onNodeWithText("Email").performScrollTo().performTextInput("parent@example.invalid")
+        compose.onNodeWithText("Password").performScrollTo().performTextInput("synthetic-wrong")
         compose.onNodeWithTag("auth-submit").performScrollTo().performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithText("Request failed. Check your connection, or cancel the email flow and request a fresh link.").fetchSemanticsNodes().size == 1 }
         compose.onNodeWithText("Parent session verified").assertDoesNotExist()
     }
 }
+
