@@ -84,10 +84,13 @@ class MainActivity : ComponentActivity() {
                         tap.message?.let { Text(it) }
                         val family = graph.familyViewModel?.repository?.state?.collectAsState()?.value
                         val snapshot = family?.snapshot
-                        val visibleDevice = tap.device?.takeIf { identity != null && snapshot?.membership?.userId == identity.userId && snapshot.devices.any { device -> device == it } }
+                        val visibleDevice = tap.device?.let { reference -> snapshot?.takeIf {
+                            identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
+                        }?.devices?.firstOrNull { it.id == reference.id } }
                         if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
                         else if (identity != null && visibleDevice != null) DeviceScreen(visibleDevice,
-                            onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null) { graph.closeNotification() }
+                            onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
+                            cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }) { graph.closeNotification() }
                         else if (identity == null || (accountPage.value && !settingsPage.value) || callback.value != null) AuthScreen(graph.authRepository, callback.value, graph.runtime) { callback.value = null }
                         else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                             onEnable = {

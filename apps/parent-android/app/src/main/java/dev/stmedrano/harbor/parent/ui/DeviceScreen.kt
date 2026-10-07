@@ -8,9 +8,10 @@ import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.family.DevicePublicV1
 
 @Composable
-fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, onBack: () -> Unit) {
+fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedAt: Long? = null, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(device.displayName, style = MaterialTheme.typography.headlineSmall)
+        cachedAt?.let { Text("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(it)}. Connect to make changes.") }
         Text("Status: ${device.status}")
         Text("Supervision: ${device.supervisionMode}")
         Text("Last seen: ${device.lastSeenAt ?: "not reported"}")

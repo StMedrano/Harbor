@@ -20,6 +20,16 @@ class FamilyCacheTest {
             assertEquals("synthetic-public-snapshot", database.familyCache().getSnapshot("parent-a", "family-a")?.snapshotJson)
             assertNull(database.familyCache().getSnapshot("parent-b", "family-a"))
             assertNull(database.familyCache().getSnapshot("parent-a", "family-b"))
+            database.familyCache().putSnapshot(FamilyCacheRow("parent-b", "family-a", "foreign-snapshot", 1234))
+            database.familyCache().beginPending(PendingChildRow("parent-a", "family-a", "lost-response-key", "fingerprint", "Child"))
+            database.familyCache().beginPending(PendingChildRow("parent-b", "family-a", "foreign-key", "fingerprint", "Other child"))
+            database.familyCache().retainUser("parent-a")
+            database.close()
+            database = ParentDatabase.open(context, name)
+            assertEquals("synthetic-public-snapshot", database.familyCache().getSnapshot("parent-a", "family-a")?.snapshotJson)
+            assertEquals("lost-response-key", database.familyCache().getPending("parent-a", "family-a")?.idempotencyKey)
+            assertNull(database.familyCache().getSnapshot("parent-b", "family-a"))
+            assertNull(database.familyCache().getPending("parent-b", "family-a"))
         } finally { database.close(); context.deleteDatabase(name) }
     }
 

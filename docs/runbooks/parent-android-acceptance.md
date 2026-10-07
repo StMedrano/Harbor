@@ -9,7 +9,11 @@ This is the approved roadmap 2A acceptance boundary. It does not complete the fu
 - Actual API 29 and 36 instrumentation proves encrypted persistence/key loss, callback scrubbing, Room isolation, native font scale 1.8, notification controls and offline cleanup, explicit MFA/revocation retry, sensitive-window protection and Back secret erasure. SDK HTTP fixtures prove the supported Auth/MFA/session interfaces; they are not live Auth or provider receipts.
 - Persisted integration `d30c5a99172da2ea088d828fdf9297fab19f6667` passed all six CI jobs in run `37609765475`. Real PostgreSQL proves one atomic child, session-bound registration, exactly child/browser/parent recipients, stable intent identities, no-op redispatch, one state mutation and removed-session denial. Provider callbacks and Auth subjects in this test are controlled fixtures.
 
-Final parent review, its one test-first material-fix pass, designated development rollout and real native acceptance remain required. Never label a CI fixture APK as a live APK.
+The one fresh whole-parent review is complete. Its single test-first fix pass is active; required final GREEN, designated development rollout and real native acceptance remain required. Never label a CI fixture APK as a live APK.
+
+The review fixes preserve current-owner restart cache and pending keys, retain explicit notification opt-in independently of temporary confirmation, separate confirmed creation from failed refresh, require both supported kinds and complete child/device/event references, and fence removal with the server-verified session. Native stale-device and logout-availability regressions must pass on both required Android versions before rollout.
+
+FCM callbacks enqueue reference-only work through the existing platform JobScheduler. Token work restores the captured opted-in owner and obtains the current provider token; it never queues a Firebase token. JobService ties coroutine execution to Android's job lifetime and cancels it when stopped. Per-item work is bounded; failed registration remains unconfirmed and explicit/foreground recovery stays available. This uses the existing pinned graph. See the [Firebase lifecycle guidance](https://firebase.google.com/docs/cloud-messaging/android/receive-messages) and [Android JobService contract](https://developer.android.com/reference/android/app/job/JobService). Native construction and mocked cold-owner tests do not prove real background receipt.
 
 ## Rollout gate
 

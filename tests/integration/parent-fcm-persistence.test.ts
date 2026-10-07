@@ -1,9 +1,81 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { getPrivateSql } from "../../supabase/functions/_shared/clients.ts";
+import { removeParentFcmAtomic } from "../../supabase/functions/_shared/parent-fcm.ts";
+import { createRemoveParentFcmHandler } from "../../supabase/functions/remove-parent-fcm/index.ts";
 import {
   createPersistentDispatchOne,
   privateOutboxStore,
 } from "../../supabase/functions/_shared/outbox.ts";
+Deno.test("authorized old-session removal delayed across new-session registration preserves the new binding", async () => {
+  const sql = getPrivateSql();
+  const user = crypto.randomUUID(),
+    oldSession = crypto.randomUUID(),
+    newSession = crypto.randomUUID();
+  let authorize!: () => void, release!: () => void;
+  const authorized = new Promise<void>((resolve) => authorize = resolve);
+  const blocked = new Promise<void>((resolve) => release = resolve);
+  let pending: Promise<Response> | null = null;
+  try {
+    await sql`insert into auth.users(id,is_anonymous) values(${user}::uuid,false)`;
+    await sql`insert into auth.sessions(id,user_id,created_at,updated_at) values(${oldSession}::uuid,${user}::uuid,now(),now()),(${newSession}::uuid,${user}::uuid,now(),now())`;
+    await sql`select * from private.harbor_register_parent_fcm(${user}::uuid,${oldSession}::uuid,'delayed-cleanup','old-token-fixture')`;
+    const handler = createRemoveParentFcmHandler({
+      requireActiveParentSession: async () => ({
+        userId: user,
+        sessionId: oldSession,
+        accessToken: "fixture-only",
+        aal: "aal1",
+        amr: [],
+      }),
+      removeParentFcmAtomic: async (input) => {
+        authorize();
+        await blocked;
+        await removeParentFcmAtomic(input);
+      },
+    });
+    pending = handler(
+      new Request("https://harbor.test", {
+        method: "POST",
+        body: JSON.stringify({
+          clientInstallationId: "delayed-cleanup",
+          sessionId: newSession,
+        }),
+      }),
+    );
+    await authorized;
+    await sql`select * from private.harbor_register_parent_fcm(${user}::uuid,${newSession}::uuid,'delayed-cleanup','new-token-fixture')`;
+    release();
+    assertEquals((await pending).status, 204);
+    assertEquals(
+      (await sql`select active,session_id from private.parent_fcm_registrations where user_id=${user}::uuid`)[
+        0
+      ],
+      { active: true, session_id: newSession },
+    );
+    await removeParentFcmAtomic({
+      userId: user,
+      sessionId: newSession,
+      clientInstallationId: "delayed-cleanup",
+    });
+    await removeParentFcmAtomic({
+      userId: user,
+      sessionId: newSession,
+      clientInstallationId: "delayed-cleanup",
+    });
+    assertEquals(
+      (await sql`select active from private.parent_fcm_registrations where user_id=${user}::uuid`)[
+        0
+      ].active,
+      false,
+    );
+  } finally {
+    release();
+    await pending?.catch(() => {});
+    await sql`delete from private.audit_events where actor_user_id=${user}::uuid`;
+    await sql`delete from auth.users where id=${user}::uuid`;
+    await sql.end();
+  }
+});
 Deno.test("parent fanout persists independent delivery, current authorization and generation/lease-safe cleanup", async () => {
   const sql = getPrivateSql();
   const user = crypto.randomUUID(),

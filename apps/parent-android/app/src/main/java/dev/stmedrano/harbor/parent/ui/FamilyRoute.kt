@@ -20,7 +20,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     val pairing by model.pairing.state.collectAsState()
     val scope = rememberCoroutineScope()
     var sheet by remember(identity) { mutableStateOf<String?>(null) }
-    var device by remember(identity) { mutableStateOf<DevicePublicV1?>(null) }
+    var deviceId by remember(identity) { mutableStateOf<String?>(null) }
     var name by remember(identity) { mutableStateOf("") }
     var error by remember(identity) { mutableStateOf<String?>(null) }
     var expired by remember(identity) { mutableStateOf(true) }
@@ -37,9 +37,18 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     LaunchedEffect(pairing.code) {
         while (pairing.code != null) { expired = model.pairing.expired(); delay(1000) }
     }
-    BackHandler(sheet != null || device != null) { sheet = null; device = null }
+    BackHandler(sheet != null || deviceId != null) { sheet = null; deviceId = null }
     val canRevoke = !family.cached && !family.loading && family.failure == null && !control.busy
-    if (device != null) DeviceScreen(device!!, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device!!) } }) { device = null } else {
+    val device = family.snapshot?.takeIf { it.membership.userId == identity.userId && it.membership.status == "active" }
+        ?.devices?.firstOrNull { it.id == deviceId }
+    if (deviceId != null) {
+        if (device != null) DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
+            cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }) { deviceId = null }
+        else Column {
+            Text("This device is unavailable. Refresh your family.")
+            TextButton({ deviceId = null }) { Text("Back to family") }
+        }
+    } else {
         FamilyScreen(family.copy(loading = family.loading || control.busy), control.families, control.selectedChildId,
             onRefresh = { submit { model.refresh(identity) } },
             onSelectFamily = { id -> submit { model.selectFamily(identity, id) } },
@@ -47,7 +56,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onCreateFamily = { sheet = "family"; error = null },
             onAddChild = { sheet = "child"; error = null },
             onPair = { sheet = "pair"; submit { model.issuePairing(identity) } },
-            onDevice = { device = it })
+            onDevice = { deviceId = it.id })
         if (control.message != null && sheet == null) Text(control.message!!)
     }
     when (sheet) {

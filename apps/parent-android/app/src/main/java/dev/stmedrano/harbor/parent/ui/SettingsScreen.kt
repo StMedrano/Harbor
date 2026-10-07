@@ -21,7 +21,7 @@ fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntim
         notifications.message?.let { Text(it) }
         Button(onEnable, enabled = enabled) { Text("Enable notifications") }
         OutlinedButton(onRemove, enabled = enabled) { Text("Remove notification registration") }
-        OutlinedButton(onSignOut, enabled = enabled) { Text("Sign out this device") }
+        OutlinedButton(onSignOut, enabled = available && !runtime.signingOut) { Text("Sign out this device") }
         if (runtime.signingOut) Text("Signing out…")
         if (runtime.cleanupConfirmed) Text("Current-device cleanup confirmed.")
         if (!available) Text("Sign in to manage this device. Live actions are disabled in the offline preview.")

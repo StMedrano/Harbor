@@ -110,7 +110,7 @@ class FamilyRouteTest {
         compose.onNodeWithText("Last seen: $date").assertExists()
         offline.set(true)
         kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
-        compose.onNodeWithText("Cached device view · fetched at 1234 · refresh when online").assertExists()
+        compose.onNodeWithText("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(1234)}. Connect to make changes.").assertExists()
         denied.set(true)
         kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
         compose.onNodeWithText("This device is unavailable. Refresh your family.").assertExists()
