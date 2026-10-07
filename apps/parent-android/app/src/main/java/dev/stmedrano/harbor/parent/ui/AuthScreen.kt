@@ -27,7 +27,8 @@ import kotlinx.coroutines.withContext
 private enum class AccountPage { SIGN_IN, SIGN_UP, RECOVERY, RESET }
 
 @Composable
-fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: ParentRuntime? = null, onCallbackConsumed: () -> Unit) {
+fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: ParentRuntime? = null,
+    onAuthenticated: () -> Unit = {}, onCallbackConsumed: () -> Unit) {
     ProtectSensitiveScreen()
     // Credentials never enter saved-instance state; rotation and navigation clear typed passwords.
     var email by remember { mutableStateOf("") }
@@ -49,8 +50,13 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
         page = destination
     }
 
-    suspend fun runRequest(success: String, action: suspend (ParentAuthRepository) -> Unit) {
+    fun openParentIfVerified() {
         val repo = repository ?: return
+        if (repo.identity.value != null && !repo.hasVerifiedRecovery() && runtime?.state?.value?.signingOut != true) onAuthenticated()
+    }
+
+    suspend fun runRequest(success: String, action: suspend (ParentAuthRepository) -> Unit): Boolean {
+        val repo = repository ?: return false
         busy = true
         message = "Working…"
         try {
@@ -61,6 +67,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
             recoveryReady = state
             if (state) navigate(AccountPage.RESET)
             message = success
+            return true
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: AuthSessionRejected) { message = "Session rejected. Sign in again."; recoveryReady = false }
         catch (_: AuthStorageLost) { message = "Secure storage reset. Sign in again."; recoveryReady = false }
@@ -69,17 +76,18 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
             message = "Request failed. Check your connection, or cancel the email flow and request a fresh link."
         }
         finally { password = ""; signupConfirmation = ""; newPassword = ""; confirmPassword = ""; busy = false }
+        return false
     }
 
-    fun submit(success: String, action: suspend (ParentAuthRepository) -> Unit) {
-        if (!busy) scope.launch { runRequest(success, action) }
+    fun submit(success: String, afterSuccess: () -> Unit = {}, action: suspend (ParentAuthRepository) -> Unit) {
+        if (!busy) scope.launch { if (runRequest(success, action)) afterSuccess() }
     }
 
     fun backToSignIn() {
         if (busy || closing) return
         navigate(page) // Clear typed secrets immediately, before cancellation can await storage.
         if (repository == null) navigate(AccountPage.SIGN_IN)
-        else submit("Email flow cancelled. You can sign in or request a new link.") {
+        else submit("Email flow cancelled. You can sign in or request a new link.", ::openParentIfVerified) {
             it.cancelEmailFlow()
             recoveryReady = false
             navigate(AccountPage.SIGN_IN)
@@ -89,12 +97,14 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     BackHandler(enabled = page != AccountPage.SIGN_IN) { backToSignIn() }
     LaunchedEffect(repository, callback) {
         if (!restored) {
-            runRequest("Session checked. Sign in if needed.") { it.restore() }
+            val accepted = runRequest("Session checked. Sign in if needed.") { it.restore() }
             restored = true
+            if (accepted && callback == null) openParentIfVerified()
         }
         if (callback != null) {
-            runRequest("Email verified. You can continue with your account.") { it.consumeCallback(callback) }
+            val accepted = runRequest("Email verified. You can continue with your account.") { it.consumeCallback(callback) }
             onCallbackConsumed()
+            if (accepted) openParentIfVerified()
         }
     }
 
@@ -133,7 +143,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                 }
                 Button(onClick = {
                     val secret = password
-                    if (page == AccountPage.SIGN_IN) submit("Parent session verified.") { it.signIn(email, secret) }
+                    if (page == AccountPage.SIGN_IN) submit("Parent session verified.", ::openParentIfVerified) { it.signIn(email, secret) }
                     else submit("Check your email. Open the confirmation link on this device. Return to sign in after confirmation.") { it.beginSignup(email, secret) }
                 }, enabled = enabled && email.isNotBlank() && password.isNotBlank() &&
                     (page == AccountPage.SIGN_IN || password == signupConfirmation),
@@ -155,7 +165,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                 Text(if (recoveryReady) "Recovery verified. Choose a new password." else "Request and verify a fresh recovery link first.")
                 HarborPasswordField(newPassword, { newPassword = it }, "New password", enabled && recoveryReady)
                 HarborPasswordField(confirmPassword, { confirmPassword = it }, "Confirm new password", enabled && recoveryReady)
-                Button(onClick = { val secret = newPassword; submit("Password updated. You can now sign in with your new password.") { it.changePassword(secret); navigate(AccountPage.SIGN_IN) } },
+                Button(onClick = { val secret = newPassword; submit("Password updated. You can now sign in with your new password.", ::openParentIfVerified) { it.changePassword(secret); navigate(AccountPage.SIGN_IN) } },
                     enabled = enabled && recoveryReady && newPassword.isNotBlank() && newPassword == confirmPassword,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.medium) { Text("Update password") }
             }

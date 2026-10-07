@@ -37,8 +37,8 @@ android {
         buildConfigField("boolean", "CI_FIXTURE", ciFixture.toString())
         buildConfigField("String", "SUPABASE_URL", "\"${config.getProperty("supabaseUrl")}\"")
         buildConfigField("String", "PUBLISHABLE_KEY", "\"${config.getProperty("publishableKey")}\"")
-        versionCode = 3
-        versionName = "0.3-development"
+        versionCode = 4
+        versionName = "0.4-development"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     if (ciFixture) sourceSets.getByName("main").manifest.srcFile("../config/ci-manifest.xml")

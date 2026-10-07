@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
 import dev.stmedrano.harbor.parent.ui.ParentApp
+import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
 import dev.stmedrano.harbor.parent.ui.SettingsScreen
@@ -33,7 +34,7 @@ import dev.stmedrano.harbor.parent.notifications.*
 
 class MainActivity : ComponentActivity() {
     private val callback = mutableStateOf<String?>(null)
-    private val accountPage = mutableStateOf(true)
+    private val authenticationPage = mutableStateOf(true)
     private val settingsPage = mutableStateOf(false)
     private val securityPage = mutableStateOf(false)
     private var requestedHint: ParentHint? = null
@@ -67,49 +68,59 @@ class MainActivity : ComponentActivity() {
             }
             fun openRevocation(device: DevicePublicV1) {
                 graph.securityViewModel?.requestRevocation(device.familyId, device.id)
-                graph.closeNotification(); securityPage.value = true; accountPage.value = false; settingsPage.value = false
+                graph.closeNotification(); securityPage.value = true; authenticationPage.value = false; settingsPage.value = false
             }
             fun enableNotifications() { graph.accountScope.launch { graph.accountWork { graph.notifications?.enable() } } }
             val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { enableNotifications() }
+            val authenticationOpen = authenticationPage.value || callback.value != null
             HarborTheme {
-                ParentApp(showBrand = identity != null && (!accountPage.value || settingsPage.value) && callback.value == null) {
+                ParentApp(showBrand = identity != null && !authenticationOpen) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
-                        if (identity != null) {
-                            TextButton({ accountPage.value = !accountPage.value; settingsPage.value = false; securityPage.value = false; graph.closeNotification() }) { Text(if (accountPage.value) "Open family" else "Account") }
-                            TextButton({ settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() }) { Text(if (settingsPage.value) "Back to family" else "Settings") }
-                            TextButton({ securityPage.value = !securityPage.value; accountPage.value = false; settingsPage.value = false; graph.closeNotification() }) { Text(if (securityPage.value) "Back to family" else "Security") }
-                        }
-                        tap.message?.let { Text(it) }
-                        val family = graph.familyViewModel?.repository?.state?.collectAsState()?.value
-                        val snapshot = family?.snapshot
-                        val visibleDevice = tap.device?.let { reference -> snapshot?.takeIf {
-                            identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
-                        }?.devices?.firstOrNull { it.id == reference.id } }
-                        if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
-                        else if (identity != null && visibleDevice != null) DeviceScreen(visibleDevice,
-                            onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
-                            cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }) { graph.closeNotification() }
-                        else if (identity == null || (accountPage.value && !settingsPage.value) || callback.value != null) AuthScreen(graph.authRepository, callback.value, graph.runtime) { callback.value = null }
-                        else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
-                            onEnable = {
-                                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                else enableNotifications()
+                        ParentSessionContent(identity, authenticationOpen,
+                            authentication = {
+                                AuthScreen(graph.authRepository, callback.value, graph.runtime,
+                                    onAuthenticated = {
+                                        authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
+                                        logoutRequested.value = false; graph.closeNotification()
+                                    }, onCallbackConsumed = { callback.value = null })
                             },
-                            onRemove = { graph.accountScope.launch { graph.accountWork { graph.notifications?.remove() } } },
-                            onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } },
-                            developmentReceipt = if (BuildConfig.DEBUG && !BuildConfig.CI_FIXTURE) notifications.receipt else null,
-                            onExport = { val receipt = notifications.receipt; if (identity != null && receipt != null) {
-                                pendingExport.value = identity to receipt
-                                exportReceipt.launch("harbor-parent-receipt.json")
-                            } })
-                        else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation) }
+                            parentMenu = {
+                                TextButton({ authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() }) { Text("Family") }
+                                TextButton({ settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() }) { Text("Settings") }
+                                TextButton({ securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() }) { Text("Security") }
+                            },
+                            parentContent = {
+                                tap.message?.let { Text(it) }
+                                val family = graph.familyViewModel?.repository?.state?.collectAsState()?.value
+                                val snapshot = family?.snapshot
+                                val visibleDevice = tap.device?.let { reference -> snapshot?.takeIf {
+                                    identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
+                                }?.devices?.firstOrNull { it.id == reference.id } }
+                                if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
+                                else if (identity != null && visibleDevice != null) DeviceScreen(visibleDevice,
+                                    onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
+                                    cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }) { graph.closeNotification() }
+                                else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
+                                    onEnable = {
+                                        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        else enableNotifications()
+                                    },
+                                    onRemove = { graph.accountScope.launch { graph.accountWork { graph.notifications?.remove() } } },
+                                    onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } },
+                                    developmentReceipt = if (BuildConfig.DEBUG && !BuildConfig.CI_FIXTURE) notifications.receipt else null,
+                                    onExport = { val receipt = notifications.receipt; if (identity != null && receipt != null) {
+                                        pendingExport.value = identity to receipt
+                                        exportReceipt.launch("harbor-parent-receipt.json")
+                                    } })
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation) }
+                            })
                     }
                 }
             }
         }
-        requestedHint?.let { (application as ParentApplication).openNotification(it); accountPage.value = false }
+        requestedHint?.let { (application as ParentApplication).openNotification(it); authenticationPage.value = false }
         requestedHint = null
     }
 
@@ -119,7 +130,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         callback.value = requested
-        accountPage.value = hint == null
+        authenticationPage.value = hint == null
         settingsPage.value = false
         securityPage.value = false
         hint?.let { (application as ParentApplication).openNotification(it) }
@@ -133,3 +144,4 @@ class MainActivity : ComponentActivity() {
         return if (intent.action == Intent.ACTION_VIEW) requested else null
     }
 }
+
