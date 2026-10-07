@@ -20,6 +20,7 @@ Deno.test("HarborErrorCodes exposes the exact stable V1 literals", () => {
     "DEVICE_OFFLINE",
     "STALE_VERSION",
     "REPLAY_REJECTED",
+    "IDEMPOTENCY_CONFLICT",
   ]);
 });
 

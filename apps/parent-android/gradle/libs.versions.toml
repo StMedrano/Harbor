@@ -1,0 +1,26 @@
+[versions]
+supabase = "3.8.0"
+ktor = "3.5.1"
+coroutines = "1.11.0"
+serialization = "1.11.0"
+compose = "2026.09.00"
+activity = "1.13.0"
+room = "2.8.5"
+firebase = "34.19.0"
+[libraries]
+supabase-bom = { module = "io.github.jan-tennert.supabase:bom", version.ref = "supabase" }
+supabase-auth = { module = "io.github.jan-tennert.supabase:auth-kt" }
+supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt" }
+supabase-realtime = { module = "io.github.jan-tennert.supabase:realtime-kt" }
+supabase-functions = { module = "io.github.jan-tennert.supabase:functions-kt" }
+ktor-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
+coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase" }

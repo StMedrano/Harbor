@@ -178,3 +178,11 @@ Deno.test("jsonError emits stable Harbor error JSON", async () => {
   assertEquals(body.code, "FORBIDDEN");
   assertEquals(body.message, "Denied");
 });
+
+Deno.test("requireParent preserves optional verified session identity",async()=>{
+ const sessionId="30000000-0000-4000-8000-000000000111";
+ const request=new Request("https://harbor.test",{headers:{Authorization:"Bearer test-only"}});
+ const validated={user:{id:"parent-a",isAnonymous:false},claims:{...baseClaims,sessionId}};
+ const parent=await requireParent(request,deps({validateAccessToken:async()=>validated}));
+ assertEquals((parent as ParentContext & {sessionId?:string}).sessionId,sessionId);
+});
