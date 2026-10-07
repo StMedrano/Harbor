@@ -14,6 +14,7 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.logging.LogLevel
 import io.github.jan.supabase.functions.Functions
+import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.postgrest.Postgrest
 import io.ktor.client.engine.HttpClientEngine
 import java.util.Locale
@@ -94,6 +95,7 @@ class SupabaseAuthGateway(private val client: SupabaseClient, private val store:
                 }
                 install(Postgrest)
                 install(Functions)
+                install(Realtime)
             }
     }
 }

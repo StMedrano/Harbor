@@ -65,4 +65,39 @@ class FamilyRepositoryTest {
         assertTrue(runCatching { repository.refresh(parent, "family-a") }.isFailure)
         assertNull(repository.cached(parent, "family-a"))
     }
+
+    @Test fun InFlightReadAfterClearCannotRestoreCacheOrVisibleState() = runTest {
+        val release = CompletableDeferred<Unit>()
+        val api = object : TestParentApi() {
+            override suspend fun readFamily(familyId: String): dev.stmedrano.harbor.parent.data.FamilySnapshot {
+                release.await(); return snapshot(family = familyId)
+            }
+        }
+        val repository = FamilyRepository(api, MemoryFamilyDao()) { parent }
+        val request = async { runCatching { repository.refresh(parent, "family-a") } }
+        kotlinx.coroutines.yield()
+        repository.clearAll()
+        release.complete(Unit)
+        assertTrue(request.await().isFailure)
+        assertNull(repository.state.value.snapshot)
+        assertNull(repository.cached(parent, "family-a"))
+    }
+
+    @Test fun OlderFamilyReadCannotOverwriteNewSelection() = runTest {
+        val release = CompletableDeferred<Unit>()
+        val api = object : TestParentApi() {
+            override suspend fun readFamily(familyId: String): dev.stmedrano.harbor.parent.data.FamilySnapshot {
+                if (familyId == "family-a") release.await()
+                return snapshot(family = familyId)
+            }
+        }
+        val repository = FamilyRepository(api, MemoryFamilyDao()) { parent }
+        val old = async { runCatching { repository.refresh(parent, "family-a") } }
+        kotlinx.coroutines.yield()
+        repository.refresh(parent, "family-b")
+        release.complete(Unit)
+        assertTrue(old.await().isFailure)
+        assertEquals("family-b", repository.state.value.snapshot?.family?.id)
+        assertNull(repository.cached(parent, "family-a"))
+    }
 }

@@ -93,6 +93,12 @@ class ParentAuthRepository(
     }
 
     suspend fun clearLocal() = mutex.withLock { clearUnlocked() }
+    suspend fun signOutCurrent(owner: ParentIdentity) = mutex.withLock {
+        // The runtime blocks/cancels new Auth work before calling this bridge.
+        // A stale screen cannot end a different verified session.
+        if (currentIdentity.value != owner) throw AuthSessionRejected()
+        try { gateway.signOutCurrent() } finally { clearUnlocked() }
+    }
     suspend fun cancelEmailFlow() = mutex.withLock { clearFlow() }
     fun hasVerifiedRecovery(): Boolean = store.transaction?.let {
         it.kind == AuthKind.RECOVERY && it.acceptedRecoverySubject != null &&

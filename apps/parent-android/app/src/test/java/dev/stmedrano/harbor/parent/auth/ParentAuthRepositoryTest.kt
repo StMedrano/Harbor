@@ -31,6 +31,8 @@ class ParentAuthRepositoryTest {
         var rejectedRefresh = false
         var wrongIdentity = false
         var exchanges = 0
+        var logouts = 0
+        var logoutFailure = false
         override suspend fun signIn(email: String, password: String) = stored!!
         override suspend fun signUp(email: String, password: String) = "user"
         override suspend fun requestRecovery(email: String) { if (recoveryFailure) error("offline") }
@@ -46,7 +48,7 @@ class ParentAuthRepositoryTest {
             if (rejectedRefresh) throw AuthSessionRejected()
             return stored!!.copy(expiresAt = Instant.fromEpochMilliseconds(4_600_000)).also { stored = it }
         }
-        override suspend fun signOutCurrent() { stored = null }
+        override suspend fun signOutCurrent() { logouts++; if (logoutFailure) error("offline"); stored = null }
         override suspend fun clearLocalSession() { stored = null }
     }
     private fun repo(gateway: Gateway, store: SecureAuthStore = store()) = ParentAuthRepository(gateway, store) { now }
@@ -63,6 +65,26 @@ class ParentAuthRepositoryTest {
         assertFalse(repo.hasVerifiedRecovery())
         rejected { repo.changePassword("different-memory-only") }
         assertEquals(0, gateway.changes)
+    }
+
+    @Test fun currentSessionLogoutErasesSecretsEvenOfflineAndRefusesForeignOwner() = runTest {
+        for (offline in listOf(false, true)) {
+            val gateway = Gateway(session()).apply { logoutFailure = offline }
+            val store = store()
+            val repo = repo(gateway, store)
+            repo.signIn("parent@example.invalid", "memory-only")
+            val owner = checkNotNull(repo.identity.value)
+            rejected { repo.signOutCurrent(owner.copy(sessionId = "other-session")) }
+            assertEquals(0, gateway.logouts)
+            assertEquals(owner, repo.identity.value)
+            store.write("verifier", "memory-only")
+            if (offline) rejected { repo.signOutCurrent(owner) } else repo.signOutCurrent(owner)
+            assertEquals(1, gateway.logouts)
+            assertNull(repo.identity.value)
+            assertNull(store.read("verifier"))
+            assertNull(gateway.stored)
+            rejected { repo.withAccessToken { it } }
+        }
     }
 
     @Test fun restoreMissingSessionClearsVisibleIdentity() = runTest {
