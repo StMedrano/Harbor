@@ -52,6 +52,10 @@ class FamilyRepository(private val api: ParentApi, private val cache: FamilyCach
         if (mutableState.value.snapshot?.family?.id == familyId) mutableState.value = FamilyState()
     }
     suspend fun clearAll() { mutableState.value = FamilyState(); cache.clearAll() }
+    suspend fun showCached(identity: ParentIdentity, familyId: String) {
+        requireCurrent(identity)
+        mutableState.value = FamilyState(cached(identity, familyId), cached = true, failure = FamilyFailure.NETWORK)
+    }
     private fun requireCurrent(identity: ParentIdentity) { if (currentIdentity() != identity) throw AuthSessionRejected() }
     private fun validate(snapshot: FamilySnapshot, identity: ParentIdentity, familyId: String) {
         if (snapshot.family.version != 1 || snapshot.family.id != familyId || snapshot.membership.version != 1 ||

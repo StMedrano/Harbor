@@ -25,3 +25,8 @@ run_test credentialsAreExcludedFromLegacyCloudAndDeviceTransfer
 run_test failedSignInCannotLeaveVerifiedSessionTitleVisible dev.stmedrano.harbor.parent.ui.AuthScreenTest
 run_test otherSubjectCannotReadCachedFamily dev.stmedrano.harbor.parent.data.FamilyCacheTest
 run_test concurrentPendingOperationsKeepOneDurableKeyAcrossReopen dev.stmedrano.harbor.parent.data.FamilyCacheTest
+run_test cachedFamilyLabelsStalenessAndDisablesMutations dev.stmedrano.harbor.parent.ui.FamilyScreenTest
+run_test deviceViewReportsActualMetadataWithoutClaimingAppliedPolicy dev.stmedrano.harbor.parent.ui.FamilyScreenTest
+run_test largeTextPairingRequiresFreshReadAndBackReturnsToFamily dev.stmedrano.harbor.parent.ui.FamilyRouteTest
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-pairing-large-text.png keystore-evidence/
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-device-large-text.png keystore-evidence/
