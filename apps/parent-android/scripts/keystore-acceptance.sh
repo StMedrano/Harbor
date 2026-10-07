@@ -29,6 +29,11 @@ run_test nonExportableChildP256ProofVerifiesAfterKeyReopen dev.stmedrano.harbor.
 run_test lostChildEncryptionKeyStaysBlockedAcrossReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
 run_test interruptedEnrollmentMarkerSurvivesProcessReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
 [[ "$child_crypto_status" == 0 ]]
+family_ui_status=0
+for method in setupHasNoMenu parentLoginOpensOnlyParent childCodeCannotOpenParent confirmedChildRestoresToday recoveryBackDoesNotEscape revokedChildCannotOpenParent; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.FamilyRoleNavigationTest || family_ui_status=1
+done
+[[ "$family_ui_status" == 0 ]]
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
