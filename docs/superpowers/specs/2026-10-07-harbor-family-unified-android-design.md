@@ -34,6 +34,7 @@ One active product role per installation. Parent and child credentials are never
 - Isolate client instances, encrypted storage namespaces, key aliases, caches, jobs and in-memory state. Do not reuse a mutable parent Auth client/session manager for child requests.
 - Auth links must match the active parent flow or an explicitly initiated temporary parent-approval flow. An incoming link or push cannot change the device role or grant the parent dashboard.
 - A stored mode hint is not authorization. Resolve the active dashboard from validated profile state and confirmed enrollment. Corrupt/ambiguous profile records fail closed with recovery guidance.
+- After confirmed parent cleanup, erase dormant parent Auth/PKCE credentials before activating the child profile. Separate namespaces do not justify retaining a parent account on a child phone; temporary approval credentials are cleared after success or cancellation.
 - Child requests cannot read parent family tables or self-approve parental actions. Backend authorization remains authoritative.
 - Never bundle service/worker/provider credentials or private device keys. Preserve backup exclusions, sensitive-screen protection and secret-free logging.
 
@@ -88,4 +89,5 @@ Development rollout is limited to separately reviewed changes after matching GRE
 ## Approval boundary
 
 Written specification approval permits a focused implementation plan with explicit milestones, migration/rollback, exact pins and test-first acceptance. Written-plan approval is required before implementing this new combined-app/child subsystem. Native inline execution is already the user's preference; do not repeat the execution-method menu.
+
 
