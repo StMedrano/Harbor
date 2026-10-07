@@ -3,7 +3,6 @@ package dev.stmedrano.harbor.parent.auth
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.stmedrano.harbor.parent.MainActivity
 import dev.stmedrano.harbor.parent.R
@@ -54,10 +53,29 @@ class KeystorePersistenceTest {
     }
 
     @Test fun callbackIsScrubbedBeforeActivityCanAcceptIt() {
-        val intent = Intent(context, MainActivity::class.java).setData(Uri.parse("harbor-parent://auth/callback#access_token=synthetic-secret"))
-        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
-            scenario.onActivity { assertNull(it.intent.data); assertNull(it.intent.clipData) }
-        }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        // ActivityScenario matches the original URI on every lifecycle event,
+        // so it cannot observe an Activity that correctly scrubs that URI.
+        val monitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
+        try {
+            val intent = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
+                .setData(Uri.parse("harbor-parent://auth/callback#access_token=synthetic-secret"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            context.startActivity(intent)
+            val activity = instrumentation.waitForMonitorWithTimeout(monitor, 5000)
+            assertNotNull("Cold callback Activity must start", activity)
+            instrumentation.runOnMainSync {
+                assertNull(activity.intent.data)
+                assertNull(activity.intent.clipData)
+                val next = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
+                    .setData(Uri.parse("harbor-parent://auth/callback?type=recovery#access_token=synthetic-secret"))
+                next.clipData = android.content.ClipData.newPlainText("callback", "synthetic-secret")
+                instrumentation.callActivityOnNewIntent(activity, next)
+                assertNull(activity.intent.data)
+                assertNull(activity.intent.clipData)
+                activity.finish()
+            }
+        } finally { instrumentation.removeMonitor(monitor) }
     }
 
     @Test fun credentialsAreExcludedFromLegacyCloudAndDeviceTransfer() {
