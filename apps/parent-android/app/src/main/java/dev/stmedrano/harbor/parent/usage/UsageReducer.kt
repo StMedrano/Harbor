@@ -6,7 +6,7 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 enum class UsageEventKind { RESUMED,PAUSED,STOPPED,SCREEN_ON,SCREEN_OFF,UNLOCKED,LOCKED,STARTUP,SHUTDOWN,CLOCK_GAP }
-data class UsageEvent(val atMs:Long,val kind:UsageEventKind,val packageName:String?,val instanceId:Int?)
+data class UsageEvent(val atMs:Long,val kind:UsageEventKind,val packageName:String?,val instanceId:Int?,val identityKnown:Boolean=true)
 data class UsageWindow(val startMs:Long,val endMs:Long,val zoneId:String,val excludedPackages:Set<String> = setOf("com.android.systemui"))
 /** Aggregated observed interval: no raw activity class or event is retained. */
 data class UsageSlice(val startMs:Long,val endMs:Long,val packages:Set<String>,val complete:Boolean)

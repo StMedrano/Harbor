@@ -4,13 +4,13 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-@Serializable enum class UsagePermission { @SerialName("granted") GRANTED, @SerialName("denied") DENIED, @SerialName("unavailable") UNAVAILABLE }
+@Serializable enum class UsagePermissionState { @SerialName("granted") GRANTED, @SerialName("denied") DENIED, @SerialName("unavailable") UNAVAILABLE }
 @Serializable enum class InventoryStatus { @SerialName("complete") COMPLETE, @SerialName("truncated") TRUNCATED, @SerialName("unavailable") UNAVAILABLE }
 @Serializable enum class UsageQuality { @SerialName("partial") PARTIAL, @SerialName("observed") OBSERVED, @SerialName("unavailable") UNAVAILABLE }
 @Serializable data class UsageInventoryApp(val packageName:String,val label:String)
 @Serializable data class UsageApp(val packageName:String,val foregroundMs:Long)
 @Serializable data class UsageDay(val localDate:String,val startAt:String,val endAt:String,val observedThrough:String,val coverageStart:String?,val quality:UsageQuality,val totalMs:Long?,val apps:List<UsageApp>)
-@Serializable data class UsageReportV1(val version:Int,val epochId:String,val sequence:Long,val observedAt:String,val zoneId:String,val usagePermission:UsagePermission,val inventoryStatus:InventoryStatus,val inventory:List<UsageInventoryApp>,val days:List<UsageDay>)
+@Serializable data class UsageReportV1(val version:Int,val epochId:String,val sequence:Long,val observedAt:String,val zoneId:String,val usagePermission:UsagePermissionState,val inventoryStatus:InventoryStatus,val inventory:List<UsageInventoryApp>,val days:List<UsageDay>)
 @Serializable data class ClearUsageV1(val version:Int,val epochId:String,val sequence:Long)
 @Serializable data class UsageWriteReplyV1(val confirmed:Boolean,val sequence:Long,val receivedAt:String)
 @Serializable enum class UsageReadState { @SerialName("available") AVAILABLE, @SerialName("none") NONE, @SerialName("expired") EXPIRED }

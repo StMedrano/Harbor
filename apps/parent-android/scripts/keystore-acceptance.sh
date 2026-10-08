@@ -111,3 +111,8 @@ adb shell settings put system font_scale 1.0
 [[ "$composition_status" == 0 ]]
 
 
+usage_platform_status=0
+for method in permissionManifestAndSettingsRoundTrip nativePermissionDenialBlocksReadAndGrantIsObserved onlyVisibleLaunchableInventoryIsReported; do
+  run_test "$method" dev.stmedrano.harbor.parent.usage.UsagePlatformTest || usage_platform_status=1
+done
+[[ "$usage_platform_status" == 0 ]]
