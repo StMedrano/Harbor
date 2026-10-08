@@ -3,6 +3,7 @@
         <item name="android:statusBarColor">@color/harbor_bg</item>
         <item name="android:navigationBarColor">@color/harbor_bg</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">@color/harbor_bg</item>
     </style>
 </resources>
