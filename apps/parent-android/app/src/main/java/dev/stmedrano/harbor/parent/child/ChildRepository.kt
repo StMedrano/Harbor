@@ -160,6 +160,19 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
         catch (_: Exception) { mutableState.value = ChildSyncState.Stale(record?.lastSuccessAt) }
         state.value
     }
+    suspend fun <T> withCurrentSession(expected:ChildBinding,action:suspend(ChildAuthSession)->T):T=operations.withLock {
+        check(currentBinding.value==expected&&mutableState.value !is ChildSyncState.Blocked){"Current child binding required"}
+        try {
+            if(!key.exists())throw Invalid(ChildFailure.KEY_LOST)
+            val active=sessionFor(checkNotNull(record))
+            if(active.revoked||active.binding!=expected)throw Invalid(ChildFailure.REVOKED)
+            val result=action(active.session)
+            check(currentBinding.value==expected&&record?.revoked==false){"Child binding changed"}
+            result
+        } catch(cancelled:CancellationException){throw cancelled}
+        catch(invalid:Invalid){mutableState.value=ChildSyncState.Blocked(invalid.reason);throw invalid}
+        catch(denied:ChildRequestDenied){handleDenied(denied);throw denied}
+    }
     internal suspend fun confirmRevocation(expected: ChildBinding) = operations.withLock {
         val value = checkNotNull(record)
         check(value.binding == expected)
@@ -176,5 +189,3 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
         mutableState.value = ChildSyncState.Blocked(ChildFailure.REVOKED)
     }
 }
-
-

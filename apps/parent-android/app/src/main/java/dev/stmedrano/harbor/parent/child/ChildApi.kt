@@ -59,7 +59,9 @@ class ChildApi(private val url: String, private val publishableKey: String,
         } catch (_: Exception) { throw IllegalStateException("Invalid anonymous child session") }
     }
     private suspend fun request(path: String, body: JsonObject, session: ChildAuthSession? = null, binding: ChildBinding? = null): ChildReply {
-        val bytes = body.toString().toByteArray(Charsets.UTF_8)
+        return requestBytes(path, body.toString().toByteArray(Charsets.UTF_8), session, binding)
+    }
+    private suspend fun requestBytes(path:String,bytes:ByteArray,session:ChildAuthSession?=null,binding:ChildBinding?=null):ChildReply {
         val headers = mutableMapOf("apikey" to publishableKey, "Content-Type" to "application/json")
         session?.let { validate(it); check(it.credentials.expiresAt > clock()); headers["Authorization"] = "Bearer ${it.credentials.accessToken}" }
         if (binding != null) {
@@ -107,6 +109,14 @@ class ChildApi(private val url: String, private val publishableKey: String,
         val reply = request("/functions/v1/register-fcm", buildJsonObject { put("token", token) }, session, binding)
         if (reply.status != 204) failure(reply)
     }
+    suspend fun signedUsage(operation:String,body:String,binding:ChildBinding,session:ChildAuthSession):String {
+        require(operation in setOf("report-device-usage","clear-device-usage","get-device-usage-checkpoint"))
+        val bytes=body.toByteArray(Charsets.UTF_8)
+        require(bytes.size<=1_048_576)
+        val reply=requestBytes("/functions/v1/$operation",bytes,session,binding)
+        if(reply.status!=200) failure(reply)
+        return reply.body
+    }
     companion object {
         fun create(key: ChildSigner) = ChildApi(BuildConfig.SUPABASE_URL, BuildConfig.PUBLISHABLE_KEY, ::childTransport,
             { System.currentTimeMillis() / 1000 }, { UUID.randomUUID().toString() }, key)
@@ -145,4 +155,3 @@ private suspend fun childTransport(request: ChildRequest): ChildReply = withCont
         ChildReply(status, bytes.toString(Charsets.UTF_8))
     } finally { connection.disconnect() }
 }
-

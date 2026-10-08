@@ -122,3 +122,4 @@ adb shell am force-stop dev.stmedrano.harbor.parent
 run_test restoreUsageColdStartAndClearPreservesOtherNamespace dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
 run_test usageKeyLossRetainsCheckpointAndDoesNotEraseParent dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
 [[ "$usage_storage_status" == 0 ]]
+run_test protectedPeriodicJobContainsOnlyValidatedReferences dev.stmedrano.harbor.parent.usage.UsageJobTest

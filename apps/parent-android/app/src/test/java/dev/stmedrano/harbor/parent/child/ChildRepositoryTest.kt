@@ -203,6 +203,27 @@ class ChildRepositoryTest {
         assertEquals(ChildSyncState.Fresh(1000, 2), value.sync(confirmed))
         assertEquals(user, backend.signedOwner)
     }
+    @Test fun usageCapturesOnlyCurrentAnonymousSessionAndRejectsForeignBinding()=runTest {
+        val store=Store().apply{record=ChildRecord(session(),confirmed)}
+        val backend=Backend(store);val value=repository(store,backend);value.restore()
+        var calls=0
+        val seen=value.withCurrentSession(confirmed){calls++;it.credentials.accessToken}
+        assertEquals("child-access",seen)
+        try {value.withCurrentSession(confirmed.copy(deviceId=user)){calls++;"wrong"};fail("foreign usage binding allowed")}
+        catch(_:IllegalStateException){}
+        assertEquals(1,calls)
+    }
+    @Test fun usageRevokeReplyImmediatelyBlocksFurtherSessionAccess()=runTest {
+        val store=Store().apply{record=ChildRecord(session(),confirmed)}
+        val value=repository(store,Backend(store));value.restore()
+        try {value.withCurrentSession(confirmed){throw ChildRequestDenied(403,"DEVICE_REVOKED")};fail("revoked response hidden")}
+        catch(_:ChildRequestDenied){}
+        assertEquals(ChildSyncState.Blocked(ChildFailure.REVOKED),value.state.value)
+        var calls=0
+        try {value.withCurrentSession(confirmed){calls++;true};fail("revoked session accessible")}
+        catch(_:IllegalStateException){}
+        assertEquals(0,calls)
+    }
     @Test fun refreshOutagePreservesCredentialsAndReopensAfterReconnect() = runTest {
         val store = Store(); val original = ChildRecord(session(expires = 999), confirmed)
         store.record = original
@@ -215,4 +236,3 @@ class ChildRepositoryTest {
         assertEquals(confirmed, value.binding.value)
         assertEquals(user, store.record?.session?.userId)
     }}
-
