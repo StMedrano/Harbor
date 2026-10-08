@@ -38,6 +38,13 @@ run_test confirmedClaimAloneOpensChildAndClearsCode dev.stmedrano.harbor.parent.
 run_test lostReplyDoesNotOpenDashboardOrPermitBlindRetry dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
 [[ "$pairing_status" == 0 ]]
 [[ "$profile_status" == 0 ]]
+adb shell settings put system font_scale 1.8
+child_visual_status=0
+run_test largeTextChildDashboardShowsHonestTabsInBothThemes dev.stmedrano.harbor.parent.ui.FamilyRoleNavigationTest || child_visual_status=1
+adb shell settings put system font_scale 1.0
+[[ "$child_visual_status" == 0 ]]
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-child-light.png keystore-evidence/
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-child-dark.png keystore-evidence/
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1

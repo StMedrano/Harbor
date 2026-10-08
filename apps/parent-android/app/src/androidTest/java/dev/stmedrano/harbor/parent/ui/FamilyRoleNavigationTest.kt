@@ -9,6 +9,10 @@ import dev.stmedrano.harbor.parent.child.*
 import dev.stmedrano.harbor.parent.profile.*
 import org.junit.Rule
 import org.junit.Test
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.asAndroidBitmap
+import android.graphics.Bitmap
+import java.io.File
 
 class FamilyRoleNavigationTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
@@ -64,5 +68,26 @@ class FamilyRoleNavigationTest {
         compose.onNodeWithText("Parent controls").assertDoesNotExist()
         compose.onNodeWithText("Today").assertDoesNotExist()
         compose.onNodeWithText("This phone needs a parent to check its setup.").assertExists()
+    }
+    @Test fun largeTextChildDashboardShowsHonestTabsInBothThemes() {
+        val dark = mutableStateOf(false)
+        compose.setContent { HarborTheme(dark = dark.value) { ParentApp(showBrand = false) {
+            ChildDashboard(ChildSyncState.Stale(1000), binding, {}, {})
+        } } }
+        compose.onNodeWithText("Showing saved setup. Current status has not been confirmed.").performScrollTo().assertIsDisplayed()
+        fun capture(name: String) {
+            val image = compose.onRoot().captureToImage().asAndroidBitmap()
+            File(compose.activity.getExternalFilesDir(null), name).outputStream().use {
+                image.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        }
+        capture("family-child-light.png")
+        compose.onNodeWithText("Apps").performScrollTo().performClick()
+        compose.onNodeWithText("App information is not available yet.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("About").performScrollTo().performClick()
+        compose.onNodeWithText("Screen time and app enforcement are not available in this build.").performScrollTo().assertIsDisplayed()
+        compose.runOnIdle { dark.value = true }
+        capture("family-child-dark.png")
+        compose.onNodeWithText("Parent controls").assertDoesNotExist()
     }
 }

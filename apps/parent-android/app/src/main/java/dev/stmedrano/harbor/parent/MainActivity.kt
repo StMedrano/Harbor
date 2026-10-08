@@ -32,6 +32,13 @@ import dev.stmedrano.harbor.parent.ui.SecurityScreen
 import dev.stmedrano.harbor.parent.family.DevicePublicV1
 import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.profile.ProfileState
+import dev.stmedrano.harbor.parent.profile.ProfileRole
+import dev.stmedrano.harbor.parent.ui.FamilyEntryState
+import dev.stmedrano.harbor.parent.ui.FamilyDestination
+import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
+import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
+import dev.stmedrano.harbor.parent.ui.ChildDashboard
+import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 
 class MainActivity : ComponentActivity() {
     private val callback = mutableStateOf<String?>(null)
@@ -40,6 +47,7 @@ class MainActivity : ComponentActivity() {
     private val securityPage = mutableStateOf(false)
     private var requestedHint: ParentHint? = null
     private val logoutRequested = mutableStateOf(false)
+    private val setupRole = mutableStateOf<ProfileRole?>(null)
     override fun onCreate(savedInstanceState: Bundle?) {
         val requested = scrubCallback(intent)
         requestedHint = ParentNotificationRenderer.consumeTap(intent)
@@ -49,13 +57,32 @@ class MainActivity : ComponentActivity() {
         setContent {
             val graph = application as ParentApplication
             val profile = graph.profiles.state.collectAsState().value
-            if (profile == ProfileState.Transitioning || profile is ProfileState.Blocked || profile is ProfileState.Child) {
+            val selected = setupRole.value ?: ProfileRole.CHILD.takeIf { profile == ProfileState.Setup && graph.hasChildSetup() }
+            val child = if (profile is ProfileState.Child || selected == ProfileRole.CHILD) graph.childForSetup() else null
+            val childState = child?.state?.collectAsState()?.value
+            val childBinding = child?.binding?.collectAsState()?.value
+            val entryState = FamilyEntryState(profile, selected, childBinding = childBinding, childState = childState)
+            if (entryState.destination() !in setOf(FamilyDestination.PARENT_AUTH, FamilyDestination.PARENT_HOME)) {
                 HarborTheme { ParentApp(showBrand = false) {
-                    Text(if (profile == ProfileState.Transitioning) "Restoring Harbor…" else "This phone needs authorized setup recovery.")
+                    FamilyRoleContent(entryState,
+                        entry = { FamilyEntryScreen(
+                            onParent = { if (graph.openParentSetup()) setupRole.value = ProfileRole.PARENT },
+                            onChild = { if (graph.childForSetup() != null) setupRole.value = ProfileRole.CHILD }) },
+                        parentAuth = {}, parentMenu = {}, parentContent = {},
+                        childPairing = {
+                            Text("Enter pairing code")
+                            if (child != null) ChildPairingScreen(child) {
+                                graph.accountScope.launch { graph.profiles.activateChild() }
+                            } else Text("This phone needs a parent to check its setup.")
+                        },
+                        childContent = {
+                            ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
+                                onSync = { graph.accountScope.launch { child?.sync() } },
+                                onRequestRoleChange = { /* Parent approval is wired in the approved transition milestone. */ })
+                        })
                 } }
                 return@setContent
             }
-            if (profile == ProfileState.Setup) graph.openParentSetup()
             val identity = graph.authRepository?.identity?.collectAsState()?.value
             val runtime = graph.runtime?.state?.collectAsState()?.value
             val notifications = graph.notifications?.state?.collectAsState()?.value ?: ParentNotificationState()
@@ -87,7 +114,7 @@ class MainActivity : ComponentActivity() {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
-                        ParentSessionContent(identity, authenticationOpen,
+                        ParentSessionContent(identity?.takeIf { profile is ProfileState.Parent && profile.lease.ownerId == it.userId }, authenticationOpen,
                             authentication = {
                                 AuthScreen(graph.authRepository, callback.value, graph.runtime,
                                     onAuthenticated = {

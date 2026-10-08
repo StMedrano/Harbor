@@ -60,10 +60,15 @@ class ParentApplication : Application() {
     }
     val authRepository: ParentAuthRepository?
         get() = if (parentConstructionAllowed) parentAuth else null
-    fun openParentSetup() {
-        check(profiles.state.value == ProfileState.Setup)
+    fun openParentSetup(): Boolean {
+        if (profiles.state.value != ProfileState.Setup || EncryptedChildStore.hasRecords(this)) return false
         parentConstructionAllowed = true
+        return true
     }
+    fun hasChildSetup() = EncryptedChildStore.hasRecords(this)
+    fun childForSetup(): ChildRepository? = if (!parentConstructionAllowed &&
+        getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isEmpty() &&
+        (profiles.state.value == ProfileState.Setup || profiles.state.value is ProfileState.Child)) childRepository else null
     private val parentApi by lazy { authRepository?.let { SdkParentApi(checkNotNull(client), it) } }
     val familyViewModel: FamilyViewModel? by lazy {
         authRepository?.let { auth ->
@@ -123,9 +128,6 @@ class ParentApplication : Application() {
         super.onCreate()
         accountScope.launch {
             profiles.restore()
-            // This stage preserves the existing parent setup screen. Task 3
-            // makes construction contingent on an explicit Parent selection.
-            if (profiles.state.value == ProfileState.Setup) parentConstructionAllowed = true
         }
     }
     private suspend fun stopParentRuntime() {
