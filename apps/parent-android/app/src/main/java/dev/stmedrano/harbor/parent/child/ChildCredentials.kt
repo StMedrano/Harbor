@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class ChildBinding(val deviceId: String, val familyId: String, val childId: String)
 @Serializable data class ChildRecord(val session: ChildAuthSession, val binding: ChildBinding?, val revoked: Boolean = false,
     val lastSuccessAt: Long? = null, val desiredVersion: Long? = null)
-enum class ChildFailure { AUTH_INVALID, KEY_LOST, REVOKED, UNKNOWN_OUTCOME, STORAGE_UNAVAILABLE }
+enum class ChildFailure { AUTH_INVALID, KEY_LOST, REVOKED, UNKNOWN_OUTCOME, STORAGE_UNAVAILABLE, NETWORK_UNAVAILABLE }
 sealed interface PairResult {
     data class Confirmed(val binding: ChildBinding) : PairResult
     data object Rejected : PairResult
@@ -41,3 +41,7 @@ interface ChildBackend {
     suspend fun registerFcm(binding: ChildBinding, token: String, session: ChildAuthSession)
 }
 class ChildRequestDenied(val status: Int, val code: String) : IllegalStateException("Child request denied")
+
+
+class ChildConnectionUnavailable : java.io.IOException("Child connection unavailable")
+

@@ -3,6 +3,9 @@ package dev.stmedrano.harbor.parent.profile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -28,7 +31,16 @@ class ProfileCoordinator(
     suspend fun restore() = resolve(null)
     suspend fun activateParent() = resolve(ProfileRole.PARENT)
     suspend fun activateChild() = resolve(ProfileRole.CHILD)
-    suspend fun retryValidation(): Boolean = false
+    suspend fun retryValidation(): Boolean {
+        if (state.value != ProfileState.Blocked(ProfileBlock.NETWORK_UNAVAILABLE)) return false
+        withTimeoutOrNull(15000) { restore() }
+        return currentLease() != null
+    }
+    private suspend fun validatedOwner(lookup: suspend () -> String?): String? = try {
+        lookup()?.takeIf { it.isNotBlank() }
+    } catch (_: IOException) {
+        throw ProfileValidationFailure(ProfileBlock.NETWORK_UNAVAILABLE)
+    }
     suspend fun transitionToSetup(expected: ProfileLease, cleanup: suspend () -> Boolean): Boolean = mutex.withLock {
         if (!isCurrent(expected)) return@withLock false
         ++generation
@@ -82,8 +94,8 @@ class ProfileCoordinator(
                 stopRuntime()
             }
             val hint = store.read()
-            val parent = parentOwner()?.takeIf { it.isNotBlank() }
-            val child = childOwner()?.takeIf { it.isNotBlank() }
+            val parent = validatedOwner(parentOwner)
+            val child = validatedOwner(childOwner)
             mutex.withLock {
                 if (captured != generation) return
                 if (parent != null && child != null) {
@@ -101,6 +113,9 @@ class ProfileCoordinator(
                 startRuntime(lease)
                 mutableState.value = if (role == ProfileRole.PARENT) ProfileState.Parent(lease) else ProfileState.Child(lease)
             }
+        } catch (timeout: TimeoutCancellationException) {
+            fail(captured, ProfileBlock.NETWORK_UNAVAILABLE)
+            throw timeout
         } catch (cancelled: CancellationException) {
             fail(captured, ProfileBlock.INVALID_CREDENTIALS)
             throw cancelled
@@ -119,4 +134,5 @@ class ProfileCoordinator(
         }
     }
 }
+
 

@@ -31,6 +31,7 @@ class ChildApi(private val url: String, private val publishableKey: String,
             session.credentials.refreshToken.isNotBlank()) { "Anonymous child identity required" }
     }
     private fun failure(reply: ChildReply): Nothing {
+        if (reply.status >= 500 || reply.status == 429) throw ChildConnectionUnavailable()
         val code = try { Json.parseToJsonElement(reply.body).jsonObject["code"]?.jsonPrimitive?.content }
         catch (_: Exception) { null }
         throw ChildRequestDenied(reply.status, if (reply.status == 403 && code == "DEVICE_REVOKED") "DEVICE_REVOKED" else "REQUEST_FAILED")
@@ -133,7 +134,7 @@ private suspend fun childTransport(request: ChildRequest): ChildReply = withCont
             val result = ByteArrayOutputStream(); val buffer = ByteArray(4096)
             while (true) {
                 currentCoroutineContext().ensureActive()
-                check(System.nanoTime() < deadline) { "Child request timeout" }
+                if (System.nanoTime() >= deadline) throw ChildConnectionUnavailable()
                 val count = it.read(buffer)
                 if (count < 0) break
                 check(result.size() + count <= 1_048_576) { "Child response too large" }
@@ -144,3 +145,4 @@ private suspend fun childTransport(request: ChildRequest): ChildReply = withCont
         ChildReply(status, bytes.toString(Charsets.UTF_8))
     } finally { connection.disconnect() }
 }
+

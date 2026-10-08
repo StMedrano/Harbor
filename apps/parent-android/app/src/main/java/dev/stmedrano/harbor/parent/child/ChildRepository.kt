@@ -26,7 +26,9 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
     private suspend fun sessionFor(value: ChildRecord): ChildRecord {
         validate(value.session)
         if (value.session.credentials.expiresAt > clock() + 30) return value
-        val refreshed = backend.refresh(value.session)
+        val refreshed = try { backend.refresh(value.session) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: java.io.IOException) { throw ChildConnectionUnavailable() }
         validate(refreshed)
         if (refreshed.userId != value.session.userId || refreshed.credentials.expiresAt <= clock()) throw Invalid(ChildFailure.AUTH_INVALID)
         return value.copy(session = refreshed).also { store.save(it); record = it }
@@ -62,6 +64,7 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             currentBinding.value = binding
             mutableState.value = ChildSyncState.Stale(active.lastSuccessAt)
         } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: ChildConnectionUnavailable) { mutableState.value = ChildSyncState.Blocked(ChildFailure.NETWORK_UNAVAILABLE) }
         catch (invalid: Invalid) { mutableState.value = ChildSyncState.Blocked(invalid.reason) }
         catch (_: Exception) { mutableState.value = ChildSyncState.Blocked(ChildFailure.STORAGE_UNAVAILABLE) }
     }
@@ -168,9 +171,10 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
         check(record?.revoked == true) { "Confirmed revocation required" }
         store.clear()
         key.delete()
-        store.claimPending = false
         record = null; currentBinding.value = null
         // Role transition owns clearing the role hint after authorized cleanup.
         mutableState.value = ChildSyncState.Blocked(ChildFailure.REVOKED)
     }
 }
+
+

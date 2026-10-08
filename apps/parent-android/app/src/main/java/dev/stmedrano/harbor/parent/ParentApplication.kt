@@ -1,6 +1,7 @@
 package dev.stmedrano.harbor.parent
 
 import android.app.Application
+import io.github.jan.supabase.exceptions.RestException
 import dev.stmedrano.harbor.parent.auth.ParentAuthRepository
 import dev.stmedrano.harbor.parent.auth.SecureAuthStore
 import dev.stmedrano.harbor.parent.auth.SupabaseAuthGateway
@@ -84,13 +85,21 @@ class ParentApplication : Application() {
             evidence.assertSingleProfile()
             val childRecords = EncryptedChildStore.hasRecords(this)
             if (BuildConfig.CI_FIXTURE || store.read() == ProfileRole.CHILD || childRecords) null
-            else { parentAuth?.restore(); parentAuth?.identity?.value?.userId }
+            else {
+                try { parentAuth?.restore(); parentAuth?.identity?.value?.userId }
+                catch (failure: RestException) {
+                    if (failure.statusCode >= 500 || failure.statusCode == 429) throw ProfileValidationFailure(ProfileBlock.NETWORK_UNAVAILABLE)
+                    throw failure
+                }
+            }
         }, {
             evidence.assertSingleProfile()
             if (!EncryptedChildStore.hasRecords(this)) null
             else {
                 childRepository.restore()
-                if (childRepository.state.value is ChildSyncState.Blocked) throw ProfileValidationFailure(ProfileBlock.INVALID_CREDENTIALS)
+                (childRepository.state.value as? ChildSyncState.Blocked)?.let {
+                    throw ProfileValidationFailure(if (it.reason == ChildFailure.NETWORK_UNAVAILABLE) ProfileBlock.NETWORK_UNAVAILABLE else ProfileBlock.INVALID_CREDENTIALS)
+                }
                 childRepository.binding.value?.deviceId
             }
         }, ::stopFamilyRuntime, { lease ->
@@ -122,6 +131,7 @@ class ParentApplication : Application() {
         parentConstructionAllowed = true
         return true
     }
+    fun retrySetupValidation() { accountScope.launch { profiles.retryValidation() } }
     fun hasChildSetup() = EncryptedChildStore.hasRecords(this)
     fun childForSetup(): ChildRepository? = if (!parentConstructionAllowed &&
         getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isEmpty() &&
@@ -369,3 +379,5 @@ class ParentApplication : Application() {
     } }
     fun closeNotification() { mutableTap.value = ParentTapState() }
 }
+
+

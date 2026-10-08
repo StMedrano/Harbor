@@ -36,6 +36,7 @@ class ChildRepositoryTest {
         var signedOwner: String? = null
         var failClaim = false
         var refreshed = session()
+        var refreshFails = false
         var revoked = false
         var fcmCalls = 0
         var fcmSession: ChildAuthSession? = null
@@ -44,7 +45,10 @@ class ChildRepositoryTest {
             if (failAuth) throw IOException("fixture lost Auth reply")
             return auth
         }
-        override suspend fun refresh(session: ChildAuthSession) = refreshed
+        override suspend fun refresh(session: ChildAuthSession): ChildAuthSession {
+            if (refreshFails) throw IOException("fixture connection unavailable")
+            return refreshed
+        }
         override suspend fun claim(code: String, publicKeySpki: String, session: ChildAuthSession): ChildBinding {
             assertEquals("123456", code)
             assertEquals("child-public-spki", publicKeySpki)
@@ -199,4 +203,16 @@ class ChildRepositoryTest {
         assertEquals(ChildSyncState.Fresh(1000, 2), value.sync(confirmed))
         assertEquals(user, backend.signedOwner)
     }
-}
+    @Test fun refreshOutagePreservesCredentialsAndReopensAfterReconnect() = runTest {
+        val store = Store(); val original = ChildRecord(session(expires = 999), confirmed)
+        store.record = original
+        val backend = Backend(store).apply { refreshFails = true }
+        val value = repository(store, backend)
+        value.restore()
+        assertEquals(ChildSyncState.Blocked(ChildFailure.NETWORK_UNAVAILABLE), value.state.value)
+        assertEquals(original, store.record); assertNull(value.binding.value)
+        backend.refreshFails = false; value.restore()
+        assertEquals(confirmed, value.binding.value)
+        assertEquals(user, store.record?.session?.userId)
+    }}
+

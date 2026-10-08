@@ -128,7 +128,7 @@ class MainActivity : ComponentActivity() {
                                         childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     } else graph.enableChildNotifications(lease)
                                 })
-                        })
+                        }, onRetry = graph::retrySetupValidation)
                 } }
                 return@setContent
             }
@@ -256,4 +256,5 @@ class MainActivity : ComponentActivity() {
         return if (intent.action == Intent.ACTION_VIEW) requested else null
     }
 }
+
 
