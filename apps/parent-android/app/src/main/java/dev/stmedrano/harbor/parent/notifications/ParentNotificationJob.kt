@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import dev.stmedrano.harbor.parent.ParentApplication
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
+import dev.stmedrano.harbor.parent.profile.ProfileLease
 import kotlinx.coroutines.*
 
 // Android retains execution until dequeueWork is empty or onStopJob cancels it.
@@ -58,6 +59,8 @@ class ParentNotificationJob : JobService() {
             data?.forEach { (key, value) -> intent.putExtra(key, value) }
             return JobWorkItem(intent)
         }
+        internal fun work(lease: ProfileLease, owner: ParentIdentity?, data: Map<String, String>?): JobWorkItem =
+            error("Family work shape awaiting native behavior proof")
         fun enqueue(context: Context, owner: ParentIdentity, data: Map<String, String>?): Boolean =
             context.getSystemService(JobScheduler::class.java).enqueue(info(context), work(owner, data)) == JobScheduler.RESULT_SUCCESS
     }

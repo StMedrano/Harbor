@@ -46,6 +46,11 @@ adb shell settings put system font_scale 1.0
 [[ "$child_visual_status" == 0 ]]
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-child-light.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-child-dark.png keystore-evidence/
+family_notification_status=0
+for method in exactlyOneFamilyServiceAndProtectedJobAreInstalled queuedFamilyWorkContainsOnlyCapturedLeaseAndScopedReferences inactiveProfileMustNotPoisonParentRuntimeCache; do
+  run_test "$method" dev.stmedrano.harbor.parent.notifications.FamilyNotificationLifecycleTest || family_notification_status=1
+done
+[[ "$family_notification_status" == 0 ]]
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
