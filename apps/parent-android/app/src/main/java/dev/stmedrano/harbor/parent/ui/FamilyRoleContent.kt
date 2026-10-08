@@ -7,7 +7,7 @@ import androidx.compose.material3.Text
 fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
     parentAuth: @Composable () -> Unit, parentMenu: @Composable () -> Unit,
     parentContent: @Composable () -> Unit, childPairing: @Composable () -> Unit,
-    childContent: @Composable () -> Unit) {
+    childContent: @Composable () -> Unit, onRetry: (() -> Unit)? = null) {
     when (state.destination()) {
         FamilyDestination.ENTRY -> entry()
         FamilyDestination.PARENT_AUTH -> parentAuth()
@@ -18,3 +18,4 @@ fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
         FamilyDestination.RESTORING -> Text("Restoring your family setup…")
     }
 }
+

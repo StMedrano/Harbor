@@ -28,6 +28,7 @@ class ProfileCoordinator(
     suspend fun restore() = resolve(null)
     suspend fun activateParent() = resolve(ProfileRole.PARENT)
     suspend fun activateChild() = resolve(ProfileRole.CHILD)
+    suspend fun retryValidation(): Boolean = false
     suspend fun transitionToSetup(expected: ProfileLease, cleanup: suspend () -> Boolean): Boolean = mutex.withLock {
         if (!isCurrent(expected)) return@withLock false
         ++generation
@@ -118,3 +119,4 @@ class ProfileCoordinator(
         }
     }
 }
+

@@ -56,6 +56,8 @@ approval_status=0
 run_test temporaryApprovalErasurePreservesBothPrimaryNamespaces dev.stmedrano.harbor.parent.profile.ParentApprovalIsolationTest || approval_status=1
 run_test approvalRequiresSeparateSignInMfaAndDeliberateRemoval dev.stmedrano.harbor.parent.profile.ParentApprovalUiTest || approval_status=1
 run_test backCancelsPendingApprovalAndRemovesSecretFields dev.stmedrano.harbor.parent.profile.ParentApprovalUiTest || approval_status=1
+run_test confirmedRemovalReopensChooserAndParentAuthentication dev.stmedrano.harbor.parent.profile.ConfirmedRoleCleanupTest || approval_status=1
+run_test blockedNetworkShowsRetryWithoutGrantingMenu dev.stmedrano.harbor.parent.profile.ProfileRetryUiTest || approval_status=1
 composition_status=0
 run_test seedConfirmedRevocationBeforeLocalErasure dev.stmedrano.harbor.parent.profile.FamilyCompositionPersistenceTest || composition_status=1
 adb shell am force-stop dev.stmedrano.harbor.parent
@@ -107,3 +109,5 @@ adb shell settings put system font_scale 1.0
 [[ "$security_status" == 0 ]]
 [[ "$approval_status" == 0 ]]
 [[ "$composition_status" == 0 ]]
+
+
