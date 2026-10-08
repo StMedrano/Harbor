@@ -2,6 +2,7 @@ package dev.stmedrano.harbor.parent.ui
 
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +25,7 @@ class AuthScreenTest {
     @get:Rule val compose = createComposeRule()
 
     @Test fun recoveryScreenRequiresVerifiedCallbackAndBackClearsAuthorization() = runBlocking {
+        val recoveryRequests = java.util.concurrent.atomic.AtomicInteger()
         val store = SecureAuthStore(object : AuthValues {
             val values = mutableMapOf<String, String>()
             override fun read(key: String) = values[key]
@@ -36,7 +38,7 @@ class AuthScreenTest {
         val gateway = object : AuthGateway {
             override suspend fun restoreStoredSession(): UserSession? = null
             override suspend fun clearLocalSession() {}
-            override suspend fun requestRecovery(email: String) {}
+            override suspend fun requestRecovery(email: String) { recoveryRequests.incrementAndGet() }
             override suspend fun exchangeCode(code: String) = UserSession("synthetic", "synthetic", expiresIn = 3600, tokenType = "bearer")
             override suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?) = ParentIdentity("synthetic-user", "synthetic-session")
             override suspend fun signIn(email: String, password: String) = error("Not used")
@@ -51,7 +53,8 @@ class AuthScreenTest {
         compose.waitUntil(5000) { compose.onAllNodesWithText("Working…").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithText("Forgot password?").performScrollTo().performClick()
         compose.onNodeWithText("Email").performScrollTo().performTextInput("parent@example.invalid")
-        compose.onNodeWithText("Request recovery email").performClick()
+        compose.onNodeWithText("Request recovery email").performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
+        compose.waitUntil(5000) { recoveryRequests.get() == 1 }
         compose.waitUntil(5000) { store.transaction != null }
         compose.onNodeWithText("New password").assertDoesNotExist()
         assertFalse(repository.hasVerifiedRecovery())
