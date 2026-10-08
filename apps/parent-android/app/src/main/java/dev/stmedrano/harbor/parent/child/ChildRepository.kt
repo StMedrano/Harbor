@@ -115,6 +115,30 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             if (unknown) PairResult.UnknownOutcome else PairResult.Rejected
         }
     }
+    suspend fun registerFcm(expected: ChildBinding, token: String): Boolean = operations.withLock {
+        if (mutableState.value is ChildSyncState.Blocked || currentBinding.value != expected ||
+            token.isBlank() || token.length > 4096) return@withLock false
+        try {
+            if (!key.exists()) throw Invalid(ChildFailure.KEY_LOST)
+            val active = sessionFor(checkNotNull(record))
+            if (active.binding != expected || active.revoked) throw Invalid(ChildFailure.REVOKED)
+            backend.registerFcm(expected, token, active.session)
+            true // Registration is not signed-sync or delivery evidence.
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (invalid: Invalid) { mutableState.value = ChildSyncState.Blocked(invalid.reason); false }
+        catch (denied: ChildRequestDenied) { handleDenied(denied); false }
+        catch (_: Exception) { mutableState.value = ChildSyncState.Stale(record?.lastSuccessAt); false }
+    }
+    private fun handleDenied(denied: ChildRequestDenied) {
+        if (denied.status == 403 && denied.code == "DEVICE_REVOKED") {
+            mutableState.value = ChildSyncState.Blocked(ChildFailure.REVOKED)
+            record?.copy(revoked = true)?.let {
+                record = it
+                try { store.save(it) }
+                catch (_: Exception) { /* Stay blocked even if persistence is unavailable. */ }
+            }
+        } else mutableState.value = ChildSyncState.Blocked(ChildFailure.AUTH_INVALID)
+    }
     suspend fun sync(): ChildSyncState = operations.withLock {
         try {
             val binding = currentBinding.value ?: throw Invalid(ChildFailure.AUTH_INVALID)
@@ -128,16 +152,8 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             mutableState.value = ChildSyncState.Fresh(checkNotNull(confirmed.lastSuccessAt), version)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (invalid: Invalid) { mutableState.value = ChildSyncState.Blocked(invalid.reason) }
-        catch (denied: ChildRequestDenied) {
-            if (denied.status == 403 && denied.code == "DEVICE_REVOKED") {
-                mutableState.value = ChildSyncState.Blocked(ChildFailure.REVOKED)
-                record?.copy(revoked = true)?.let {
-                    record = it
-                    try { store.save(it) }
-                    catch (_: Exception) { /* Stay blocked even if persistence is unavailable. */ }
-                }
-            } else mutableState.value = ChildSyncState.Blocked(ChildFailure.AUTH_INVALID)
-        } catch (_: Exception) { mutableState.value = ChildSyncState.Stale(record?.lastSuccessAt) }
+        catch (denied: ChildRequestDenied) { handleDenied(denied) }
+        catch (_: Exception) { mutableState.value = ChildSyncState.Stale(record?.lastSuccessAt) }
         state.value
     }
     internal suspend fun confirmRevocation(expected: ChildBinding) = operations.withLock {

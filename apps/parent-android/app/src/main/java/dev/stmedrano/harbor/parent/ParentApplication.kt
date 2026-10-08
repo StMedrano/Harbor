@@ -179,6 +179,8 @@ class ParentApplication : Application() {
         return currentIdentity() == identity && hint.matchesFamily(identity, state)
     }
     suspend fun accountWork(action: suspend () -> Unit) {
+        // An inactive profile must not evaluate and cache a null parent runtime.
+        if (profiles.state.value !is ProfileState.Parent) return
         try { runtime?.authAction(action) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { /* Controllers retain honest failed/unconfirmed states. */ }

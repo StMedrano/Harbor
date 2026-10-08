@@ -11,6 +11,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import android.app.Notification
+import android.os.Build
+import kotlinx.serialization.json.Json
 
 class FamilyNotificationLifecycleTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
@@ -63,5 +66,20 @@ class FamilyNotificationLifecycleTest {
         field.isAccessible = true
         assertFalse((field.get(graph) as Lazy<*>).isInitialized())
         assertNull(graph.profiles.currentLease())
+    }
+    @Test fun childTapIsGenericImmutableAndRejectsRoleOrTokenHints() {
+        val parsed = Json.decodeFromString<ParentRoute>(route)
+        val notification = ChildNotificationRenderer(compose.activity).build(parsed)
+        assertEquals("Harbor update", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("Open Harbor to check your phone.", notification.extras.getString(Notification.EXTRA_TEXT))
+        if (Build.VERSION.SDK_INT >= 31) assertTrue(notification.contentIntent.isImmutable)
+        val intent = Intent(ChildNotificationRenderer.TAP_ACTION).putExtra("route", route)
+        assertEquals(parsed, ChildNotificationRenderer.consumeTap(intent))
+        assertNull(intent.extras)
+        for (field in listOf("role", "token", "parentRegistrationId")) {
+            val rejected = Intent(ChildNotificationRenderer.TAP_ACTION).putExtra("route", route).putExtra(field, "untrusted")
+            assertNull(ChildNotificationRenderer.consumeTap(rejected))
+            assertNull(rejected.extras)
+        }
     }
 }

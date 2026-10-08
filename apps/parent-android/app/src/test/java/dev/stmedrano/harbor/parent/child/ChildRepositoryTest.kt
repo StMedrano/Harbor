@@ -37,6 +37,8 @@ class ChildRepositoryTest {
         var failClaim = false
         var refreshed = session()
         var revoked = false
+        var fcmCalls = 0
+        var fcmSession: ChildAuthSession? = null
         override suspend fun anonymousSignup(): ChildAuthSession {
             authCalls++
             if (failAuth) throw IOException("fixture lost Auth reply")
@@ -59,7 +61,14 @@ class ChildRepositoryTest {
             signedOwner = session.userId
             return 2
         }
-        override suspend fun registerFcm(binding: ChildBinding, token: String, session: ChildAuthSession) {}
+        override suspend fun registerFcm(binding: ChildBinding, token: String, session: ChildAuthSession) {
+            fcmCalls++
+            assertEquals(confirmed, binding)
+            assertEquals("ephemeral-fcm", token)
+            assertTrue(session.anonymous)
+            if (revoked) throw ChildRequestDenied(403, "DEVICE_REVOKED")
+            fcmSession = session
+        }
     }
     private fun repository(store: Store, backend: ChildBackend) = ChildRepository(backend, store, Key(), { 1000L })
 
@@ -144,5 +153,42 @@ class ChildRepositoryTest {
         val value = repository(store, Backend(store)); value.restore()
         assertEquals(ChildSyncState.Blocked(ChildFailure.STORAGE_UNAVAILABLE), value.state.value)
         assertNull(value.binding.value)
+    }
+    @Test fun fcmRegistrationRequiresExactConfirmedBinding() = runTest {
+        val store = Store().apply { record = ChildRecord(session(), confirmed) }
+        val backend = Backend(store); val value = repository(store, backend); value.restore()
+        assertFalse(value.registerFcm(confirmed.copy(familyId = user), "ephemeral-fcm"))
+        assertEquals(0, backend.fcmCalls)
+        assertTrue(value.registerFcm(confirmed, "ephemeral-fcm"))
+        assertEquals(1, backend.fcmCalls)
+        assertEquals(user, backend.fcmSession?.userId)
+    }
+    @Test fun fcmRegistrationDoesNotInventSyncOrReceiptEvidence() = runTest {
+        val store = Store().apply { record = ChildRecord(session(), confirmed) }
+        val backend = Backend(store); val value = repository(store, backend); value.restore()
+        assertTrue(value.registerFcm(confirmed, "ephemeral-fcm"))
+        assertEquals(ChildSyncState.Stale(null), value.state.value)
+        assertNull(store.record?.lastSuccessAt)
+        assertNull(store.record?.desiredVersion)
+        assertEquals(session(), store.record?.session)
+    }
+    @Test fun fcmRegistrationRefreshesOnlyItsAnonymousOwner() = runTest {
+        var now = 1000L
+        val store = Store().apply { record = ChildRecord(session(expires = 1500), confirmed) }
+        val backend = Backend(store).apply { refreshed = session().copy(credentials = ChildCredentials("fresh-access", "fresh-refresh", 5000)) }
+        val value = ChildRepository(backend, store, Key(), { now }); value.restore()
+        now = 1500
+        assertTrue(value.registerFcm(confirmed, "ephemeral-fcm"))
+        assertEquals(backend.refreshed, backend.fcmSession)
+        assertEquals(user, backend.fcmSession?.userId)
+    }
+    @Test fun knownFcmRevocationBlocksImmediatelyEvenIfStorageFails() = runTest {
+        val store = Store().apply { record = ChildRecord(session(), confirmed) }
+        val backend = Backend(store).apply { revoked = true }
+        val value = repository(store, backend); value.restore(); store.writeFails = true
+        assertFalse(value.registerFcm(confirmed, "ephemeral-fcm"))
+        assertEquals(ChildSyncState.Blocked(ChildFailure.REVOKED), value.state.value)
+        assertFalse(value.registerFcm(confirmed, "ephemeral-fcm"))
+        assertEquals(1, backend.fcmCalls)
     }
 }
