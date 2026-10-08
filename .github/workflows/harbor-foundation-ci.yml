@@ -252,6 +252,7 @@ jobs:
           tests/integration/outbox-persistence.test.ts
           tests/integration/child-creation.test.ts
           tests/integration/parent-fcm-persistence.test.ts
+          tests/integration/usage-persistence.test.ts
 
       - name: Verify shared backend platform acceptance
         env:
