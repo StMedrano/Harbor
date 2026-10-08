@@ -1,5 +1,6 @@
 package dev.stmedrano.harbor.parent.usage
 
+import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -7,11 +8,11 @@ import java.time.temporal.ChronoUnit
 
 enum class UsageEventKind { RESUMED,PAUSED,STOPPED,SCREEN_ON,SCREEN_OFF,UNLOCKED,LOCKED,STARTUP,SHUTDOWN,CLOCK_GAP }
 data class UsageEvent(val atMs:Long,val kind:UsageEventKind,val packageName:String?,val instanceId:Int?,val identityKnown:Boolean=true)
-data class UsageWindow(val startMs:Long,val endMs:Long,val zoneId:String,val excludedPackages:Set<String> = setOf("com.android.systemui"))
+@Serializable data class UsageWindow(val startMs:Long,val endMs:Long,val zoneId:String,val excludedPackages:Set<String> = setOf("com.android.systemui"))
 /** Aggregated observed interval: no raw activity class or event is retained. */
-data class UsageSlice(val startMs:Long,val endMs:Long,val packages:Set<String>,val complete:Boolean)
-data class UsageCoverage(val slices:List<UsageSlice>)
-data class UsageReduction(val days:List<UsageDay>,val coverage:UsageCoverage,val window:UsageWindow,val partialDates:Set<String> = emptySet())
+@Serializable data class UsageSlice(val startMs:Long,val endMs:Long,val packages:Set<String>,val complete:Boolean)
+@Serializable data class UsageCoverage(val slices:List<UsageSlice>)
+@Serializable data class UsageReduction(val days:List<UsageDay>,val coverage:UsageCoverage,val window:UsageWindow,val partialDates:Set<String> = emptySet())
 
 fun reduceUsage(events:List<UsageEvent>,window:UsageWindow):UsageReduction {
     require(window.startMs<window.endMs)
@@ -36,7 +37,7 @@ fun reduceUsage(events:List<UsageEvent>,window:UsageWindow):UsageReduction {
             UsageEventKind.LOCKED->{unlocked=false;active.clear();activeKnown=true}
             UsageEventKind.SCREEN_ON->interactive=true
             UsageEventKind.UNLOCKED->unlocked=true
-            UsageEventKind.RESUMED->e.packageName?.let{active.add(it to (e.instanceId?:0))}
+            UsageEventKind.RESUMED->e.packageName?.let{active.add(it to (e.instanceId?:0));if(!e.identityKnown)activeKnown=false}
             UsageEventKind.PAUSED,UsageEventKind.STOPPED->e.packageName?.let{active.remove(it to (e.instanceId?:0))}
             UsageEventKind.STARTUP,UsageEventKind.SHUTDOWN,UsageEventKind.CLOCK_GAP->{
                 active.clear();activeKnown=false;interactive=null;unlocked=null

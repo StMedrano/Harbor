@@ -51,4 +51,10 @@ class UsageSourceTest {
         assertEquals(a.instanceId,b.instanceId);assertNotEquals(a.instanceId,c.instanceId)
         assertFalse(a.identityKnown);assertFalse(a.toString().contains("PrivateActivity"))
     }
-}
+    @Test fun classOnlyCorrelationCannotClaimCompleteInstanceCoverage() {
+        val mapper=UsageEventMapper()
+        val seed=listOf(UsageEvent(0,UsageEventKind.SCREEN_OFF,null,null),UsageEvent(0,UsageEventKind.LOCKED,null,null),UsageEvent(0,UsageEventKind.SCREEN_ON,null,null),UsageEvent(0,UsageEventKind.UNLOCKED,null,null))
+        val event=mapper.map(0,UsageEventKind.RESUMED,"example.a","SomeActivity")!!
+        val r=reduceUsage(seed+event,window)
+        assertEquals(60000L,r.days.single().totalMs);assertEquals(UsageQuality.PARTIAL,r.days.single().quality)
+    }}
