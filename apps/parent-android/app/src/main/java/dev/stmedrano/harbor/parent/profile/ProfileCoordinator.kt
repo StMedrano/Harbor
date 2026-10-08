@@ -35,7 +35,7 @@ class ProfileCoordinator(
         try {
             stopRuntime()
             if (!cleanup()) {
-                mutableState.value = ProfileState.Blocked(ProfileBlock.INVALID_CREDENTIALS)
+                restoreChildOrBlock(expected, ProfileBlock.INVALID_CREDENTIALS)
                 return@withLock false
             }
             store.clear()
@@ -43,11 +43,31 @@ class ProfileCoordinator(
             true
         } catch (cancelled: CancellationException) {
             mutableState.value = ProfileState.Blocked(ProfileBlock.INVALID_CREDENTIALS)
+            withContext(NonCancellable) {
+                try { stopRuntime() } catch (_: Exception) { /* Remain blocked; no role escape. */ }
+            }
             throw cancelled
         } catch (_: Exception) {
-            mutableState.value = ProfileState.Blocked(ProfileBlock.STORAGE_UNAVAILABLE)
+            restoreChildOrBlock(expected, ProfileBlock.STORAGE_UNAVAILABLE)
             false
         }
+    }
+    private suspend fun restoreChildOrBlock(expected: ProfileLease, reason: ProfileBlock) {
+        if (expected.role == ProfileRole.CHILD) {
+            try {
+                if (store.read() == ProfileRole.CHILD && parentOwner() == null && childOwner() == expected.ownerId) {
+                    val replacement = expected.copy(generation = generation)
+                    startRuntime(replacement)
+                    mutableState.value = ProfileState.Child(replacement)
+                    return
+                }
+            } catch (cancelled: CancellationException) {
+                mutableState.value = ProfileState.Blocked(reason)
+                throw cancelled
+            } catch (_: Exception) { /* Changed, revoked or unreadable credentials cannot resume. */ }
+            try { stopRuntime() } catch (_: Exception) { /* No validated profile is exposed. */ }
+        }
+        mutableState.value = ProfileState.Blocked(reason)
     }
 
     private suspend fun resolve(requested: ProfileRole?) {
