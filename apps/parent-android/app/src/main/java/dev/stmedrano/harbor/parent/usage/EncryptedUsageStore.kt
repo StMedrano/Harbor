@@ -89,9 +89,9 @@ class EncryptedUsageStore(private val values:AuthValues,private val cipher:AuthC
         persist(state);state
     }
     companion object {
-        /** Test-stage platform shape; real Keystore wiring waits for actual native RED. */
+        /** Separate usage namespace; never opens parent or primary child Auth storage. */
         fun open(context:android.content.Context,name:String="harbor-child-usage",now:()->Long=System::currentTimeMillis):EncryptedUsageStore {
-            check(dev.stmedrano.harbor.parent.BuildConfig.CI_FIXTURE){"Platform crypto not implemented"}
+
             val prefs=context.applicationContext.getSharedPreferences(name,android.content.Context.MODE_PRIVATE)
             val marker=context.applicationContext.getSharedPreferences("$name-history",android.content.Context.MODE_PRIVATE)
             val values=object:AuthValues {
@@ -104,10 +104,10 @@ class EncryptedUsageStore(private val values:AuthValues,private val cipher:AuthC
                 override fun write(value:UsageHistoryState){check(marker.edit().putString("binding",value.bindingHash).putLong("floor",value.floor).commit())}
                 override fun clear(){check(marker.edit().clear().commit())}
             }
-            val placeholder=object:AuthCipher {
-                override fun encrypt(slot:String,value:ByteArray)=value
-                override fun decrypt(slot:String,value:ByteArray)=value
+            val alias="$name-aes-v1"
+            return EncryptedUsageStore(values,dev.stmedrano.harbor.parent.auth.KeystoreCipher(alias),history,now,prefs) {
+                java.security.KeyStore.getInstance("AndroidKeyStore").apply{load(null);deleteEntry(alias)}
             }
-            return EncryptedUsageStore(values,placeholder,history,now,prefs)
+
         }
     }}
