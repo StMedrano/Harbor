@@ -1,0 +1,4 @@
+supabaseUrl=https://bfvybxkjxilntjgndsrm.supabase.co
+publishableKey=REPLACE_WITH_DEVELOPMENT_PUBLIC_KEY
+firebaseProjectId=REPLACE_WITH_SERVER_FCM_DEVELOPMENT_PROJECT_ID
+applicationId=dev.stmedrano.harbor.acceptance

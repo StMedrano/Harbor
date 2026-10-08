@@ -1,0 +1,264 @@
+name: Harbor Foundation CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parent-keystore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install approved parent compile SDK
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Enable emulator KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-harbor-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Prepare offline fixture
+        run: |
+          chmod +x apps/parent-android/gradlew
+          cp apps/parent-android/config/ci-fixture-google-services.json apps/parent-android/app/google-services.json
+      - name: Keystore cold start and invalidation
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808 # v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          script: |
+            bash apps/parent-android/scripts/keystore-acceptance.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parent-keystore-api-${{ matrix.api }}
+          path: |
+            apps/parent-android/keystore-evidence/
+            apps/parent-android/app/build/outputs/androidTest-results/
+            apps/parent-android/app/build/reports/androidTests/
+  parent-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/parent-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install approved parent SDK
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Verify parent fixture build
+        run: |
+          chmod +x gradlew
+          cp config/ci-fixture-google-services.json app/google-services.json
+          ./gradlew -PparentCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
+      - name: Verify fixture isolation and missing-config guard
+        run: |
+          apkanalyzer manifest print app/build/outputs/apk/debug/app-debug.apk > app/build/reports/parent-manifest.xml
+          grep -F 'android:allowBackup="false"' app/build/reports/parent-manifest.xml
+          grep -F 'android:usesCleartextTraffic="false"' app/build/reports/parent-manifest.xml
+          if grep -F 'android.permission.INTERNET' app/build/reports/parent-manifest.xml; then exit 1; fi
+          if ./gradlew --no-daemon --dependency-verification=strict help >/tmp/harbor-parent-config.log 2>&1; then exit 1; fi
+          grep -F 'Supply development parent.properties' /tmp/harbor-parent-config.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parent-android-test-results
+          path: |
+            apps/parent-android/app/build/test-results/
+            apps/parent-android/app/build/reports/
+  notification-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tools/notification-acceptance/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Run Android proof acceptance
+        run: |
+          chmod +x gradlew
+          cp config/ci-fixture-google-services.json app/google-services.json
+          ./gradlew -PacceptanceCiFixture=true --no-daemon --dependency-verification=strict testDebugUnitTest lintDebug assembleDebug
+      - name: Inspect debug acceptance manifest
+        run: |
+          apkanalyzer manifest print app/build/outputs/apk/debug/app-debug.apk > app/build/reports/acceptance-manifest.xml
+          grep -F 'android:allowBackup="false"' app/build/reports/acceptance-manifest.xml
+          grep -F 'android:usesCleartextTraffic="false"' app/build/reports/acceptance-manifest.xml
+          grep -F 'dev.stmedrano.harbor.acceptance.AcceptanceMessagingService' app/build/reports/acceptance-manifest.xml
+      - name: Refuse absent live configuration
+        run: |
+          if ./gradlew --no-daemon --dependency-verification=strict help >/tmp/harbor-android-config-guard.log 2>&1; then
+            echo 'Build incorrectly accepted missing live configuration.' >&2
+            exit 1
+          fi
+          grep -F 'Supply development acceptance.properties' /tmp/harbor-android-config-guard.log
+      - name: Retain pinned dependency evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-dependency-bootstrap
+          path: |
+            tools/notification-acceptance/android/gradle/verification-metadata.xml
+            tools/notification-acceptance/android/**/gradle.lockfile
+      - name: Retain Android test and lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results
+          path: |
+            tools/notification-acceptance/android/app/build/test-results/
+            tools/notification-acceptance/android/app/build/reports/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harbor-acceptance-ci-fixture-apk
+          path: tools/notification-acceptance/android/app/build/outputs/apk/debug/*.apk
+
+  notification-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.9.7
+      - name: Verify local browser acceptance recipient
+        run: |
+          deno test --frozen tests/notification-acceptance
+          deno test --frozen --allow-read --allow-write tests/notification-acceptance/windows-acl.test.ts
+          deno check --frozen tests/hosted/notification-acceptance.ts
+          deno check --frozen tests/hosted/platform-acceptance.ts
+          deno check --frozen tools/notification-acceptance/web/app.ts
+          deno run --frozen --allow-read --allow-write --allow-run=deno tools/notification-acceptance/web/build.ts
+          VERCEL_ENV=preview sh tools/notification-acceptance/web/preview-build.sh
+          cmp index.html preview-dist/index.html
+          for part in frontend-bundle/part-*.txt; do cmp "$part" "preview-dist/$part"; done
+
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+
+      - name: Discover Supabase CLI
+        run: |
+          supabase --version
+          supabase --help >/tmp/supabase-help.txt
+          supabase auth --help >/tmp/supabase-auth-help.txt 2>&1 || true
+          supabase start --help >/tmp/supabase-start-help.txt
+          supabase db reset --help >/tmp/supabase-db-reset-help.txt
+          supabase db lint --help >/tmp/supabase-db-lint-help.txt
+          supabase test db --help >/tmp/supabase-test-db-help.txt
+
+      - name: Verify bootstrap files exist
+        run: |
+          test -f supabase/config.toml
+          test -f supabase/seed.sql
+          test -f docs/runbooks/supabase-development.md
+          test -f docs/runbooks/environment-mapping.md
+          test -f deno.lock
+
+      - name: Reject obvious committed secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|sb_secret_[A-Za-z0-9_-]{20,}' -- ':!docs/**' ':!**/*.md'; then
+            echo 'Potential committed secret detected.' >&2
+            exit 1
+          fi
+
+      - name: Start local Supabase database
+        run: >-
+          supabase start
+          --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Reset local database
+        run: supabase db reset
+
+      - name: Lint local database
+        run: supabase db lint --level error
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify production environment separation
+        run: |
+          deno test --frozen tests/release
+          deno run --frozen --allow-read=docs/runbooks/environment-mapping.md scripts/check-environment-mapping.ts
+      - name: Run Edge Function tests when present
+        run: |
+          if [ -d tests/functions ]; then
+            deno test --frozen --allow-env=ECE_KEYLOG,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY tests/functions
+          fi
+
+      - name: Run shared-contract tests when present
+        run: |
+          if [ -f packages/contracts/test/contracts.test.ts ]; then
+            deno test --frozen packages/contracts/test/contracts.test.ts
+            deno check --frozen packages/contracts/src/index.ts
+          fi
+
+      - name: Verify private dispatcher persistence against local PostgreSQL
+        env:
+          SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+        run: >-
+          deno test --frozen
+          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
+          --allow-net=127.0.0.1:54322
+          tests/integration/outbox-persistence.test.ts
+          tests/integration/child-creation.test.ts
+          tests/integration/parent-fcm-persistence.test.ts
+
+      - name: Verify shared backend platform acceptance
+        env:
+          SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+        run: >-
+          deno test --frozen
+          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
+          --allow-net=127.0.0.1:54322
+          tests/end-to-end/platform-foundation.test.ts
+          tests/end-to-end/parent-android-foundation.test.ts

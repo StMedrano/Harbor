@@ -1,0 +1,6 @@
+# Copy to ignored parent.properties and supply matching public development values.
+environment=development
+supabaseUrl=https://YOUR_DEVELOPMENT_PROJECT.supabase.co
+publishableKey=YOUR_PUBLISHABLE_KEY
+firebaseProjectId=YOUR_FIREBASE_PROJECT
+applicationId=dev.stmedrano.harbor.parent
