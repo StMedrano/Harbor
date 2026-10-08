@@ -54,6 +54,8 @@ done
 run_test childControlsGateNativeProviderAndReportUnconfirmedBackend dev.stmedrano.harbor.parent.notifications.ChildNotificationUiTest
 approval_status=0
 run_test temporaryApprovalErasurePreservesBothPrimaryNamespaces dev.stmedrano.harbor.parent.profile.ParentApprovalIsolationTest || approval_status=1
+run_test approvalRequiresSeparateSignInMfaAndDeliberateRemoval dev.stmedrano.harbor.parent.profile.ParentApprovalUiTest || approval_status=1
+run_test backCancelsPendingApprovalAndRemovesSecretFields dev.stmedrano.harbor.parent.profile.ParentApprovalUiTest || approval_status=1
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
