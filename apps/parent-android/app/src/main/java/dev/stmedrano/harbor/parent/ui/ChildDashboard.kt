@@ -13,7 +13,8 @@ import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.child.ChildBinding
 import dev.stmedrano.harbor.parent.child.ChildSyncState
 
-@Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit) {
+@Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit,
+    notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null) {
     if (state is ChildSyncState.Blocked) {
         Text("This phone needs a parent to check its setup.")
         return
@@ -46,6 +47,11 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
             "About" -> {
                 Text("Harbor stores this phone’s pairing credentials securely and checks its family connection with signed requests.")
                 Text("Screen time and app enforcement are not available in this build.")
+                if (onEnableNotifications != null) {
+                    Text(if (notificationConfirmed) "Backend notification registration confirmed. Delivery still requires receipt evidence."
+                        else "Backend notification registration is unconfirmed.")
+                    Button(onClick = onEnableNotifications) { Text("Enable notifications") }
+                }
                 OutlinedButton(onClick = onRequestRoleChange) { Text("Ask a parent to change setup") }
             }
         }

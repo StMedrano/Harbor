@@ -94,4 +94,14 @@ class ChildNotificationsTest {
         assertNull(store.optedBinding())
         assertEquals("stable-reference", values.read("installation"))
     }
+    @Test fun tapRefreshesCurrentBindingWithoutInventingReceivedMessageEvidence() = runTest {
+        val h = Harness(); val route = ParentMessageParser.parseRoute(data.getValue("route"))!!
+        assertTrue(h.controller.onTap(route, lease))
+        assertEquals(1, h.calls)
+        assertTrue(h.rendered.isEmpty())
+        assertNull(h.controller.receipt.value)
+        h.current = null
+        assertFalse(h.controller.onTap(route, lease))
+        assertEquals(1, h.calls)
+    }
 }

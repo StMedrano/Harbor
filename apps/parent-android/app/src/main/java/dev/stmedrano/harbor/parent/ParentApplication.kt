@@ -13,6 +13,7 @@ import dev.stmedrano.harbor.parent.profile.*
 import dev.stmedrano.harbor.parent.child.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import android.app.job.JobScheduler
 
 data class ParentTapState(val device: DevicePublicV1? = null, val message: String? = null)
 
@@ -20,6 +21,8 @@ class ParentApplication : Application() {
     val accountScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var parentConstructionAllowed = false
     private var parentCollectors: Job? = null
+    private var runtimeLease: ProfileLease? = null
+    private var profileScope: CoroutineScope? = null
     private val evidence by lazy { ProfileEvidence(
         { getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isNotEmpty() },
         { EncryptedChildStore.hasRecords(this) }) }
@@ -27,7 +30,7 @@ class ParentApplication : Application() {
     private val childRepository by lazy {
         ChildRepository(ChildApi.create(childKey), EncryptedChildStore(this), childKey, { System.currentTimeMillis() / 1000 })
     }
-    val profiles by lazy {
+    val profiles: ProfileCoordinator by lazy {
         val store = AndroidProfileStore(this)
         ProfileCoordinator(store, {
             evidence.assertSingleProfile()
@@ -42,9 +45,15 @@ class ParentApplication : Application() {
                 if (childRepository.state.value is ChildSyncState.Blocked) throw ProfileValidationFailure(ProfileBlock.INVALID_CREDENTIALS)
                 childRepository.binding.value?.deviceId
             }
-        }, ::stopParentRuntime, { lease ->
+        }, ::stopFamilyRuntime, { lease ->
+            runtimeLease = lease
+            profileScope = CoroutineScope(SupervisorJob(accountScope.coroutineContext[Job]) + Dispatchers.IO)
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else check(childRepository.binding.value?.deviceId == lease.ownerId)
+            accountScope.launch {
+                profiles.state.first { it != ProfileState.Transitioning }
+                if (profiles.isCurrent(lease)) foreground()
+            }
         })
     }
     private val mutableTap = MutableStateFlow(ParentTapState())
@@ -88,6 +97,36 @@ class ParentApplication : Application() {
     private val registrationStore by lazy { ParentRegistrationStore.open(this) }
     private val tokenProvider by lazy { AndroidFirebaseTokenProvider.create() }
     private val renderer by lazy { ParentNotificationRenderer(this) }
+    private val childRenderer by lazy { ChildNotificationRenderer(this) }
+    private val childNotificationStore by lazy { ChildNotificationStore.open(this) }
+    private val childNotifications by lazy { ChildNotifications(::notificationLease, { childRepository.binding.value },
+        childNotificationStore::optedBinding, { childRepository.sync(it) }, childRenderer::show, childRenderer::clear,
+        System::currentTimeMillis) }
+    val profileNotifications: ProfileNotificationRouter by lazy { ProfileNotificationRouter(::notificationLease,
+        { if (profiles.currentLease()?.role == ProfileRole.CHILD) childRepository.binding.value else null },
+        { lease -> if (lease.role == ProfileRole.PARENT) registrationStore.optedOwner() == currentIdentity() && currentIdentity() != null
+            else childNotificationStore.optedBinding() == childRepository.binding.value && childRepository.binding.value != null },
+        { when (profiles.currentLease()?.role) { ProfileRole.PARENT -> renderer.allowed(); ProfileRole.CHILD -> childRenderer.allowed(); else -> false } },
+        { lease, data -> ParentNotificationJob.enqueue(this, lease, if (lease.role == ProfileRole.PARENT) currentIdentity() else null, data) },
+        { lease ->
+            val expected = currentIdentity()
+            var confirmed = false
+            if (expected?.userId == lease.ownerId) accountWork {
+                if (profiles.isCurrent(lease) && currentIdentity() == expected) {
+                    notifications?.enable(expected)
+                    confirmed = currentIdentity() == expected && notifications?.state?.value?.confirmed == true
+                }
+            }
+            confirmed
+        }, { tokenProvider.token() },
+        { lease, token -> val expected = childRepository.binding.value
+            expected != null && profiles.isCurrent(lease) && expected.deviceId == lease.ownerId && childRepository.registerFcm(expected, token) },
+        { lease -> if (lease.role == ProfileRole.PARENT) { notifications?.invalidate(); renderer.clear() }
+            else childNotifications.invalidate() }) }
+    private fun notificationLease(): ProfileLease? = profiles.currentLease()?.takeIf { lease ->
+        if (lease.role == ProfileRole.PARENT) currentIdentity()?.userId == lease.ownerId
+        else childRepository.state.value !is ChildSyncState.Blocked && childRepository.binding.value?.deviceId == lease.ownerId
+    }
     private val fcmApi by lazy { SdkParentFcmApi(checkNotNull(client), checkNotNull(authRepository)) }
     val notifications: ParentNotifications? by lazy {
         authRepository?.let { auth -> ParentNotifications(fcmApi, object : FirebaseTokenProvider {
@@ -129,6 +168,20 @@ class ParentApplication : Application() {
         accountScope.launch {
             profiles.restore()
         }
+    }
+    private suspend fun stopFamilyRuntime() {
+        val old = runtimeLease
+        val scope = profileScope
+        runtimeLease = null; profileScope = null
+        getSystemService(JobScheduler::class.java).cancel(ParentNotificationJob.JOB_ID)
+        if (old != null) profileNotifications.stop(old)
+        scope?.coroutineContext?.get(Job)?.cancelAndJoin()
+        stopParentRuntime()
+    }
+    private suspend fun profileWork(lease: ProfileLease, action: suspend () -> Boolean): Boolean {
+        val scope = profileScope?.takeIf { runtimeLease == lease } ?: return false
+        val work = scope.async { if (profiles.isCurrent(lease)) action() else false }
+        return try { work.await() } finally { if (work.isActive) work.cancel() }
     }
     private suspend fun stopParentRuntime() {
         parentCollectors?.cancelAndJoin()
@@ -185,21 +238,62 @@ class ParentApplication : Application() {
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { /* Controllers retain honest failed/unconfirmed states. */ }
     }
-    fun foreground() { accountScope.launch { accountWork {
-        if (profiles.state.value !is ProfileState.Parent) return@accountWork
-        if (currentIdentity() != null) {
-            authRepository?.withAccessToken { }
-            ensureContext()
-            currentIdentity()?.let { familyViewModel?.refresh(it) }
+    fun foreground() { accountScope.launch {
+        profiles.state.first { it != ProfileState.Transitioning }
+        val lease = profiles.currentLease() ?: return@launch
+        profileWork(lease) {
+            if (lease.role == ProfileRole.PARENT) accountWork {
+                if (currentIdentity() != null) {
+                    authRepository?.withAccessToken { }; ensureContext()
+                    currentIdentity()?.let { familyViewModel?.refresh(it) }
+                }
+            } else childRepository.binding.value?.let { childRepository.sync(it) }
+            if (!BuildConfig.CI_FIXTURE) profileNotifications.syncToken(lease)
+            true
         }
-    } } }
+    } }
     fun queueTokenRefresh() { accountScope.launch {
         profiles.state.first { it != ProfileState.Transitioning }
-        if (profiles.state.value is ProfileState.Parent) registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this@ParentApplication, it, null) }
+        val lease = notificationLease() ?: return@launch
+        val owner = if (lease.role == ProfileRole.PARENT) registrationStore.optedOwner()?.takeIf { it == currentIdentity() } ?: return@launch else null
+        if (lease.role == ProfileRole.PARENT || childNotificationStore.optedBinding() == childRepository.binding.value)
+            ParentNotificationJob.enqueue(this@ParentApplication, lease, owner, null)
     } }
     fun queueMessage(data: Map<String, String>) { accountScope.launch {
         profiles.state.first { it != ProfileState.Transitioning }
-        if (profiles.state.value is ProfileState.Parent) registrationStore.optedOwner()?.let { ParentNotificationJob.enqueue(this@ParentApplication, it, data) }
+        notificationLease()?.let { profileNotifications.accept(data, it) }
+    } }
+    suspend fun processFamilyBackground(lease: ProfileLease, owner: ParentIdentity?, data: Map<String, String>?): Boolean {
+        if (BuildConfig.CI_FIXTURE) return false
+        profiles.state.first { it != ProfileState.Transitioning }
+        return profileWork(lease) {
+            if (notificationLease() != lease) return@profileWork false
+            if (lease.role == ProfileRole.PARENT) {
+                if (owner == null || owner != currentIdentity() || owner != registrationStore.optedOwner()) return@profileWork false
+                if (data == null) profileNotifications.syncToken(lease) else processBackground(owner, data)
+                true
+            } else {
+                if (owner != null) return@profileWork false
+                if (data == null) { profileNotifications.syncToken(lease); true }
+                else childNotifications.onMessage(data, lease)
+            }
+        }
+    }
+    fun enableChildNotifications(lease: ProfileLease) { accountScope.launch {
+        if (BuildConfig.CI_FIXTURE || notificationLease() != lease || lease.role != ProfileRole.CHILD) return@launch
+        profileWork(lease) {
+            val expected = childRepository.binding.value ?: return@profileWork false
+            childNotificationStore.setOpted(expected, true)
+            profileNotifications.syncToken(lease); true
+        }
+    } }
+    fun syncChild(lease: ProfileLease, expected: ChildBinding) { accountScope.launch {
+        profileWork(lease) { if (lease.role != ProfileRole.CHILD) false else { childRepository.sync(expected); true } }
+    } }
+    fun openChildNotification(route: ParentRoute) { accountScope.launch {
+        profiles.state.first { it != ProfileState.Transitioning }
+        val lease = notificationLease()?.takeIf { it.role == ProfileRole.CHILD } ?: return@launch
+        profileWork(lease) { childNotifications.onTap(route, lease) }
     } }
     suspend fun processBackground(owner: ParentIdentity, data: Map<String, String>?) {
         if (BuildConfig.CI_FIXTURE) return
@@ -211,12 +305,16 @@ class ParentApplication : Application() {
                 { expected -> notifications?.enable(expected) }, { payload -> notifications?.onMessage(payload) == true }).process(owner, data)
         }
     }
-    fun openNotification(hint: ParentHint) { accountScope.launch { accountWork {
+    fun openNotification(hint: ParentHint) { accountScope.launch {
+        profiles.state.first { it != ProfileState.Transitioning }
+        val lease = notificationLease()?.takeIf { it.role == ProfileRole.PARENT } ?: return@launch
+        profileWork(lease) { accountWork {
         if (currentIdentity() == null) authRepository?.restore()
         ensureContext()
         val accepted = notifications?.onTap(hint) == true
         val device = if (accepted) familyViewModel?.repository?.state?.value?.snapshot?.devices?.firstOrNull { it.id == hint.route.deviceId } else null
-        mutableTap.value = ParentTapState(device, if (accepted) null else "This update is unavailable. Refresh your family or sign in again.")
-    } } }
+        if (profiles.isCurrent(lease)) mutableTap.value = ParentTapState(device, if (accepted) null else "This update is unavailable. Refresh your family or sign in again.")
+        }; true }
+    } }
     fun closeNotification() { mutableTap.value = ParentTapState() }
 }

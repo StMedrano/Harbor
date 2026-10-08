@@ -191,4 +191,12 @@ class ChildRepositoryTest {
         assertFalse(value.registerFcm(confirmed, "ephemeral-fcm"))
         assertEquals(1, backend.fcmCalls)
     }
+    @Test fun oldHintCannotReadAReplacedBinding() = runTest {
+        val store = Store().apply { record = ChildRecord(session(), confirmed) }
+        val backend = Backend(store); val value = repository(store, backend); value.restore()
+        assertEquals(ChildSyncState.Stale(null), value.sync(confirmed.copy(deviceId = user)))
+        assertNull(backend.signedOwner)
+        assertEquals(ChildSyncState.Fresh(1000, 2), value.sync(confirmed))
+        assertEquals(user, backend.signedOwner)
+    }
 }

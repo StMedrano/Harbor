@@ -51,6 +51,7 @@ for method in exactlyOneFamilyServiceAndProtectedJobAreInstalled queuedFamilyWor
   run_test "$method" dev.stmedrano.harbor.parent.notifications.FamilyNotificationLifecycleTest || family_notification_status=1
 done
 [[ "$family_notification_status" == 0 ]]
+run_test childControlsGateNativeProviderAndReportUnconfirmedBackend dev.stmedrano.harbor.parent.notifications.ChildNotificationUiTest
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1

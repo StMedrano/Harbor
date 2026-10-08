@@ -139,7 +139,8 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             }
         } else mutableState.value = ChildSyncState.Blocked(ChildFailure.AUTH_INVALID)
     }
-    suspend fun sync(): ChildSyncState = operations.withLock {
+    suspend fun sync(expected: ChildBinding? = null): ChildSyncState = operations.withLock {
+        if (expected != null && currentBinding.value != expected) return@withLock mutableState.value
         try {
             val binding = currentBinding.value ?: throw Invalid(ChildFailure.AUTH_INVALID)
             if (!key.exists()) throw Invalid(ChildFailure.KEY_LOST)

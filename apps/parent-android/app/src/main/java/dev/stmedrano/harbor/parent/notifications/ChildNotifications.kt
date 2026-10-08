@@ -7,6 +7,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Serializable data class ChildReceipt(val route: ParentRoute, val receivedAt: Long)
 
@@ -20,6 +21,16 @@ class ChildNotifications(private val current: () -> ProfileLease?, private val b
     private val seen = LinkedHashSet<ParentRoute>()
     private fun matches(lease: ProfileLease, expected: ChildBinding) = current() == lease &&
         lease.role == ProfileRole.CHILD && expected.deviceId == lease.ownerId && binding() == expected && opted() == expected
+    suspend fun onTap(route: ParentRoute, lease: ProfileLease): Boolean {
+        val expected = binding() ?: return false
+        if (!matches(lease, expected) || ParentMessageParser.parseRoute(Json.encodeToString(route)) == null ||
+            route.deviceId != expected.deviceId || route.childId != expected.childId || route.familyId != expected.familyId) return false
+        val ticket = synchronized(lock) { generation }
+        val fresh = try { sync(expected) is ChildSyncState.Fresh }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { false }
+        return fresh && synchronized(lock) { generation == ticket && matches(lease, expected) }
+    }
     suspend fun onMessage(data: Map<String, String>, lease: ProfileLease): Boolean {
         val expected = binding() ?: return false
         if (!matches(lease, expected) || data.keys != setOf("route")) return false

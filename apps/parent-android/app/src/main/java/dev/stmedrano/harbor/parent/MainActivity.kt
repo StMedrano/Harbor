@@ -33,6 +33,7 @@ import dev.stmedrano.harbor.parent.family.DevicePublicV1
 import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.profile.ProfileState
 import dev.stmedrano.harbor.parent.profile.ProfileRole
+import dev.stmedrano.harbor.parent.profile.ProfileLease
 import dev.stmedrano.harbor.parent.ui.FamilyEntryState
 import dev.stmedrano.harbor.parent.ui.FamilyDestination
 import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
@@ -46,10 +47,12 @@ class MainActivity : ComponentActivity() {
     private val settingsPage = mutableStateOf(false)
     private val securityPage = mutableStateOf(false)
     private var requestedHint: ParentHint? = null
+    private var requestedChildHint: ParentRoute? = null
     private val logoutRequested = mutableStateOf(false)
     private val setupRole = mutableStateOf<ProfileRole?>(null)
     override fun onCreate(savedInstanceState: Bundle?) {
         val requested = scrubCallback(intent)
+        requestedChildHint = if (intent.action == ChildNotificationRenderer.TAP_ACTION) ChildNotificationRenderer.consumeTap(intent) else null
         requestedHint = ParentNotificationRenderer.consumeTap(intent)
         super.onCreate(savedInstanceState)
         callback.value = requested
@@ -63,6 +66,12 @@ class MainActivity : ComponentActivity() {
             val childBinding = child?.binding?.collectAsState()?.value
             val entryState = FamilyEntryState(profile, selected, childBinding = childBinding, childState = childState)
             if (entryState.destination() !in setOf(FamilyDestination.PARENT_AUTH, FamilyDestination.PARENT_HOME)) {
+                val childPermissionRequest = remember { mutableStateOf<ProfileLease?>(null) }
+                val childPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                    val expected = childPermissionRequest.value
+                    childPermissionRequest.value = null
+                    if (expected != null && graph.profiles.isCurrent(expected)) graph.enableChildNotifications(expected)
+                }
                 HarborTheme { ParentApp(showBrand = false) {
                     FamilyRoleContent(entryState,
                         entry = { FamilyEntryScreen(
@@ -76,9 +85,18 @@ class MainActivity : ComponentActivity() {
                             } else Text("This phone needs a parent to check its setup.")
                         },
                         childContent = {
+                            val lease = (profile as ProfileState.Child).lease
+                            val registration = graph.profileNotifications.state.collectAsState().value
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
-                                onSync = { graph.accountScope.launch { child?.sync() } },
-                                onRequestRoleChange = { /* Parent approval is wired in the approved transition milestone. */ })
+                                onSync = { graph.syncChild(lease, childBinding) },
+                                onRequestRoleChange = { /* Parent approval is wired in the approved transition milestone. */ },
+                                notificationConfirmed = registration.lease == lease && registration.confirmed,
+                                onEnableNotifications = {
+                                    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                        childPermissionRequest.value = lease
+                                        childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else graph.enableChildNotifications(lease)
+                                })
                         })
                 } }
                 return@setContent
@@ -106,8 +124,14 @@ class MainActivity : ComponentActivity() {
                 graph.securityViewModel?.requestRevocation(device.familyId, device.id)
                 graph.closeNotification(); securityPage.value = true; authenticationPage.value = false; settingsPage.value = false
             }
-            fun enableNotifications() { graph.accountScope.launch { graph.accountWork { graph.notifications?.enable() } } }
-            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { enableNotifications() }
+            fun enableNotifications(expected: ProfileLease?) { graph.accountScope.launch {
+                if (expected != null && graph.profiles.isCurrent(expected)) graph.accountWork { graph.notifications?.enable() }
+            } }
+            val parentPermissionRequest = remember { mutableStateOf<ProfileLease?>(null) }
+            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                val expected = parentPermissionRequest.value; parentPermissionRequest.value = null
+                enableNotifications(expected)
+            }
             val authenticationOpen = authenticationPage.value || callback.value != null
             HarborTheme {
                 ParentApp(showBrand = identity != null && !authenticationOpen) {
@@ -145,8 +169,10 @@ class MainActivity : ComponentActivity() {
                                     cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }) { graph.closeNotification() }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
-                                        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                        else enableNotifications()
+                                        val expected = graph.profiles.currentLease()
+                                        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                            parentPermissionRequest.value = expected; permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        } else enableNotifications(expected)
                                     },
                                     onRemove = { graph.accountScope.launch { graph.accountWork { graph.notifications?.remove() } } },
                                     onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } },
@@ -163,10 +189,13 @@ class MainActivity : ComponentActivity() {
         }
         requestedHint?.let { (application as ParentApplication).openNotification(it); authenticationPage.value = false }
         requestedHint = null
+        requestedChildHint?.let { (application as ParentApplication).openChildNotification(it) }
+        requestedChildHint = null
     }
 
     override fun onNewIntent(intent: Intent) {
         val requested = scrubCallback(intent)
+        val childHint = if (intent.action == ChildNotificationRenderer.TAP_ACTION) ChildNotificationRenderer.consumeTap(intent) else null
         val hint = ParentNotificationRenderer.consumeTap(intent)
         super.onNewIntent(intent)
         setIntent(intent)
@@ -175,6 +204,7 @@ class MainActivity : ComponentActivity() {
         settingsPage.value = false
         securityPage.value = false
         hint?.let { (application as ParentApplication).openNotification(it) }
+        childHint?.let { (application as ParentApplication).openChildNotification(it) }
     }
     override fun onStart() { super.onStart(); (application as ParentApplication).foreground() }
 

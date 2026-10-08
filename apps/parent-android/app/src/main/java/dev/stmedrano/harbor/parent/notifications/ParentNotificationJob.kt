@@ -23,11 +23,16 @@ class ParentNotificationJob : JobService() {
                 while (isActive) {
                     val work = params.dequeueWork() ?: run { drained = true; break }
                     try {
-                        val owner = ParentIdentity(checkNotNull(work.intent.getStringExtra("userId")), checkNotNull(work.intent.getStringExtra("sessionId")))
-                        val data = if (work.intent.action == TOKEN) null else mapOf(
-                            "route" to checkNotNull(work.intent.getStringExtra("route")),
-                            "parentRegistrationId" to checkNotNull(work.intent.getStringExtra("parentRegistrationId")))
-                        withTimeout(60000) { (application as ParentApplication).processBackground(owner, data) }
+                        val role = ProfileRole.valueOf(checkNotNull(work.intent.getStringExtra("role")))
+                        val lease = ProfileLease(role, checkNotNull(work.intent.getStringExtra("ownerId")), work.intent.getLongExtra("generation", -1))
+                        val owner = if (role == ProfileRole.PARENT) ParentIdentity(checkNotNull(work.intent.getStringExtra("userId")), checkNotNull(work.intent.getStringExtra("sessionId"))) else null
+                        require(work.intent.action in setOf("harbor.family.TOKEN_SYNC", "harbor.family.MESSAGE"))
+                        val data = if (work.intent.action == "harbor.family.TOKEN_SYNC") null else
+                            mapOf("route" to checkNotNull(work.intent.getStringExtra("route"))) +
+                                if (role == ProfileRole.PARENT) mapOf("parentRegistrationId" to checkNotNull(work.intent.getStringExtra("parentRegistrationId"))) else emptyMap()
+                        val validated = work(lease, owner, data)
+                        require(work.intent.extras?.keySet() == validated.intent.extras?.keySet())
+                        withTimeout(60000) { (application as ParentApplication).processFamilyBackground(lease, owner, data) }
                     } catch (_: TimeoutCancellationException) { /* Bounded operation stays unconfirmed. */ }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { /* Foreground refresh and explicit registration retry remain available. */ }
@@ -80,5 +85,7 @@ class ParentNotificationJob : JobService() {
         }
         fun enqueue(context: Context, owner: ParentIdentity, data: Map<String, String>?): Boolean =
             context.getSystemService(JobScheduler::class.java).enqueue(info(context), work(owner, data)) == JobScheduler.RESULT_SUCCESS
+        fun enqueue(context: Context, lease: ProfileLease, owner: ParentIdentity?, data: Map<String, String>?): Boolean =
+            context.getSystemService(JobScheduler::class.java).enqueue(info(context), work(lease, owner, data)) == JobScheduler.RESULT_SUCCESS
     }
 }
