@@ -36,6 +36,7 @@ done
 pairing_status=0
 run_test confirmedClaimAloneOpensChildAndClearsCode dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
 run_test lostReplyDoesNotOpenDashboardOrPermitBlindRetry dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
+run_test backDuringPairingPreservesRecoveryGuardAndProtectsCode dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
 [[ "$pairing_status" == 0 ]]
 [[ "$profile_status" == 0 ]]
 adb shell settings put system font_scale 1.8

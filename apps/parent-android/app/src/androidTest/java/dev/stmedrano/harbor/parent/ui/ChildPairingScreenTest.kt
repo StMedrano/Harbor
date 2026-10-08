@@ -8,6 +8,11 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import androidx.test.platform.app.InstrumentationRegistry
 
 class ChildPairingScreenTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
@@ -20,8 +25,8 @@ class ChildPairingScreenTest {
     }
     private val binding = ChildBinding("22222222-2222-4222-8222-222222222222",
         "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444")
-    private var claims = 0
-    private fun repository(store: Store, lost: Boolean): ChildRepository {
+    @Volatile private var claims = 0
+    private fun repository(store: Store, lost: Boolean, hold: CompletableDeferred<Unit>? = null): ChildRepository {
         val backend = object : ChildBackend {
             override suspend fun anonymousSignup() = ChildAuthSession(ChildCredentials("fixture-access", "fixture-refresh", 5000),
                 "11111111-1111-4111-8111-111111111111", true)
@@ -30,6 +35,7 @@ class ChildPairingScreenTest {
                 claims++
                 assertEquals("123456", code)
                 assertTrue(store.claimPending)
+                hold?.await()
                 if (lost) throw IOException("offline fixture")
                 return binding
             }
@@ -69,5 +75,30 @@ class ChildPairingScreenTest {
         compose.onNodeWithText("Connect phone").assertDoesNotExist()
         compose.onNodeWithText("123456").assertDoesNotExist()
         assertEquals(0, opened); assertEquals(1, claims); assertTrue(store.claimPending)
+    }
+    @Test fun backDuringPairingPreservesRecoveryGuardAndProtectsCode() {
+        val store = Store(); val hold = CompletableDeferred<Unit>()
+        val repository = repository(store, false, hold); var opened = 0
+        show(repository) { opened++ }
+        val activity = compose.activity
+        compose.onNodeWithText("Pairing code").performTextInput("123456")
+        compose.onNodeWithText("Connect phone").performClick()
+        compose.waitUntil(5000) { claims == 1 }
+        compose.runOnIdle {
+            assertTrue(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0)
+        }
+        compose.runOnUiThread {
+            activity.getSystemService(InputMethodManager::class.java)
+                .hideSoftInputFromWindow(activity.window.decorView.windowToken, 0)
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        assertTrue(activity.isFinishing || activity.isDestroyed)
+        assertEquals(0, opened)
+        assertTrue(store.claimPending)
+        assertNull(store.record?.binding)
+        val reopened = repository(store, false)
+        runBlocking { reopened.restore() }
+        assertEquals(ChildSyncState.Blocked(ChildFailure.UNKNOWN_OUTCOME), reopened.state.value)
     }
 }
