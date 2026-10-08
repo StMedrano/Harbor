@@ -13,10 +13,18 @@ let cb = {}, st = null, tab = 'today', timer = null;
 const emptyKid = (t, d) => `<div class="empty"><h2>${t}</h2><p class="sm">${d}</p></div>`;
 const when = iso => iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : null;
 
+function locationPanel() {
+  const L = st.location;
+  if (!L || !L.available) return '';
+  const on = L.enabled && L.permission !== 'none';
+  return `<div class="panel"><div class="row"><div><div class="rt">Sharing my location</div><div class="rs">${on ? 'Your parents can see where this phone is. A notice stays on screen while this is on.' : L.enabled ? 'Allow location access to finish turning this on.' : 'Off. Your parents can\u2019t see where this phone is.'}</div></div><span class="tag ${on ? '' : 'm'}">${on ? 'On' : 'Off'}</span></div>
+<div class="row"><button class="btn ${on ? 'g' : 'p'}" style="width:100%" data-a="${on ? 'locoff' : 'locon'}">${on ? 'Stop sharing' : 'Turn on location sharing'}</button></div></div>`;
+}
 function today() {
   return `<div class="hello"><h1>Hi${st.child.name ? ' ' + e(st.child.name) : ' there'}</h1><p>${new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p></div>
 <div class="panel"><div class="row"><div><div class="rt">This phone is paired</div><div class="rs">Connected to your family\u2019s Harbor Family account</div></div><span class="tag ${st.offline ? 'm' : ''}">${st.offline ? 'Offline' : 'Connected'}</span></div>
 <div class="row"><div><div class="rt">Last sync</div><div class="rs">${st.lastSync ? e(when(st.lastSync)) : 'Not synced yet'}${st.offline ? ' (showing the last known state)' : ''}</div></div></div></div>
+${locationPanel()}
 <p class="rs" style="text-align:center;margin-top:12px">Screen time, limits and requests will appear here when they are available.</p>`;
 }
 function apps() {
@@ -26,7 +34,8 @@ function about() {
   return `<div class="head"><h1>About me</h1></div>
 <p class="note"><b>Nothing is hidden.</b> Harbor Family is on this phone so your parents can help keep you safe. Right now it can do this:</p>
 <div class="panel"><div class="row"><div><div class="rt">Connect this phone to your family</div><div class="rs">Your parents can see that it is paired and when it last synced</div></div></div></div>
-<p class="rs">More features, like screen time and location, will be explained here before they are turned on.</p>
+${st.location && st.location.available ? `<div class="panel"><div class="row"><div><div class="rt">My location</div><div class="rs">When location sharing is on, this phone sends its location (about every 5 minutes, and when it moves) and its battery level to your parents in Harbor Family. The last 7 days of places are kept. You can turn it off on the Today tab, and a notice shows on this phone the whole time it is on.</div></div></div></div>` : ''}
+<p class="rs">Screen time and limits will be explained here before they are turned on.</p>
 <div class="lab">Parents only</div><button class="btn g" style="width:100%" data-a="unpair">Remove Harbor Family from this phone</button>`;
 }
 
@@ -49,6 +58,8 @@ const onClick = async ev => {
     switch (a) {
       case 'x': shut(); return;
       case 'tab': tab = v; render(true); return;
+      case 'locon': { const L = await api.enableLocation(); toast(L && L.enabled && L.permission !== 'none' ? 'Location sharing is on' : 'Location sharing is still off'); break; }
+      case 'locoff': await api.disableLocation(); toast('Location sharing is off'); break;
       case 'unpair': open(`<h2 style="font-size:19px">Parents only</h2><p class="muted sm">A parent must sign in to remove Harbor Family from this phone.</p>` + form('unpair', `<div style="margin-top:14px">${fld('email', 'Parent email', 'email', 'off', '', 'inputmode="email" autocapitalize="none"')}<div class="fld"><label for="upw">Parent password</label><input id="upw" name="password" type="password" autocomplete="off" required></div></div>`, 'Remove Harbor Family')); return;
       default: return;
     }

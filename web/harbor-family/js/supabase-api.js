@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ApiError } from './errors.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { newDeviceKey, proofHeaders, kvGet, kvSet, kvDel } from './device.js';
+import { hasNativeDevice, nativeCall } from './native-device.js';
 
 let _sb = null;
 const sb = () => (_sb ||= createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } }));
@@ -85,6 +86,13 @@ async function ensureFamily(name) {
   return r.familyId;
 }
 
+/* ── native (Android shell) child identity ── */
+const nativeError = r => {
+  const code = r && r.code ? String(r.code) : 'unknown';
+  return new ApiError(code, (r && r.message) || MSG[code] || 'Something went wrong. Please try again.');
+};
+async function nativeStatus() { const r = await nativeCall('status'); return r.status === 'ok' ? r : null; }
+
 /* ── child device state (IndexedDB) ── */
 const binding = () => kvGet('binding');
 async function childSession() {
@@ -94,6 +102,10 @@ async function childSession() {
   return { role: 'child', user: { id: session.user.id, name: '', email: '' }, child: { id: b.childId, name: '', color: colorOf(b.childId) } };
 }
 async function currentSession() {
+  if (hasNativeDevice()) {
+    const n = await nativeStatus();
+    if (n && n.paired) return { role: 'child', user: { id: n.authUserId, name: '', email: '' }, child: { id: n.childId, name: '', color: colorOf(n.childId) } };
+  }
   const { data: { session }, error } = await sb().auth.getSession();
   if (error) throw wrap(error);
   if (!session) return null;
@@ -132,8 +144,20 @@ export const supabaseApi = {
 
   /* ── parent ── */
   async listChildren() {
-    const [kids, devs] = [ok(await sb().from('children').select('id,display_name,created_at').order('created_at')), ok(await sb().from('devices_public').select('id,child_id,display_name,model,status,last_seen_at,created_at').order('created_at', { ascending: false }))];
-    return kids.map(c => blank(c, devs.find(d => d.child_id === c.id && d.status === 'active') || null));
+    const [kids, devs, locs] = [
+      ok(await sb().from('children').select('id,display_name,created_at').order('created_at')),
+      ok(await sb().from('devices_public').select('id,child_id,display_name,model,status,last_seen_at,created_at').order('created_at', { ascending: false })),
+      ok(await sb().from('child_locations').select('child_id,latitude,longitude,accuracy_m,battery_pct,recorded_at')),
+    ];
+    return kids.map(c => {
+      const k = blank(c, devs.find(d => d.child_id === c.id && d.status === 'active') || null);
+      const l = locs.find(x => x.child_id === c.id);
+      if (l) {
+        k.location = { lat: l.latitude, lng: l.longitude, place: null, since: null, accuracyM: l.accuracy_m, updatedAt: l.recorded_at };
+        if (k.device && l.battery_pct != null) k.device.battery = l.battery_pct;
+      }
+      return k;
+    });
   },
   async listAlerts() { return []; },
   async getSettings() { return { highPriority: true, arrivals: true, lowBattery: true, weekly: false }; },
@@ -161,6 +185,14 @@ export const supabaseApi = {
   /* ── child ── */
   async pairDevice({ code, deviceName }) {
     const digits = String(code || '').replace(/\D/g, ''); if (digits.length !== 6) throw fail('invalid_code');
+    if (hasNativeDevice()) {
+      // The Android app owns the identity: key, anonymous session and the claim all happen natively.
+      const { data: { session: parent } } = await sb().auth.getSession();
+      if (parent) await sb().auth.signOut().catch(() => {});
+      const r = await nativeCall('pair', { code: digits, deviceName: deviceName || 'This phone', supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+      if (r.status !== 'ok') throw nativeError(r);
+      return currentSession();
+    }
     // Reuse an existing anonymous identity if there is one; never reuse a parent session.
     let { data: { session } } = await sb().auth.getSession();
     if (session && !session.user.is_anonymous) await sb().auth.signOut();
@@ -176,10 +208,27 @@ export const supabaseApi = {
   },
   /** Truthful status from a signed device-sync. Fields the backend doesn't provide yet are left empty. */
   async getMyStatus() {
+    if (hasNativeDevice()) {
+      const r = await nativeCall('sync');
+      if (r.status !== 'ok') { if (r.code === 'device_revoked') await nativeCall('clear'); throw nativeError(r); }
+      return { child: { id: r.childId, name: '', color: colorOf(r.childId) }, paired: true, offline: !!r.offline, lastSync: r.lastSync || null, desiredStateVersion: r.desiredStateVersion ?? null, desiredState: r.desiredState ?? null, location: r.location || { available: false, enabled: false, permission: 'none' } };
+    }
     const b = await binding(); if (!b) throw fail('not_found', 'This phone isn’t paired yet.');
     let sync = null, offline = false;
     try { sync = await signedSync(); await kvSet('lastSync', new Date().toISOString()); } catch (x) { if (x instanceof ApiError && ['device_revoked', 'unauthenticated'].includes(x.code)) { if (x.code === 'device_revoked') { await this.signOut(); await kvDel('binding'); await kvDel('key'); } throw x; } offline = true; }
     return { child: { id: b.childId, name: '', color: colorOf(b.childId) }, paired: true, offline, lastSync: (await kvGet('lastSync')) || null, desiredStateVersion: sync ? sync.desiredStateVersion : null, desiredState: sync ? sync.desiredState : null };
+  },
+  /** Location sharing is only possible inside the Android app (it needs the device's location permission). */
+  async enableLocation() {
+    if (!hasNativeDevice()) throw fail('unavailable', 'Sharing location needs the Harbor Family Android app.');
+    const r = await nativeCall('enableLocation', undefined, { timeoutMs: 0 });
+    if (r.status !== 'ok') throw nativeError(r);
+    return r.location;
+  },
+  async disableLocation() {
+    if (!hasNativeDevice()) throw fail('unavailable', 'Sharing location needs the Harbor Family Android app.');
+    const r = await nativeCall('disableLocation'); if (r.status !== 'ok') throw nativeError(r);
+    return r.location;
   },
   async requestMoreTime() { throw unavailable(); },
   async requestAccess() { throw unavailable(); },
@@ -193,7 +242,8 @@ export const supabaseApi = {
    * and this phone stays enrolled.
    */
   async unpairDevice({ email, password }) {
-    const b = await binding(); if (!b) throw fail('not_found');
+    const native = hasNativeDevice();
+    const b = native ? await nativeStatus() : await binding(); if (!b || (native && !b.paired)) throw fail('not_found');
     const tmp = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const mismatch = new ApiError('invalid_credentials', 'Those parent details don’t match.');
     const { data, error } = await tmp.auth.signInWithPassword({ email: clean(email).toLowerCase(), password });
@@ -201,6 +251,7 @@ export const supabaseApi = {
     try { await fn('revoke-device', { deviceId: b.deviceId, familyId: b.familyId }, { token: data.session.access_token }); }
     catch (x) { if (x instanceof ApiError && x.code === 'forbidden') throw mismatch; throw x; }
     finally { await tmp.auth.signOut().catch(() => {}); }
+    if (native) { await nativeCall('clear'); return; }
     await kvDel('binding'); await kvDel('key'); await sb().auth.signOut();
   },
 };

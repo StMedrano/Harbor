@@ -101,6 +101,7 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.02em}h2{font-size:16px;font-w
 #app{position:relative;margin:0 auto;max-width:480px;height:100dvh;display:flex;flex-direction:column;background:var(--s);overflow:hidden}
 @media(min-width:520px){#app{box-shadow:0 0 0 1px var(--line),0 20px 60px rgba(28,36,34,.12)}}
 #shell{flex:1;display:flex;flex-direction:column;min-height:0}
+.mapbox .maplink{color:var(--ink);font-weight:600;margin-top:6px;display:inline-block}
 .mapbox{height:250px;border-radius:16px;overflow:hidden;background:var(--water);margin-bottom:14px;display:grid;place-items:center;text-align:center;color:var(--ink2);padding:16px}
 .msg .me{text-align:right}.msg p.flag{background:var(--warns);color:var(--warni);border-radius:8px;padding:6px 8px;margin:6px -8px}
 .code{font-size:34px;font-weight:600;letter-spacing:.18em;text-align:center;padding:16px;background:var(--s2);border-radius:14px;margin:12px 0}

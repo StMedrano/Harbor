@@ -19,7 +19,7 @@
  *            once paired (child !== null) it shows the child dashboard.
  * Child    { id, name, age, color, pairingCode,
  *            device: { model, battery(0-100) } | null,
- *            location: { lat, lng, place, since, updatedAt } | null,
+ *            location: { lat, lng, place, since, updatedAt, accuracyM? } | null,
  *            timeline: [{ time, text, driving? }],
  *            limitMin, bonusMin, usedMin, paused, bedtime, schoolTime,
  *            safeSearch, blockUnknownCallers,
@@ -59,6 +59,8 @@
  *                                          no account needed; creates the child-device identity. Code is single-use, expires in 10 min
  * getMyStatus()                        → { child:{id,name,color}, paired:true, offline, lastSync|null, desiredStateVersion|null, desiredState|null }
  *                                          (truthful: only what the backend provides; name is '' until a child-authorized contract supplies it)
+ * enableLocation() / disableLocation() → { available, enabled, permission:'none'|'foreground'|'background' }
+ *                                          (Android app only; shows the consent + permission flow; getMyStatus() also returns `location`)
  * requestMoreTime / requestAccess / requestInstall / checkIn / ackCommand / sendSOS → throw ApiError('unavailable') until the backend supports them
  * unpairDevice({email,password})       → verifies a PARENT; removes monitoring from this phone
  */
@@ -167,6 +169,8 @@ export const localApi = {
   async getMyStatus() {
     return cmutate(c => ({ child: { id: c.id, name: '', color: c.color }, paired: true, offline: false, lastSync: iso(), desiredStateVersion: 0, desiredState: null }));
   },
+  async enableLocation() { throw new ApiError('unavailable', 'Sharing location needs the Harbor Family Android app.'); },
+  async disableLocation() { throw new ApiError('unavailable', 'Sharing location needs the Harbor Family Android app.'); },
   async requestMoreTime() { throw new ApiError('unavailable', 'That isn\u2019t available yet.'); },
   async requestAccess() { throw new ApiError('unavailable', 'That isn\u2019t available yet.'); },
   async requestInstall() { throw new ApiError('unavailable', 'That isn\u2019t available yet.'); },

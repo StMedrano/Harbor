@@ -10,6 +10,7 @@ const TABS = { map: 'Map', alerts: 'Alerts', controls: 'Controls', activity: 'Ac
 
 const S = { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview' };
 let cb = {};
+let poller = null;
 const kid = () => S.children.find(c => c.id === S.k) || null;
 
 /* ───────────── data loading ───────────── */
@@ -32,7 +33,7 @@ function noKids() {
 function mapView() {
   const k = kid(), L = k.location, D = k.device, low = D && D.battery != null && D.battery <= 20;
   return `<div class="head"><h1>Location</h1></div><div class="mapbox" id="map" role="region" aria-label="Map"></div>
-<div class="lh"><span class="av" style="background:${e(k.color)}">${e(k.name[0])}</span><div><h2>${L ? `${e(k.name)} is at ${e(L.place || 'an unnamed place')}` : `No location for ${e(k.name)} yet`}</h2><div class="muted sm">${L ? `Updated ${ago(L.updatedAt)}` : D ? 'Waiting for the first location update' : 'Pair their device to get started'}</div></div></div>
+<div class="lh"><span class="av" style="background:${e(k.color)}">${e(k.name[0])}</span><div><h2>${L ? (L.place ? `${e(k.name)} is at ${e(L.place)}` : `${e(k.name)}\u2019s latest location`) : `No location for ${e(k.name)} yet`}</h2><div class="muted sm">${L ? `Updated ${ago(L.updatedAt)}` : D ? 'Waiting for the first location update' : 'Pair their device to get started'}</div></div></div>
 ${D ? `<div class="stats">${D.battery != null ? `<span class="${low ? 'low' : ''}"><span class="batt"><i style="width:${+D.battery}%"></i></span>${+D.battery}%${low ? ' · low' : ''}</span>` : ''}<span>${e(D.model)}</span>${D.lastSeenAt ? `<span>Last seen ${ago(D.lastSeenAt)}</span>` : ''}</div>` : '<div class="stats"></div>'}
 <div class="two"><button class="btn p" data-a="cmd" data-v="checkin" ${D ? '' : 'disabled'}>Ask to check in</button><button class="btn o" data-a="cmd" data-v="ring" ${D ? '' : 'disabled'}>Ring phone</button></div>
 ${k.timeline.length ? `<div class="lab">Today</div><ul class="tl">${k.timeline.map(x => `<li class="${x.driving ? 'dr' : ''}"><time>${clock(x.time)}</time><div>${e(x.text)}</div></li>`).join('')}</ul>` : ''}`;
@@ -178,13 +179,23 @@ const onSubmit = async ev => {
   finally { btn.classList.remove('load'); }
 };
 
+/* Refresh locations while the Map tab is visible; only repaint when something moved. */
+async function pollLocation() {
+  if (document.hidden || S.tab !== 'map' || !kid() || !$('#mod').hidden) return;
+  const before = JSON.stringify(S.children.map(c => [c.location, c.device && c.device.battery]));
+  await refresh();
+  if (S.tab === 'map' && JSON.stringify(S.children.map(c => [c.location, c.device && c.device.battery])) !== before) render();
+}
+
 /* ───────────── lifecycle ───────────── */
 export async function mountParent(session, callbacks) {
   cb = callbacks; S.user = session.user;
   document.addEventListener('click', onClick); document.addEventListener('change', onChange); document.addEventListener('submit', onSubmit);
   await loadApp();
+  poller = setInterval(pollLocation, 30000);
 }
 export function unmountParent() {
+  clearInterval(poller); poller = null;
   document.removeEventListener('click', onClick); document.removeEventListener('change', onChange); document.removeEventListener('submit', onSubmit);
   Object.assign(S, { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview' });
   shut(); $('#shell').hidden = true;
