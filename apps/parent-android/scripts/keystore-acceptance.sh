@@ -116,3 +116,9 @@ for method in permissionManifestAndSettingsRoundTrip nativePermissionDenialBlock
   run_test "$method" dev.stmedrano.harbor.parent.usage.UsagePlatformTest || usage_platform_status=1
 done
 [[ "$usage_platform_status" == 0 ]]
+usage_storage_status=0
+run_test seedUsageColdStart dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
+adb shell am force-stop dev.stmedrano.harbor.parent
+run_test restoreUsageColdStartAndClearPreservesOtherNamespace dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
+run_test usageKeyLossRetainsCheckpointAndDoesNotEraseParent dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
+[[ "$usage_storage_status" == 0 ]]

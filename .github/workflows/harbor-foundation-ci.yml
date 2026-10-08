@@ -238,7 +238,7 @@ jobs:
       - name: Run shared-contract tests when present
         run: |
           if [ -f packages/contracts/test/contracts.test.ts ]; then
-            deno test --frozen packages/contracts/test/contracts.test.ts
+            deno test --frozen packages/contracts/test
             deno check --frozen packages/contracts/src/index.ts
           fi
 
