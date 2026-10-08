@@ -28,6 +28,27 @@ class ProfileCoordinator(
     suspend fun restore() = resolve(null)
     suspend fun activateParent() = resolve(ProfileRole.PARENT)
     suspend fun activateChild() = resolve(ProfileRole.CHILD)
+    suspend fun transitionToSetup(expected: ProfileLease, cleanup: suspend () -> Boolean): Boolean = mutex.withLock {
+        if (!isCurrent(expected)) return@withLock false
+        ++generation
+        mutableState.value = ProfileState.Transitioning
+        try {
+            stopRuntime()
+            if (!cleanup()) {
+                mutableState.value = ProfileState.Blocked(ProfileBlock.INVALID_CREDENTIALS)
+                return@withLock false
+            }
+            store.clear()
+            mutableState.value = ProfileState.Setup
+            true
+        } catch (cancelled: CancellationException) {
+            mutableState.value = ProfileState.Blocked(ProfileBlock.INVALID_CREDENTIALS)
+            throw cancelled
+        } catch (_: Exception) {
+            mutableState.value = ProfileState.Blocked(ProfileBlock.STORAGE_UNAVAILABLE)
+            false
+        }
+    }
 
     private suspend fun resolve(requested: ProfileRole?) {
         val captured = mutex.withLock {

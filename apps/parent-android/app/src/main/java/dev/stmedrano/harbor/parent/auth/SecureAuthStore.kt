@@ -59,6 +59,7 @@ class SecureAuthStore(private val values: AuthValues, private val cipher: AuthCi
     fun clear() = values.clear()
 
     companion object {
+        fun openApproval(context: Context): SecureAuthStore = error("Temporary approval storage not implemented")
         fun open(context: Context): SecureAuthStore {
             val prefs = context.applicationContext.getSharedPreferences("harbor-secure-auth", Context.MODE_PRIVATE)
             return SecureAuthStore(object : AuthValues {

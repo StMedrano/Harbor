@@ -52,6 +52,8 @@ for method in exactlyOneFamilyServiceAndProtectedJobAreInstalled queuedFamilyWor
 done
 [[ "$family_notification_status" == 0 ]]
 run_test childControlsGateNativeProviderAndReportUnconfirmedBackend dev.stmedrano.harbor.parent.notifications.ChildNotificationUiTest
+approval_status=0
+run_test temporaryApprovalErasurePreservesBothPrimaryNamespaces dev.stmedrano.harbor.parent.profile.ParentApprovalIsolationTest || approval_status=1
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
@@ -94,3 +96,4 @@ adb shell settings put system font_scale 1.8
 run_test nativeLargeTextMfaRequiresDeliberateRetryAndSensitiveWindowProtection dev.stmedrano.harbor.parent.security.SecurityUiTest || security_status=1
 adb shell settings put system font_scale 1.0
 [[ "$security_status" == 0 ]]
+[[ "$approval_status" == 0 ]]
