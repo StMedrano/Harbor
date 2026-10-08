@@ -27,6 +27,28 @@ function requiredString(value: unknown, field: string): string {
   return value.trim();
 }
 
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Shape of desiredState.controls, the part of the desired state that Harbor's own apps act on. */
+export function validateControls(controls: unknown): void {
+  if (controls === undefined) return;
+  if (!controls || typeof controls !== "object" || Array.isArray(controls)) validation("controls must be an object");
+  const c = controls as Record<string, unknown>;
+  const allowed = new Set(["paused", "bedtime", "requireLocation"]);
+  for (const key of Object.keys(c)) if (!allowed.has(key)) validation(`unknown control ${key}`);
+  if (c.paused !== undefined && typeof c.paused !== "boolean") validation("controls.paused must be a boolean");
+  if (c.requireLocation !== undefined && typeof c.requireLocation !== "boolean") validation("controls.requireLocation must be a boolean");
+  if (c.bedtime !== undefined) {
+    const b = c.bedtime as Record<string, unknown> | null;
+    if (!b || typeof b !== "object" || Array.isArray(b)) validation("controls.bedtime must be an object");
+    const bed = b as Record<string, unknown>;
+    if (typeof bed.enabled !== "boolean") validation("controls.bedtime.enabled must be a boolean");
+    if (typeof bed.start !== "string" || !CLOCK.test(bed.start)) validation("controls.bedtime.start must be HH:MM");
+    if (typeof bed.end !== "string" || !CLOCK.test(bed.end)) validation("controls.bedtime.end must be HH:MM");
+    if (bed.start === bed.end) validation("bedtime start and end must differ");
+  }
+}
+
 function parseBody(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) validation("request body must be an object");
   const body = value as Record<string, unknown>;
@@ -39,6 +61,8 @@ function parseBody(value: unknown) {
   if (!Number.isSafeInteger(expectedVersion) || Number(expectedVersion) < 0) {
     validation("expectedVersion must be a non-negative integer");
   }
+
+  validateControls((desiredState as Record<string, unknown>).controls);
 
   return {
     deviceId: requiredString(body.deviceId, "deviceId"),

@@ -136,3 +136,8 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.02em}h2{font-size:16px;font-w
 #kview.in .cc:nth-child(2) i{animation-delay:.05s}#kview.in .cc:nth-child(3) i{animation-delay:.1s}#kview.in .cc:nth-child(4) i{animation-delay:.15s}#kview.in .cc:nth-child(5) i{animation-delay:.2s}#kview.in .cc:nth-child(6) i{animation-delay:.25s}#kview.in .cc:nth-child(7) i{animation-delay:.3s}
 #kview.in .bar i{transform-origin:left;animation:fill .8s cubic-bezier(.2,.8,.2,1) .15s both}
 #kview.in .tl li{animation:rise .4s both}#kview.in .tl li:nth-child(2){animation-delay:.12s}#kview.in .tl li:nth-child(3){animation-delay:.2s}#kview.in .tl li:nth-child(4){animation-delay:.28s}
+
+.kblock{position:absolute;inset:0;z-index:50;display:grid;place-items:center;text-align:center;padding:32px;background:var(--brand);color:var(--bi)}
+.kblock[data-kind=bedtime]{background:#16213a;color:#e8ecf7}
+.kblock .kbi{font-size:56px;line-height:1;margin-bottom:12px}
+.kblock h1{font-size:26px;margin:0 0 8px}.kblock p{margin:0;font-size:16px;opacity:.9;max-width:28ch}

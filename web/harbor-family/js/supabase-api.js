@@ -17,6 +17,7 @@ import { ApiError } from './errors.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { newDeviceKey, proofHeaders, kvGet, kvSet, kvDel } from './device.js';
 import { hasNativeDevice, nativeCall } from './native-device.js';
+import { DEFAULT_BEDTIME } from './controls.js';
 
 let _sb = null;
 const sb = () => (_sb ||= createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } }));
@@ -115,13 +116,31 @@ async function currentSession() {
   return { role: 'parent', user: { id: session.user.id, name, email: session.user.email } };
 }
 
+let lastDesiredVersion = null; // newest controls version this phone has received (acknowledged on the next sync)
 async function signedSync() {
   const b = await binding(); const key = await kvGet('key');
   if (!b || !key) throw fail('not_found', 'This phone isn’t paired yet.');
   const { data: { session } } = await sb().auth.getSession(); if (!session) throw fail('unauthenticated');
-  const body = '{}';
+  const body = lastDesiredVersion === null ? '{}' : JSON.stringify({ acknowledgedDesiredStateVersion: lastDesiredVersion });
   const headers = await proofHeaders(key.privateKey, { operation: 'device-sync', deviceId: b.deviceId, body });
   return fn('device-sync', body, { token: session.access_token, headers });
+}
+
+/** Adds each child's pause/bedtime controls (from get-device-controls). Failure leaves the defaults. */
+async function withControls(kids) {
+  if (!kids.some(k => k.device)) return kids;
+  try {
+    const fid = await familyId(); if (!fid) return kids;
+    const { devices } = await fn('get-device-controls', { familyId: fid });
+    for (const k of kids) {
+      const d = (devices || []).find(x => x.childId === k.id); if (!d) continue;
+      const c = (d.desiredState && d.desiredState.controls) || {};
+      k.paused = c.paused === true; k.bedtime = !!(c.bedtime && c.bedtime.enabled);
+      k.controls = { ...c, bedtime: { ...DEFAULT_BEDTIME, ...(c.bedtime || {}) } };
+      if (k.device) k.device.controlsApplied = d.acknowledgedVersion >= d.desiredStateVersion;
+    }
+  } catch (x) { if (x instanceof ApiError && x.code === 'unauthenticated') throw x; }
+  return kids;
 }
 
 export const supabaseApi = {
@@ -149,7 +168,7 @@ export const supabaseApi = {
       ok(await sb().from('devices_public').select('id,child_id,display_name,model,status,last_seen_at,created_at').order('created_at', { ascending: false })),
       ok(await sb().from('child_locations').select('child_id,latitude,longitude,accuracy_m,battery_pct,recorded_at')),
     ];
-    return kids.map(c => {
+    const kids2 = kids.map(c => {
       const k = blank(c, devs.find(d => d.child_id === c.id && d.status === 'active') || null);
       const l = locs.find(x => x.child_id === c.id);
       if (l) {
@@ -158,6 +177,7 @@ export const supabaseApi = {
       }
       return k;
     });
+    return withControls(kids2);
   },
   async listAlerts() { return []; },
   async getSettings() { return { highPriority: true, arrivals: true, lowBattery: true, weekly: false }; },
@@ -169,7 +189,22 @@ export const supabaseApi = {
     const kids = await this.listChildren(); const c = kids.find(k => k.id === id) || kids[kids.length - 1];
     return this.regeneratePairingCode(c.id).catch(() => c);
   },
-  async updateChild() { throw unavailable(); },
+  /** Pause and bedtime are real controls; every other child setting is not available yet. */
+  async updateChild(id, patch = {}) {
+    const keys = Object.keys(patch);
+    if (!keys.length || keys.some(k => k !== 'paused' && k !== 'bedtime')) throw unavailable();
+    const fid = await familyId(); if (!fid) throw fail('not_found');
+    for (let attempt = 0; ; attempt++) {
+      const { devices } = await fn('get-device-controls', { familyId: fid });
+      const d = (devices || []).find(x => x.childId === id);
+      if (!d) throw new ApiError('no_device', 'This child’s device isn’t paired yet.');
+      const cur = d.desiredState || {}, controls = { ...(cur.controls || {}) };
+      if ('paused' in patch) controls.paused = !!patch.paused;
+      if ('bedtime' in patch) controls.bedtime = { ...DEFAULT_BEDTIME, ...(controls.bedtime || {}), enabled: !!patch.bedtime };
+      try { await fn('update-device-state', { deviceId: d.deviceId, familyId: fid, desiredState: { ...cur, controls }, expectedVersion: d.desiredStateVersion }); return; }
+      catch (x) { if (!(x instanceof ApiError && x.code === 'stale_version' && attempt === 0)) throw x; } // someone else changed it: re-read once
+    }
+  },
   async removeChild() { throw unavailable(); },
   async regeneratePairingCode(id) {
     const r = await fn('create-device-pairing', { childId: id });
@@ -209,13 +244,14 @@ export const supabaseApi = {
   /** Truthful status from a signed device-sync. Fields the backend doesn't provide yet are left empty. */
   async getMyStatus() {
     if (hasNativeDevice()) {
-      const r = await nativeCall('sync');
+      const r = await nativeCall('sync', lastDesiredVersion === null ? undefined : { ack: lastDesiredVersion });
       if (r.status !== 'ok') { if (r.code === 'device_revoked') await nativeCall('clear'); throw nativeError(r); }
+      if (Number.isSafeInteger(r.desiredStateVersion)) lastDesiredVersion = r.desiredStateVersion;
       return { child: { id: r.childId, name: '', color: colorOf(r.childId) }, paired: true, offline: !!r.offline, lastSync: r.lastSync || null, desiredStateVersion: r.desiredStateVersion ?? null, desiredState: r.desiredState ?? null, location: r.location || { available: false, enabled: false, permission: 'none' } };
     }
     const b = await binding(); if (!b) throw fail('not_found', 'This phone isn’t paired yet.');
     let sync = null, offline = false;
-    try { sync = await signedSync(); await kvSet('lastSync', new Date().toISOString()); } catch (x) { if (x instanceof ApiError && ['device_revoked', 'unauthenticated'].includes(x.code)) { if (x.code === 'device_revoked') { await this.signOut(); await kvDel('binding'); await kvDel('key'); } throw x; } offline = true; }
+    try { sync = await signedSync(); if (Number.isSafeInteger(sync.desiredStateVersion)) lastDesiredVersion = sync.desiredStateVersion; await kvSet('lastSync', new Date().toISOString()); } catch (x) { if (x instanceof ApiError && ['device_revoked', 'unauthenticated'].includes(x.code)) { if (x.code === 'device_revoked') { await this.signOut(); await kvDel('binding'); await kvDel('key'); } throw x; } offline = true; }
     return { child: { id: b.childId, name: '', color: colorOf(b.childId) }, paired: true, offline, lastSync: (await kvGet('lastSync')) || null, desiredStateVersion: sync ? sync.desiredStateVersion : null, desiredState: sync ? sync.desiredState : null };
   },
   /** Location sharing is only possible inside the Android app (it needs the device's location permission). */

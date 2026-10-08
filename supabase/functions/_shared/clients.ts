@@ -242,3 +242,18 @@ export async function recordLocationsAtomic(input: RecordLocationsInput): Promis
     latestRecordedAt: row.latest_recorded_at ? new Date(row.latest_recorded_at).toISOString() : null,
   };
 }
+
+export type FamilyDeviceState = { deviceId: string; childId: string; desiredState: Record<string, unknown>; desiredStateVersion: number; acknowledgedVersion: number };
+
+export async function listFamilyDeviceStates(input: { familyId: string; actorUserId: string }): Promise<FamilyDeviceState[]> {
+  const rows = await getPrivateSql()<Array<{ device_id: string; child_id: string; desired_state: Record<string, unknown>; desired_state_version: string | number; acknowledged_version: string | number }>>`
+    select device_id, child_id, desired_state, desired_state_version, acknowledged_version
+    from private.harbor_list_family_device_states(${input.familyId}::uuid, ${input.actorUserId}::uuid)`;
+  return rows.map((row) => ({
+    deviceId: row.device_id,
+    childId: row.child_id,
+    desiredState: row.desired_state,
+    desiredStateVersion: apiVersion(row.desired_state_version),
+    acknowledgedVersion: apiVersion(row.acknowledged_version),
+  }));
+}

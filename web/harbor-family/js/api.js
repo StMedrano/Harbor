@@ -167,7 +167,7 @@ export const localApi = {
   },
   /** Same truthful shape as the Supabase adapter: pairing + sync status only. */
   async getMyStatus() {
-    return cmutate(c => ({ child: { id: c.id, name: '', color: c.color }, paired: true, offline: false, lastSync: iso(), desiredStateVersion: 0, desiredState: null }));
+    return cmutate(c => ({ child: { id: c.id, name: '', color: c.color }, paired: true, offline: false, lastSync: iso(), desiredStateVersion: 0, desiredState: { controls: { paused: !!c.paused, bedtime: { enabled: !!c.bedtime, start: '21:00', end: '07:00' } } } }));
   },
   async enableLocation() { throw new ApiError('unavailable', 'Sharing location needs the Harbor Family Android app.'); },
   async disableLocation() { throw new ApiError('unavailable', 'Sharing location needs the Harbor Family Android app.'); },

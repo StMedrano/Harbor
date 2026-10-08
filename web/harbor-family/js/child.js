@@ -1,6 +1,7 @@
 // CHILD experience: simple, friendly, and open about what parents can see. Mounted only for role === 'child'.
 import { api, ApiError } from './api.js';
 import { $, e, LOGO, toast, open, shut, fld, form } from './common.js';
+import { blockReason } from './controls.js';
 
 const TABS = { today: 'Today', apps: 'Apps', about: 'About me' };
 const ico = {
@@ -8,7 +9,7 @@ const ico = {
   apps: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
   about: '<path d="M12 21s-7-4.4-7-10V6l7-3 7 3v5c0 5.6-7 10-7 10z"/><path d="m9 12 2 2 4-4"/>',
 };
-let cb = {}, st = null, tab = 'today', timer = null;
+let cb = {}, st = null, tab = 'today', timer = null, blockTimer = null;
 
 const emptyKid = (t, d) => `<div class="empty"><h2>${t}</h2><p class="sm">${d}</p></div>`;
 const when = iso => iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : null;
@@ -39,11 +40,22 @@ ${st.location && st.location.available ? `<div class="panel"><div class="row"><d
 <div class="lab">Parents only</div><button class="btn g" style="width:100%" data-a="unpair">Remove Harbor Family from this phone</button>`;
 }
 
+/** Full-screen block while the phone is paused or in bedtime. Re-checked every 30 s so the clock alone can start or end it. */
+function applyBlock() {
+  let el = document.getElementById('kblock');
+  const r = st && blockReason(st.desiredState);
+  if (!r) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'kblock'; el.className = 'kblock'; el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true'); $('#kshell').append(el); }
+  el.dataset.kind = r.kind;
+  el.innerHTML = `<div class="kb"><div class="kbi" aria-hidden="true">${r.kind === 'bedtime' ? '\u263e' : '\u23f8'}</div><h1>${e(r.title)}</h1><p>${e(r.text)}</p></div>`;
+}
+
 function render(en) {
   $('#kshell').style.setProperty('--kc', st.child.color);
   $('#kbrand').innerHTML = LOGO + 'Harbor Family'; $('#kwho').textContent = st.child.name || 'This phone';
   const v = $('#kview'), keep = v.scrollTop; v.className = en ? 'in' : '';
   v.innerHTML = { today, apps, about }[tab](); v.scrollTop = keep;
+  applyBlock();
   $('#ktabs').innerHTML = Object.keys(TABS).map(t => `<button class="tab" data-a="tab" data-v="${t}" ${tab === t ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ico[t]}</svg><span>${TABS[t]}</span></button>`).join('');
 }
 
@@ -84,11 +96,11 @@ export async function mountChild(session, callbacks) {
   cb = callbacks; tab = 'today';
   document.addEventListener('click', onClick); document.addEventListener('submit', onSubmit); document.addEventListener('visibilitychange', poll);
   await load(true); $('#kshell').hidden = false;
-  timer = setInterval(poll, 15000);
+  timer = setInterval(poll, 15000); blockTimer = setInterval(applyBlock, 30000);
 }
 export function unmountChild() {
   document.removeEventListener('click', onClick); document.removeEventListener('submit', onSubmit); document.removeEventListener('visibilitychange', poll);
-  clearInterval(timer); st = null; shut(); $('#kshell').hidden = true;
+  clearInterval(timer); clearInterval(blockTimer); const kb = document.getElementById('kblock'); if (kb) kb.remove(); st = null; shut(); $('#kshell').hidden = true;
   for (const id of ['#kview', '#ktabs', '#kbrand']) $(id).innerHTML = '';
 }
 export function childBack() { if (!$('#mod').hidden) { shut(); return true; } if (tab !== 'today') { tab = 'today'; render(true); return true; } return false; }

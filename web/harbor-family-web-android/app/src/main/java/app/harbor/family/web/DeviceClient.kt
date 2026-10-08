@@ -172,8 +172,11 @@ class DeviceClient(context: Context) {
     }
 
     /** device-sync. Returns the server JSON, or null when offline (the caller shows the last known state). */
-    fun sync(): JSONObject? {
-        val res = try { signed("device-sync", "{}") } catch (f: ApiFailure) {
+    fun sync(acknowledgedVersion: Long? = null): JSONObject? {
+        val body = if (acknowledgedVersion != null && acknowledgedVersion >= 0) {
+            JSONObject().put("acknowledgedDesiredStateVersion", acknowledgedVersion).toString()
+        } else "{}"
+        val res = try { signed("device-sync", body) } catch (f: ApiFailure) {
             if (f.code == "network") return null
             throw f
         }

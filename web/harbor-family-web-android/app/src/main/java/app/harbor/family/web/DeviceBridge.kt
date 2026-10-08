@@ -31,7 +31,8 @@ class DeviceBridge(
 
     @JavascriptInterface fun sync(id: String, args: String) = run(id) {
         val b = client.binding() ?: throw ApiFailure("not_found")
-        val result = client.sync()
+        val ack = runCatching { JSONObject(args).getLong("ack") }.getOrNull()
+        val result = client.sync(ack)
         ok(
             JSONObject()
                 .put("childId", b.getString("childId"))
