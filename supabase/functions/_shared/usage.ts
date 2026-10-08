@@ -93,7 +93,9 @@ function handler(
       return jsonError("VALIDATION_FAILED", 405, "Use POST");
     }
     try {
-      return Response.json(await action(req));
+      return Response.json(await action(req), {
+        headers: { "cache-control": "no-store" },
+      });
     } catch (error) {
       const known = databaseError(error) ?? error;
       if (known instanceof HarborAuthError) {

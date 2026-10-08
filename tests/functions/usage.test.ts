@@ -83,6 +83,7 @@ Deno.test("usage report binds verified context and hashes exact raw bytes", asyn
     },
   }))(new Request("https://harbor.test/usage", { method: "POST", body }));
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
   assert.equal(written, true);
   assert.equal((await response.json()).confirmed, true);
 });
