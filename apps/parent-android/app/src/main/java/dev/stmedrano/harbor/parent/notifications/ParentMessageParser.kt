@@ -26,7 +26,9 @@ object ParentMessageParser {
         require(data.keys == setOf("route", "parentRegistrationId"))
         val registration = data.getValue("parentRegistrationId")
         require(uuid(registration))
-        val encoded = data.getValue("route")
+        ParentHint(registration, checkNotNull(parseRoute(data.getValue("route"))))
+    }.getOrNull()
+    fun parseRoute(encoded: String): ParentRoute? = runCatching {
         require(encoded.length <= 4096)
         val route = Json.parseToJsonElement(encoded).jsonObject
         require(route.keys == fields)
@@ -37,6 +39,6 @@ object ParentMessageParser {
         for (field in fields - setOf("version", "kind")) route.getValue(field).let {
             require(it.jsonPrimitive.isString && uuid(it.jsonPrimitive.content))
         }
-        ParentHint(registration, Json.decodeFromJsonElement<ParentRoute>(route))
+        Json.decodeFromJsonElement<ParentRoute>(route)
     }.getOrNull()
 }

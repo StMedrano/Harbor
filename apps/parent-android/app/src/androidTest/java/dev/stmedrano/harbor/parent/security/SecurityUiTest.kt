@@ -17,7 +17,14 @@ import org.junit.Test
 class SecurityUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     @Test fun nativeLargeTextMfaRequiresDeliberateRetryAndSensitiveWindowProtection() {
+        // Settings writes precede the system observer's configuration delivery.
+        // Wait for the real resources; never substitute a test-only density.
+        compose.waitUntil(10000) {
+            kotlin.math.abs(InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.fontScale - 1.8f) < 0.01f &&
+                kotlin.math.abs(compose.activity.resources.configuration.fontScale - 1.8f) < 0.01f
+        }
         assertEquals(1.8f, InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.fontScale, 0.01f)
+        assertEquals(1.8f, compose.activity.resources.configuration.fontScale, 0.01f)
         val actor = ParentIdentity("synthetic-parent", "synthetic-session")
         val date = "2026-01-01T00:00:00Z"
         val family = FamilyState(FamilySnapshot(FamilyV1(1, "family", "Family", "UTC", date, date),
@@ -50,7 +57,9 @@ class SecurityUiTest {
         assertEquals(1, calls)
         assertNull(model.state.value.enrollment)
         compose.onNodeWithText("Retry revocation").performScrollTo().performClick()
-        compose.waitUntil(5000) { model.state.value.phase == SecurityPhase.ACCEPTED }
+        // ACCEPTED confirms revocation before the independent refresh finishes.
+        // Wait for the operation boundary before asserting its refresh side effect.
+        compose.waitUntil(5000) { model.state.value.phase == SecurityPhase.ACCEPTED && !model.state.value.busy }
         assertEquals(2, calls); assertEquals(1, refreshed)
         compose.onNodeWithText("Back to family").performScrollTo().performClick()
         compose.onNodeWithText("Family overview").assertIsDisplayed()

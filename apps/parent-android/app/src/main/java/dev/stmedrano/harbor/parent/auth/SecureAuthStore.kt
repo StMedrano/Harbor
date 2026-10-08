@@ -59,15 +59,17 @@ class SecureAuthStore(private val values: AuthValues, private val cipher: AuthCi
     fun clear() = values.clear()
 
     companion object {
-        fun open(context: Context): SecureAuthStore {
-            val prefs = context.applicationContext.getSharedPreferences("harbor-secure-auth", Context.MODE_PRIVATE)
+        fun openApproval(context: Context): SecureAuthStore = open(context, "harbor-parent-approval", KeystoreCipher("harbor-parent-approval-aes-v1"))
+        fun open(context: Context): SecureAuthStore = open(context, "harbor-secure-auth", KeystoreCipher())
+        private fun open(context: Context, name: String, cipher: AuthCipher): SecureAuthStore {
+            val prefs = context.applicationContext.getSharedPreferences(name, Context.MODE_PRIVATE)
             return SecureAuthStore(object : AuthValues {
                 override fun read(key: String) = prefs.getString(key, null)
                 override fun write(key: String, value: String?) {
                     check(prefs.edit().putString(key, value).commit()) { "Secure storage write failed" }
                 }
                 override fun clear() { check(prefs.edit().clear().commit()) { "Secure storage clear failed" } }
-            }, KeystoreCipher())
+            }, cipher)
         }
     }
 }

@@ -51,7 +51,7 @@ At execution, inspect current main/PR16/CI and read both this spec and the paren
 
 Commands run from `apps/parent-android`, using existing JDK17/SDK/Gradle runtime paths. `gradlew.bat -PparentCiFixture=true testDebugUnitTest --tests "<class>"` is the focused JVM command; expected missing-interface compilation RED first, then behavioral assertion RED before fixes when applicable, then GREEN. Shared native gate: `gradlew.bat -PparentCiFixture=true testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`; expected BUILD SUCCESSFUL, zero lint errors, inspect warnings without suppression. Native tests require actual API29 and API36 runs through the existing CI workflow/acceptance runner, not API37 assembly or metadata as proof. Record exact matching SHA, all six required jobs and individual test logs. Existing passing behavior needs regression proof, not manufactured RED.
 
-### Task1: Validated profile bootstrap and compatible parent upgrade
+### Task 1: Validated profile bootstrap and compatible parent upgrade
 
 **Files:** profile map files, ParentApplication/MainActivity; tests `profile/ProfileCoordinatorTest.kt`, native `profile/ProfileUpgradeTest.kt`.
 
@@ -63,7 +63,7 @@ Commands run from `apps/parent-android`, using existing JDK17/SDK/Gradle runtime
 - [ ] Run focused GREEN and native upgrade test using seeded existing parent namespace; assert cache/pending keys survive without new pairing. Run shared gate.
 - [ ] Commit `feat: add validated Harbor Family profile bootstrap`; record evidence in own ledger.
 
-### Task2: Encrypted child enrollment and signed synchronization
+### Task 2: Encrypted child enrollment and signed synchronization
 
 **Files:** child map files; JVM `child/ChildRepositoryTest.kt`, `ChildProtocolTest.kt`; native `child/ChildCryptoTest.kt`.
 
@@ -76,7 +76,7 @@ Commands run from `apps/parent-android`, using existing JDK17/SDK/Gradle runtime
 - [ ] Run focused GREEN. Native tests prove P256 signing, encrypted reopen/refresh, no plaintext credentials, key-loss Blocked, interrupted writes fail closed, distinct parent/child aliases and backup exclusions on API29/36. Run shared gate.
 - [ ] Commit `feat: add isolated child pairing and signed sync` with exact protocol/crypto evidence.
 
-### Task3: Harbor Family setup and honest dashboards
+### Task 3: Harbor Family setup and honest dashboards
 
 **Files:** entry/pairing/dashboard UI, MainActivity, launcher strings; JVM `ui/FamilyEntryStateTest.kt`; native `ui/FamilyRoleNavigationTest.kt`.
 
@@ -88,7 +88,7 @@ Commands run from `apps/parent-android`, using existing JDK17/SDK/Gradle runtime
 - [ ] Run GREEN including parent restoration/recovery/session-loss regressions; inspect native light/dark screenshots and system-font1.8 scrolling, keyboard/Back, secret erasure and sensitive-window protections on API29/36. Run shared gate.
 - [ ] Commit `feat: add Harbor Family role setup and child dashboard`.
 
-### Task4: One messaging entry and fenced active-profile lifecycle
+### Task 4: One messaging entry and fenced active-profile lifecycle
 
 **Files:** notification map files, ParentApplication, manifest; JVM `notifications/ProfileNotificationRouterTest.kt`; native `notifications/FamilyNotificationLifecycleTest.kt`.
 
@@ -100,7 +100,7 @@ Commands run from `apps/parent-android`, using existing JDK17/SDK/Gradle runtime
 - [ ] Run focused GREEN, existing parent strict-message/job/logout regressions and native cold-start/rotation/background/tap/offline tests on API29/36; run shared gate.
 - [ ] Commit `feat: route notifications through the active Family profile`.
 
-### Task5: Temporary parent approval and confirmed role transitions
+### Task 5: Temporary parent approval and confirmed role transitions
 
 **Files:** approval/transition UI and profile map files; JVM `profile/RoleTransitionTest.kt`; native `profile/ParentApprovalIsolationTest.kt`.
 
@@ -112,7 +112,7 @@ Commands run from `apps/parent-android`, using existing JDK17/SDK/Gradle runtime
 - [ ] Run focused GREEN and actual API29/36 approval/cancel/Back/credential-isolation tests. Preserve backend stale-MFA/session fencing tests without redoing hosted fixtures. Run shared gate.
 - [ ] Commit `feat: require parent approval for enrolled profile changes`.
 
-### Task6: Whole-feature verification, development APK and real acceptance
+### Task 6: Whole-feature verification, development APK and real acceptance
 
 **Files:** existing CI/native runner, `docs/runbooks/harbor-family-acceptance.md`, own ledger; no speculative backend changes.
 

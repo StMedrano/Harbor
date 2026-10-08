@@ -18,6 +18,53 @@ adb shell am force-stop dev.stmedrano.harbor.parent
 run_test restoreColdStart
 run_test keyLossClearsCiphertextAndAllowsFreshSignIn
 run_test callbackIsScrubbedBeforeActivityCanAcceptIt
+profile_status=0
+run_test parent04StoresSurviveProfileBootstrap dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
+run_test corruptModeHintDoesNotStartRuntime dev.stmedrano.harbor.parent.profile.ProfileUpgradeTest || profile_status=1
+run_test offlineFixtureBootstrapsWithoutProtectedRuntime dev.stmedrano.harbor.parent.profile.ProfileStartupTest || profile_status=1
+child_crypto_status=0
+run_test encryptedChildReopenAndRefreshPreserveParentCredentials dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+run_test nonExportableChildP256ProofVerifiesAfterKeyReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+run_test lostChildEncryptionKeyStaysBlockedAcrossReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+run_test interruptedEnrollmentMarkerSurvivesProcessReopen dev.stmedrano.harbor.parent.child.ChildCryptoTest || child_crypto_status=1
+[[ "$child_crypto_status" == 0 ]]
+family_ui_status=0
+for method in setupHasNoMenu parentLoginOpensOnlyParent childCodeCannotOpenParent confirmedChildRestoresToday recoveryBackDoesNotEscape revokedChildCannotOpenParent; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.FamilyRoleNavigationTest || family_ui_status=1
+done
+[[ "$family_ui_status" == 0 ]]
+pairing_status=0
+run_test confirmedClaimAloneOpensChildAndClearsCode dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
+run_test lostReplyDoesNotOpenDashboardOrPermitBlindRetry dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
+run_test backDuringPairingPreservesRecoveryGuardAndProtectsCode dev.stmedrano.harbor.parent.ui.ChildPairingScreenTest || pairing_status=1
+[[ "$pairing_status" == 0 ]]
+[[ "$profile_status" == 0 ]]
+adb shell settings put system font_scale 1.8
+child_visual_status=0
+run_test largeTextChildDashboardShowsHonestTabsInBothThemes dev.stmedrano.harbor.parent.ui.FamilyRoleNavigationTest || child_visual_status=1
+adb shell settings put system font_scale 1.0
+[[ "$child_visual_status" == 0 ]]
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-child-light.png keystore-evidence/
+adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/family-child-dark.png keystore-evidence/
+family_notification_status=0
+for method in exactlyOneFamilyServiceAndProtectedJobAreInstalled queuedFamilyWorkContainsOnlyCapturedLeaseAndScopedReferences inactiveProfileMustNotPoisonParentRuntimeCache childTapIsGenericImmutableAndRejectsRoleOrTokenHints; do
+  run_test "$method" dev.stmedrano.harbor.parent.notifications.FamilyNotificationLifecycleTest || family_notification_status=1
+done
+[[ "$family_notification_status" == 0 ]]
+run_test childControlsGateNativeProviderAndReportUnconfirmedBackend dev.stmedrano.harbor.parent.notifications.ChildNotificationUiTest
+approval_status=0
+run_test temporaryApprovalErasurePreservesBothPrimaryNamespaces dev.stmedrano.harbor.parent.profile.ParentApprovalIsolationTest || approval_status=1
+run_test approvalRequiresSeparateSignInMfaAndDeliberateRemoval dev.stmedrano.harbor.parent.profile.ParentApprovalUiTest || approval_status=1
+run_test backCancelsPendingApprovalAndRemovesSecretFields dev.stmedrano.harbor.parent.profile.ParentApprovalUiTest || approval_status=1
+run_test confirmedRemovalReopensChooserAndParentAuthentication dev.stmedrano.harbor.parent.profile.ConfirmedRoleCleanupTest || approval_status=1
+run_test blockedNetworkShowsRetryWithoutGrantingMenu dev.stmedrano.harbor.parent.profile.ProfileRetryUiTest || approval_status=1
+composition_status=0
+run_test seedConfirmedRevocationBeforeLocalErasure dev.stmedrano.harbor.parent.profile.FamilyCompositionPersistenceTest || composition_status=1
+adb shell am force-stop dev.stmedrano.harbor.parent
+run_test coldRevocationCheckpointCannotRestoreProtectedChild dev.stmedrano.harbor.parent.profile.FamilyCompositionPersistenceTest || composition_status=1
+run_test seedAmbiguousPrimaryNamespaces dev.stmedrano.harbor.parent.profile.FamilyCompositionPersistenceTest || composition_status=1
+adb shell am force-stop dev.stmedrano.harbor.parent
+run_test coldAmbiguousStartupPreservesStoresAndHidesRuntime dev.stmedrano.harbor.parent.profile.FamilyCompositionPersistenceTest || composition_status=1
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
@@ -60,3 +107,7 @@ adb shell settings put system font_scale 1.8
 run_test nativeLargeTextMfaRequiresDeliberateRetryAndSensitiveWindowProtection dev.stmedrano.harbor.parent.security.SecurityUiTest || security_status=1
 adb shell settings put system font_scale 1.0
 [[ "$security_status" == 0 ]]
+[[ "$approval_status" == 0 ]]
+[[ "$composition_status" == 0 ]]
+
+
