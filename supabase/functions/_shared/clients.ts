@@ -225,3 +225,20 @@ export async function removeParentWebPushAtomic(input: RemoveParentWebPushInput)
       ${input.endpoint ?? null}::text
     )`;
 }
+
+export type RecordLocationsInput = { deviceId: string; points: unknown[] };
+export type RecordLocationsResult = { accepted: number; rejected: number; latestRecordedAt: string | null };
+
+export async function recordLocationsAtomic(input: RecordLocationsInput): Promise<RecordLocationsResult> {
+  const sql = getPrivateSql();
+  const rows = await sql<Array<{ accepted: number; rejected: number; latest_recorded_at: string | Date | null }>>`
+    select accepted, rejected, latest_recorded_at
+    from private.harbor_record_locations(${input.deviceId}::uuid, ${sql.json(input.points as postgres.JSONValue[])}::jsonb)`;
+  const row = rows[0];
+  if (!row) throw new Error("Location ingest returned no result");
+  return {
+    accepted: row.accepted,
+    rejected: row.rejected,
+    latestRecordedAt: row.latest_recorded_at ? new Date(row.latest_recorded_at).toISOString() : null,
+  };
+}

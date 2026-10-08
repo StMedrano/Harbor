@@ -15,3 +15,12 @@ Default: `https://harbor-lyart-nu.vercel.app/`. Edit `SITE_URL` in `app/build.gr
 - Package: `app.harbor.family.web`. It can be installed next to the older offline wrapper.
 - Offline: shows a "Can't reach Harbor Family" screen with a retry button.
 - Not built or run in the authoring environment (no Android SDK there). Compile it in Android Studio first.
+
+## Location sharing (child phones)
+Inside this app a child phone can share its location with the parents' Harbor Family map.
+- **Pairing is native.** `DeviceClient` creates the anonymous Supabase identity, generates an ECDSA P-256 key in the Android Keystore (`DeviceKey`), and claims the parent's pairing code. The page talks to it through `window.HarborDevice` (`DeviceBridge`); the web app falls back to its browser implementation when the bridge is absent. Session tokens and queued fixes are stored AES-GCM encrypted (`Vault`).
+- **Signatures.** Keystore signs in ASN.1 DER; the server verifies raw r||s (WebCrypto), so `DeviceKey.derToRaw` converts.
+- **Consent.** Turning sharing on shows a plain-language disclosure (`LocationConsent`), then the system location permission, then an optional "Allow all the time" step so sharing restarts after a reboot. A notification stays visible while sharing is on.
+- **Collection.** `LocationService` (foreground service, type `location`) asks Fused Location for a balanced-power fix about every 5 minutes or 25 m, queues it (`LocationQueue`, up to 1000, 6 days) and uploads batches of up to 50 to the `report-location` function; failures retry every 2 minutes.
+- **Play Console.** Background location needs the "Location permissions" declaration, a prominent-disclosure screenshot/video and a privacy policy that describes this collection. `targetSdk` must also be raised before a Play release.
+- Not compiled or run in the authoring environment (no Android SDK). Build and test on a real phone, with a paired child, before relying on it.

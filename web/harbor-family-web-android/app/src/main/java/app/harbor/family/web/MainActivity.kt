@@ -33,11 +33,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var offline: View
     private val siteHost: String = Uri.parse(BuildConfig.SITE_URL).host.orEmpty()
     private var failed = false
+    @Volatile private var trustedPage = false
+    private val device by lazy { DeviceClient(applicationContext) }
+    private lateinit var consent: LocationConsent
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val bg = getColor(R.color.harbor_bg)
+        consent = LocationConsent(this, device)
 
         web = WebView(this).apply {
             setBackgroundColor(bg)
@@ -59,7 +63,10 @@ class MainActivity : AppCompatActivity() {
                     try { startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (_: Exception) { /* no handler */ }
                     return true
                 }
-                override fun onPageStarted(v: WebView, url: String, f: android.graphics.Bitmap?) { failed = false }
+                override fun onPageStarted(v: WebView, url: String, f: android.graphics.Bitmap?) {
+                    failed = false
+                    trustedPage = Uri.parse(url).let { it.scheme == "https" && it.host == siteHost }
+                }
                 override fun onReceivedError(v: WebView, r: WebResourceRequest, e: WebResourceError) {
                     if (r.isForMainFrame) { failed = true; offline.visibility = View.VISIBLE }
                 }
@@ -69,6 +76,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        web.addJavascriptInterface(DeviceBridge(this, web, device, consent) { trustedPage }, "HarborDevice")
 
         refresh = SwipeRefreshLayout(this).apply {
             setColorSchemeColors(getColor(R.color.harbor_brand))
@@ -122,6 +131,9 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() { web.onPause(); super.onPause() }
     override fun onResume() {
         super.onResume(); web.onResume()
+        consent.onResume()
+        // Keep sharing alive if it was turned on (the service may have been stopped while the app was closed).
+        if (device.isPaired() && device.locationEnabled && LocationService.hasLocationPermission(this)) LocationService.start(this)
         // Coming back after a while: reload so the newest deployment is shown.
         if (web.url == null || failed) load()
     }
