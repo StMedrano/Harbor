@@ -14,6 +14,8 @@ import dev.stmedrano.harbor.parent.child.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import android.app.job.JobScheduler
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class ParentTapState(val device: DevicePublicV1? = null, val message: String? = null)
 
@@ -23,6 +25,52 @@ class ParentApplication : Application() {
     private var parentCollectors: Job? = null
     private var runtimeLease: ProfileLease? = null
     private var profileScope: CoroutineScope? = null
+    private val approvalLock = Mutex()
+    private val mutableApproval = MutableStateFlow<TemporaryParentSession?>(null)
+    val approvalSession = mutableApproval.asStateFlow()
+    private val mutableApprovalClosing = MutableStateFlow(false)
+    val approvalClosing = mutableApprovalClosing.asStateFlow()
+    suspend fun beginChildApproval(lease: ProfileLease): Boolean = approvalLock.withLock {
+        if (BuildConfig.CI_FIXTURE || !profiles.isCurrent(lease) || lease.role != ProfileRole.CHILD || mutableApproval.value != null) return@withLock false
+        val binding = childRepository.binding.value ?: return@withLock false
+        mutableApproval.value = TemporaryParentSession.open(this, lease, binding, profiles::isCurrent)
+        true
+    }
+    suspend fun cancelChildApproval() = withContext(NonCancellable) {
+        approvalLock.withLock {
+            val session = mutableApproval.value ?: return@withLock
+            mutableApprovalClosing.value = true
+            try { session.clear() }
+            catch (_: Exception) { /* Only confirmed local erasure allows leaving approval. */ }
+            finally {
+                if (session.locallyCleared) mutableApproval.value = null
+                mutableApprovalClosing.value = false
+            }
+        }
+    }
+    suspend fun removeChildEnrollment(session: TemporaryParentSession): Boolean = approvalLock.withLock {
+        if (mutableApproval.value !== session || !profiles.isCurrent(session.lease)) return@withLock false
+        val transition = RoleTransition(profiles::currentLease, { childRepository.binding.value }, profiles::transitionToSetup,
+            { false }, { expected ->
+                childRepository.confirmRevocation(expected)
+                childNotificationStore.setOpted(expected, false)
+                childRepository.clearAfterConfirmedRevocation()
+                childRepository.restore()
+            })
+        val confirmed = transition.childToSetup(session.approval)
+        if (session.locallyCleared) mutableApproval.value = null
+        confirmed
+    }
+    suspend fun parentToSetup(expected: ProfileLease): Boolean {
+        if (BuildConfig.CI_FIXTURE || !profiles.isCurrent(expected) || expected.role != ProfileRole.PARENT) return false
+        val active = runtime ?: return false
+        val auth = authRepository ?: return false
+        return RoleTransition({ profiles.currentLease()?.takeIf { it == expected } }, { null }, profiles::transitionToSetup, {
+            active.signOutCurrent()
+            active.state.value.cleanupConfirmed && auth.identity.value == null &&
+                getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isEmpty()
+        }, {}).parentToSetup()
+    }
     private val evidence by lazy { ProfileEvidence(
         { getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isNotEmpty() },
         { EncryptedChildStore.hasRecords(this) }) }
@@ -142,11 +190,14 @@ class ParentApplication : Application() {
             }) }
     }
     val runtime: ParentRuntime? by lazy {
-        authRepository?.let { auth -> ParentRuntime({ auth.identity.value },
+        authRepository?.let { auth ->
+            // Capture the existing API while construction is permitted, before the role is fenced.
+            val registrationApi = fcmApi
+            ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
             { familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
-            { _, token -> fcmApi.remove(registrationStore.installationId(), token) },
+            { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {

@@ -12,7 +12,7 @@ import dev.stmedrano.harbor.parent.notifications.ParentReceipt
 @Composable
 fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntimeState, available: Boolean,
     onEnable: () -> Unit, onRemove: () -> Unit, onSignOut: () -> Unit,
-    developmentReceipt: ParentReceipt? = null, onExport: (() -> Unit)? = null) {
+    developmentReceipt: ParentReceipt? = null, onExport: (() -> Unit)? = null, onChangeRole: (() -> Unit)? = null) {
     val enabled = available && !runtime.signingOut && !notifications.busy
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
@@ -29,6 +29,10 @@ fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntim
             if (runtime.signingOut) Text("Signing out…")
             if (runtime.cleanupConfirmed) Text("Current-device cleanup confirmed.")
             if (!available) Text("Sign in to manage this device. Live actions are disabled in the offline preview.")
+            onChangeRole?.let { change ->
+                OutlinedButton(change, enabled = available && !runtime.signingOut,
+                    modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Change this phone's role") }
+            }
         }
         developmentReceipt?.let { receipt ->
             HarborPanel("Development receipt evidence") {
