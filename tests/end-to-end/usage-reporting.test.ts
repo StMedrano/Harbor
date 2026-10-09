@@ -73,16 +73,28 @@ Deno.test("signed child usage reaches only authorized parents and survives clear
     verifyP256Signature: verifyP256Sha256,
     claimNonceAtomic: claimDeviceRequestNonceAtomic,
   };
-  const parents = new Map(
-    [[owner, ownerSession], [outsider, outsiderSession], [
+  type Parent = {
+    userId: string;
+    sessionId: string;
+    accessToken: string;
+    aal: "aal1";
+    amr: [];
+  };
+  const parents = new Map<string, Parent>(
+    ([[owner, ownerSession], [outsider, outsiderSession], [
       removable,
       removableSession,
-    ]].map(([userId, sessionId]) => [
+    ]] as const).map((
+      [userId, sessionId],
+    ) => [userId, {
       userId,
-      { userId, sessionId, accessToken: "fixture", aal: "aal1" as const, amr: [] },
-    ]),
+      sessionId,
+      accessToken: "fixture",
+      aal: "aal1" as const,
+      amr: [] as [],
+    }]),
   );
-  let acting = owner;
+  let acting: string = owner;
   const deps: UsageEndpointDependencies = {
     now: () => REPORT_TIME,
     requireProof: (request, operation) =>

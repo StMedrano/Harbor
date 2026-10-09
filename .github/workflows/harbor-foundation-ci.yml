@@ -285,10 +285,17 @@ jobs:
       - name: Verify shared backend platform acceptance
         env:
           SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
-        run: >-
-          deno test --frozen
-          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
-          --allow-net=127.0.0.1:54322
-          tests/end-to-end/platform-foundation.test.ts
-          tests/end-to-end/parent-android-foundation.test.ts
-          tests/end-to-end/usage-reporting.test.ts
+        run: |
+          set -o pipefail
+          deno test --frozen \
+            --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS \
+            --allow-net=127.0.0.1:54322 \
+            tests/end-to-end/platform-foundation.test.ts \
+            tests/end-to-end/parent-android-foundation.test.ts \
+            tests/end-to-end/usage-reporting.test.ts 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+      - name: Surface platform acceptance failure as annotations
+        if: failure()
+        run: |
+          [ -s "$RUNNER_TEMP/e2e.log" ] || exit 0
+          body="$(tail -n 60 "$RUNNER_TEMP/e2e.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::error title=platform acceptance tail::${body}"
