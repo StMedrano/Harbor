@@ -305,11 +305,21 @@ class ParentApplication : Application() {
     private suspend fun stopFamilyRuntime() {
         val old = runtimeLease
         val scope = profileScope
-        runtimeLease = null; profileScope = null
-        getSystemService(JobScheduler::class.java).cancel(ParentNotificationJob.JOB_ID)
-        if (old != null) profileNotifications.stop(old)
-        scope?.coroutineContext?.get(Job)?.cancelAndJoin()
-        stopParentRuntime()
+        val usage = childUsage
+        runtimeLease = null; profileScope = null; childUsage = null
+        try {
+            // Usage first: no scheduled job or in-flight report may outlive the profile.
+            UsageJobService.cancel(this)
+            usage?.stop()
+        } finally {
+            try {
+                getSystemService(JobScheduler::class.java).cancel(ParentNotificationJob.JOB_ID)
+                if (old != null) profileNotifications.stop(old)
+            } finally {
+                try { scope?.coroutineContext?.get(Job)?.cancelAndJoin() }
+                finally { stopParentRuntime() }
+            }
+        }
     }
     private suspend fun profileWork(lease: ProfileLease, action: suspend () -> Boolean): Boolean {
         val scope = profileScope?.takeIf { runtimeLease == lease } ?: return false
