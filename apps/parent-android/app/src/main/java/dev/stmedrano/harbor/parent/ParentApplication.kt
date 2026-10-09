@@ -216,6 +216,8 @@ class ParentApplication : Application() {
         getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isEmpty() &&
         (profiles.state.value == ProfileState.Setup || profiles.state.value is ProfileState.Child)) childRepository else null
     private val parentApi by lazy { authRepository?.let { SdkParentApi(checkNotNull(client), it) } }
+    private val parentUsageModel by lazy { parentAuth?.let { ParentUsageModel(SdkParentUsageApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentUsage: ParentUsageModel? get() = if (parentConstructionAllowed) parentUsageModel else null
     val familyViewModel: FamilyViewModel? by lazy {
         authRepository?.let { auth ->
             val api = checkNotNull(parentApi)
@@ -285,12 +287,12 @@ class ParentApplication : Application() {
             ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
-            { familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+            { parentUsageModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {
-                    try { familyViewModel?.clear() }
+                    try { parentUsageModel?.clear(); familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
                         finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
@@ -334,6 +336,7 @@ class ParentApplication : Application() {
         parentCollectors = null
         if (parentConstructionAllowed) {
             realtime?.disconnect()
+            parentUsageModel?.clear()
             familyViewModel?.hideVisible()
             securityViewModel?.clear()
             mutableTap.value = ParentTapState()

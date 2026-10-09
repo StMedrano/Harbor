@@ -4,7 +4,7 @@ package dev.stmedrano.harbor.parent.usage
 enum class UsageViewOrigin { CHILD_PHONE, PARENT_READ }
 
 /** Mutually exclusive top-level states. Unknown is never turned into zero. */
-enum class UsageViewStatus { UNAVAILABLE, NO_REPORT, EXPIRED, ACCESS_LOST, SHARING_OFF, PERMISSION_REQUIRED, MEASURED }
+enum class UsageViewStatus { UNAVAILABLE, LOAD_FAILED, NO_REPORT, EXPIRED, ACCESS_LOST, SHARING_OFF, PERMISSION_REQUIRED, MEASURED }
 
 /** foregroundMs == null means no foreground time was recorded for this app (not a measured zero). */
 data class UsageAppRow(val packageName: String, val label: String?, val foregroundMs: Long?)
@@ -90,6 +90,7 @@ fun formatUsageDuration(ms: Long?): String {
 fun usageNotices(state: UsageViewState): List<String> = buildList {
     when (state.status) {
         UsageViewStatus.UNAVAILABLE -> add("Usage reporting is not available here.")
+        UsageViewStatus.LOAD_FAILED -> add("Couldn't load the report. Check your connection and refresh.")
         UsageViewStatus.NO_REPORT -> add(if (state.collecting) "Collecting. Nothing has been measured yet." else "No report yet.")
         UsageViewStatus.EXPIRED -> add("The last report expired. Reports older than 30 days are removed.")
         UsageViewStatus.ACCESS_LOST -> add("You no longer have access to this device's usage.")

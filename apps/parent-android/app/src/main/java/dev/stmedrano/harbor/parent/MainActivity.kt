@@ -42,6 +42,7 @@ import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
@@ -212,9 +213,13 @@ class MainActivity : ComponentActivity() {
                                     identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
                                 }?.devices?.firstOrNull { it.id == reference.id } }
                                 if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
-                                else if (identity != null && visibleDevice != null) DeviceScreen(visibleDevice,
-                                    onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
-                                    cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }) { graph.closeNotification() }
+                                else if (identity != null && visibleDevice != null) {
+                                    val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
+                                    DeviceScreen(visibleDevice,
+                                        onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
+                                        cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
+                                        onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
                                         val expected = graph.profiles.currentLease()
@@ -229,7 +234,7 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage) }
                             })
                     }
                 }
