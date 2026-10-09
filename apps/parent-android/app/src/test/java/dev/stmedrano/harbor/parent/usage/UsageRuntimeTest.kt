@@ -90,6 +90,24 @@ class UsageRuntimeTest {
   assertEquals(listOf(1L,2L),sent.map{it.sequence});assertTrue(sent.last().days.isEmpty())
   assertEquals(UsageRuntimeStatus.PERMISSION_DENIED,r.state.value)
  }
+ @Test fun stoppingAfterPayloadLossRetainsRecoveryFloorWithoutBlockingRoleCleanup()=runTest {
+  val s=store();s.update(lease.ownerId){it.copy(consent=true)};s.newPendingReport(lease.ownerId,report);values.clear()
+  var sends=0
+  val r=UsageRuntime(backgroundScope,s,UsageReporter({it==lease},{_,_,_->sends++;error("unexpected")}),{it==lease},{true},{_,_->error("unexpected")},{denied})
+  r.start(lease);r.stop()
+  assertEquals(0,sends);assertEquals(UsageRuntimeStatus.DISABLED,r.state.value)
+  assertTrue(checkNotNull(history.read()).floor>=1)
+  assertThrows(UsageCheckpointLost::class.java){s.read(lease.ownerId)}
+ }
+ @Test fun cancellingJobCallerStopsItsProfileOwnedNetworkAttempt()=runTest {
+  val s=store();s.update(lease.ownerId){it.copy(consent=true)}
+  val entered=CompletableDeferred<Unit>();var cancelled=false
+  val sender=UsageReporter({it==lease},{_,_,_->entered.complete(Unit);try{awaitCancellation()}finally{cancelled=true}})
+  val r=UsageRuntime(backgroundScope,s,sender,{it==lease},{true},{_,_->UsageCollection(report,null)},{denied})
+  r.start(lease);val work=async{r.refresh(lease)};entered.await();work.cancelAndJoin()
+  assertTrue(cancelled);assertTrue(s.read(lease.ownerId)?.pending is PendingReport)
+  assertEquals(0L,s.read(lease.ownerId)?.lastConfirmedSequence)
+ }
  @Test fun cancelledAttemptKeepsExactPendingWithoutFalseConfirmation()=runTest {
   val s=store();s.update(lease.ownerId){it.copy(consent=true)}
   val sender=UsageReporter({it==lease},{_,_,_->throw CancellationException("cancelled")})
@@ -98,3 +116,5 @@ class UsageRuntimeTest {
   assertTrue(s.read(lease.ownerId)?.pending is PendingReport);assertEquals(0L,s.read(lease.ownerId)?.lastConfirmedSequence)
  }
 }
+
+

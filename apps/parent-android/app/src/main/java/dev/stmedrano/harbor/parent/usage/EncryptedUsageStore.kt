@@ -59,7 +59,12 @@ class EncryptedUsageStore(private val values:AuthValues,private val cipher:AuthC
         require(next.bindingId==bindingId&&next.nextSequence>=state.nextSequence)
         persist(next);next
     }
-    override fun clearPayload(bindingId:String) {update(bindingId){it.copy(latestAggregate=null,pending=it.pending as? PendingClear)}}
+    override fun clearPayload(bindingId:String)=synchronized(monitor) {
+        val owner=history.read()
+        if(owner==null||owner.bindingHash!=hash(bindingId))return@synchronized
+        try {update(bindingId){it.copy(latestAggregate=null,pending=it.pending as? PendingClear)};Unit}
+        catch(_:UsageCheckpointLost){secure.clear()} // Keep the owned sequence floor; signed recovery remains mandatory.
+    }
     override fun eraseBinding(bindingId:String) = synchronized(monitor) {
         val h=history.read()
         if(h?.bindingHash==hash(bindingId)){secure.clear();history.clear();eraseKey()}

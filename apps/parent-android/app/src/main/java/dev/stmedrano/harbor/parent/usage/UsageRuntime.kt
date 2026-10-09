@@ -28,7 +28,7 @@ class UsageRuntime(private val scope:CoroutineScope,private val store:EncryptedU
  }
  suspend fun stop()=control.withLock {
   val old=active;active=null;cancelAttempt()
-  if(old!=null&&store.read(old.ownerId)!=null)store.clearPayload(old.ownerId)
+  if(old!=null)store.clearPayload(old.ownerId)
   mutableState.value=UsageRuntimeStatus.DISABLED
  }
  private suspend fun recovered(lease:ProfileLease,create:Boolean):UsageStoredState? {
@@ -84,6 +84,7 @@ class UsageRuntime(private val scope:CoroutineScope,private val store:EncryptedU
    }.also{running=it}
   }
   try {work.await()}catch(cancelled:CancellationException){currentCoroutineContext().ensureActive()}
+  finally {if(work.isActive)withContext(NonCancellable){work.cancelAndJoin()}}
  }
  suspend fun setSharing(lease:ProfileLease,enabled:Boolean) {
   var consentSaved=false
@@ -103,3 +104,5 @@ class UsageRuntime(private val scope:CoroutineScope,private val store:EncryptedU
   if(enabled&&consentSaved&&valid(lease))refresh(lease)
  }
 }
+
+

@@ -12,6 +12,8 @@ import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.security.*
 import dev.stmedrano.harbor.parent.profile.*
 import dev.stmedrano.harbor.parent.child.*
+import dev.stmedrano.harbor.parent.usage.*
+import kotlinx.serialization.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import android.app.job.JobScheduler
@@ -55,6 +57,7 @@ class ParentApplication : Application() {
             { false }, { expected ->
                 childRepository.confirmRevocation(expected)
                 childNotificationStore.setOpted(expected, false)
+                usageStore.eraseBinding(expected.deviceId)
                 childRepository.clearAfterConfirmedRevocation()
                 childRepository.restore()
             })
@@ -106,12 +109,81 @@ class ParentApplication : Application() {
             runtimeLease = lease
             profileScope = CoroutineScope(SupervisorJob(accountScope.coroutineContext[Job]) + Dispatchers.IO)
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
-            else check(childRepository.binding.value?.deviceId == lease.ownerId)
+            else {
+                check(childRepository.binding.value?.deviceId == lease.ownerId)
+                if (!BuildConfig.CI_FIXTURE) startChildUsage(lease)
+            }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
                 if (profiles.isCurrent(lease)) foreground()
             }
         })
+    }
+    private val usageStore by lazy { EncryptedUsageStore.open(this) }
+    private val usagePermission by lazy { UsagePermission(this) }
+    private val usageTransport by lazy { UsageHttpTransport.create() }
+    private val usageApi by lazy { ChildApi(BuildConfig.SUPABASE_URL, BuildConfig.PUBLISHABLE_KEY, usageTransport::execute,
+        { System.currentTimeMillis()/1000 }, { java.util.UUID.randomUUID().toString() }, childKey) }
+    private var childUsage: UsageRuntime? = null
+    val childUsageRuntime: UsageRuntime?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childUsage }
+    private fun currentUsageLease(lease: ProfileLease): Boolean = !BuildConfig.CI_FIXTURE && lease.role==ProfileRole.CHILD &&
+        runtimeLease==lease && profiles.isCurrent(lease) && childRepository.binding.value?.deviceId==lease.ownerId &&
+        childRepository.state.value !is ChildSyncState.Blocked
+    private suspend fun startChildUsage(lease: ProfileLease) {
+        val scope=checkNotNull(profileScope)
+        val collector=UsageCollector(AndroidUsageSource(this),AndroidAppInventory(this),::currentUsageLease,System::currentTimeMillis,
+            { java.time.ZoneId.systemDefault().id },{ resolvedHomePackages(this) })
+        val reporter=UsageReporter(::currentUsageLease) { captured,operation,body ->
+            check(currentUsageLease(captured))
+            val binding=checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive();check(currentUsageLease(captured))
+                if(operation=="report-device-usage" && Json.parseToJsonElement(body).jsonObject["usagePermission"]?.jsonPrimitive?.content=="granted" && !usagePermission.isGranted())
+                    throw UsagePermissionChanged()
+                val response=usageApi.signedUsage(operation,body,binding,session)
+                currentCoroutineContext().ensureActive();check(currentUsageLease(captured))
+                response
+            }
+        }
+        childUsage=UsageRuntime(scope,usageStore,reporter,::currentUsageLease,usagePermission::isGranted,
+            { captured,saved -> withContext(Dispatchers.IO){collector.collect(captured,saved)} },
+            { unavailableUsageReport(System.currentTimeMillis(),java.time.ZoneId.systemDefault().id,UsagePermissionState.DENIED) })
+        childUsage?.start(lease)
+        scope.launch {
+            childRepository.state.collectLatest { value ->
+                if(value is ChildSyncState.Blocked){UsageJobService.cancel(this@ParentApplication);childUsage?.stop()}
+            }
+        }
+    }
+    private fun scheduleUsageIfOpted(lease: ProfileLease) {
+        val opted=try {currentUsageLease(lease)&&usageStore.read(lease.ownerId)?.consent==true}catch(_:UsageCheckpointLost){false}
+        if(opted)UsageJobService.schedule(this,lease)else UsageJobService.cancel(this)
+    }
+    suspend fun localChildUsage(lease: ProfileLease): UsageStoredState? = withContext(Dispatchers.IO) {
+        if(!currentUsageLease(lease))return@withContext null
+        val value=usageStore.read(lease.ownerId)
+        value.takeIf {currentUsageLease(lease)}
+    }
+    fun setChildUsageSharing(lease: ProfileLease,enabled: Boolean) { accountScope.launch {
+        if(!currentUsageLease(lease))return@launch
+        profileWork(lease) {childUsage?.setSharing(lease,enabled);scheduleUsageIfOpted(lease);true}
+    } }
+    fun refreshChildUsage(lease: ProfileLease) { accountScope.launch {
+        if(!currentUsageLease(lease))return@launch
+        profileWork(lease) {childUsage?.refresh(lease);scheduleUsageIfOpted(lease);true}
+    } }
+    suspend fun processUsageBackground(reference: ProfileLease): Boolean {
+        if(BuildConfig.CI_FIXTURE||reference.role!=ProfileRole.CHILD)return false
+        profiles.state.first {it!=ProfileState.Transitioning}
+        if(profiles.state.value is ProfileState.Blocked)profiles.retryValidation()
+        // Periodic references trigger current encrypted Auth validation; they are never role or session authority.
+        val captured=profiles.currentLease()?.takeIf {it.role==ProfileRole.CHILD&&it.ownerId==reference.ownerId}?:return false
+        return profileWork(captured) {
+            if(!currentUsageLease(captured)||usageStore.read(captured.ownerId)?.consent!=true)return@profileWork false
+            childUsage?.refresh(captured)
+            currentUsageLease(captured)
+        }
     }
     private val mutableTap = MutableStateFlow(ParentTapState())
     val tapState = mutableTap.asStateFlow()
@@ -308,7 +380,10 @@ class ParentApplication : Application() {
                     authRepository?.withAccessToken { }; ensureContext()
                     currentIdentity()?.let { familyViewModel?.refresh(it) }
                 }
-            } else childRepository.binding.value?.let { childRepository.sync(it) }
+            } else {
+                childRepository.binding.value?.let { childRepository.sync(it) }
+                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease)}
+            }
             if (!BuildConfig.CI_FIXTURE) profileNotifications.syncToken(lease)
             true
         }
@@ -379,5 +454,6 @@ class ParentApplication : Application() {
     } }
     fun closeNotification() { mutableTap.value = ParentTapState() }
 }
+
 
 
