@@ -291,3 +291,4 @@ jobs:
           --allow-net=127.0.0.1:54322
           tests/end-to-end/platform-foundation.test.ts
           tests/end-to-end/parent-android-foundation.test.ts
+          tests/end-to-end/usage-reporting.test.ts
