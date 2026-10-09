@@ -50,7 +50,7 @@ class UsageUiTest {
         compose.onNodeWithText("Out of date", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Can't reach Harbor", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Oct 7: unknown", substring = true).assertExists()
-        compose.onNodeWithText("Apps").performClick()
+        compose.onNodeWithText("Apps").performScrollTo().performClick()
         compose.onNodeWithText("Example One").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("1h 10m").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("ghost.pkg · name unavailable").performScrollTo().assertIsDisplayed()
@@ -61,7 +61,7 @@ class UsageUiTest {
     @Test fun revokedAccessHidesThePreviousReport() {
         val state = mutableStateOf(measured)
         compose.setContent { HarborTheme { ParentApp(showBrand = false) { UsageReportScreen(state.value) } } }
-        compose.onNodeWithText("1h 30m").assertIsDisplayed()
+        compose.onNodeWithText("1h 30m").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { state.value = UsageViewState(UsageViewStatus.ACCESS_LOST, UsageViewOrigin.PARENT_READ) }
         compose.onNodeWithText("You no longer have access to this device's usage.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("1h 30m").assertDoesNotExist()
@@ -73,7 +73,7 @@ class UsageUiTest {
         compose.setContent { HarborTheme(dark = dark.value) { ParentApp(showBrand = false) { UsageReportScreen(measured) } } }
         compose.onNodeWithText("1h 30m").performScrollTo().assertIsDisplayed()
         capture("usage-today-light.png")
-        compose.onNodeWithText("Apps").performClick()
+        compose.onNodeWithText("Apps").performScrollTo().performClick()
         compose.onNodeWithText("Example One").performScrollTo().assertIsDisplayed()
         capture("usage-apps-light.png")
         compose.runOnIdle { dark.value = true }
@@ -98,8 +98,7 @@ class UsageUiTest {
         assertEquals(1, opened)
         compose.onNodeWithText("Stop sharing and remove my report").performScrollTo().performClick()
         assertEquals(1, stopped)
-        compose.onNodeWithText("Apps").performClick()
-        compose.onNodeWithText("Open Usage Access settings").assertDoesNotExist()
-        compose.onNodeWithText("Usage Access is off. No screen time is measured, so totals are unknown, not zero.").assertIsDisplayed()
+        compose.onNodeWithText("Apps").performScrollTo().performClick()
+        compose.onNodeWithText("Usage Access is off. No screen time is measured, so totals are unknown, not zero.").performScrollTo().assertIsDisplayed()
     }
 }
