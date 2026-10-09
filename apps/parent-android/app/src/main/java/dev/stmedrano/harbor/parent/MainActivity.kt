@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import dev.stmedrano.harbor.parent.ui.FamilyDestination
 import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
+import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
@@ -56,6 +58,7 @@ class MainActivity : ComponentActivity() {
     private val setupRole = mutableStateOf<ProfileRole?>(null)
     private val roleChangeParentLease = mutableStateOf<ProfileLease?>(null)
     private val transitionMessage = mutableStateOf<String?>(null)
+    private val resumeTick = mutableIntStateOf(0)
     override fun onCreate(savedInstanceState: Bundle?) {
         val requested = scrubCallback(intent)
         requestedChildHint = if (intent.action == ChildNotificationRenderer.TAP_ACTION) ChildNotificationRenderer.consumeTap(intent) else null
@@ -111,6 +114,9 @@ class MainActivity : ComponentActivity() {
                         childContent = {
                             val lease = (profile as ProfileState.Child).lease
                             val registration = graph.profileNotifications.state.collectAsState().value
+                            val usageUi = if (BuildConfig.CI_FIXTURE) null else rememberChildUsageUi(graph, lease, resumeTick.intValue) {
+                                try { startActivity(graph.usageSettingsIntent()) } catch (_: Exception) { startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+                            }
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -121,6 +127,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
+                                usage = usageUi,
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -248,6 +255,7 @@ class MainActivity : ComponentActivity() {
         childHint?.let { (application as ParentApplication).openChildNotification(it) }
     }
     override fun onStart() { super.onStart(); (application as ParentApplication).foreground() }
+    override fun onResume() { super.onResume(); resumeTick.intValue++ }
 
     private fun scrubCallback(intent: Intent): String? {
         val requested = intent.dataString

@@ -14,7 +14,7 @@ import dev.stmedrano.harbor.parent.child.ChildBinding
 import dev.stmedrano.harbor.parent.child.ChildSyncState
 
 @Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit,
-    notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null) {
+    notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null, usage: ChildUsageUi? = null) {
     if (state is ChildSyncState.Blocked) {
         Text("This phone needs a parent to check its setup.")
         return
@@ -42,11 +42,16 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                     is ChildSyncState.Blocked -> Unit
                 }
                 Button(onClick = onSync) { Text("Sync now") }
+                if (usage != null) {
+                    UsageSetupPanel(usage)
+                    UsageTodayPanel(usage.view)
+                }
             }
-            "Apps" -> Text("App information is not available yet.")
+            "Apps" -> if (usage != null) UsageAppsPanel(usage.view) else Text("App information is not available yet.")
             "About" -> {
                 Text("Harbor stores this phone’s pairing credentials securely and checks its family connection with signed requests.")
-                Text("Screen time and app enforcement are not available in this build.")
+                if (usage != null) Text("Harbor measures screen time only while sharing is on. It does not limit or block apps.")
+                else Text("Screen time and app enforcement are not available in this build.")
                 if (onEnableNotifications != null) {
                     Text(if (notificationConfirmed) "Backend notification registration confirmed. Delivery still requires receipt evidence."
                         else "Backend notification registration is unconfirmed.")

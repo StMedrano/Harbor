@@ -123,3 +123,11 @@ run_test restoreUsageColdStartAndClearPreservesOtherNamespace dev.stmedrano.harb
 run_test usageKeyLossRetainsCheckpointAndDoesNotEraseParent dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
 [[ "$usage_storage_status" == 0 ]]
 run_test protectedPeriodicJobContainsOnlyValidatedReferences dev.stmedrano.harbor.parent.usage.UsageJobTest
+usage_ui_status=0
+adb shell settings put system font_scale 1.8
+for method in noReportAndLostPermissionNeverShowZeroOrApps measuredPartialStaleOfflineAreDistinguishedAndAppsAreReadOnly revokedAccessHidesThePreviousReport largeTextTodayAndAppsRenderInLightAndDark consentIsExplicitAndStopIsAlwaysAvailable; do
+  run_test "$method" dev.stmedrano.harbor.parent.usage.UsageUiTest || usage_ui_status=1
+done
+adb shell settings put system font_scale 1.0
+[[ "$usage_ui_status" == 0 ]]
+for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/$shot.png keystore-evidence/; done

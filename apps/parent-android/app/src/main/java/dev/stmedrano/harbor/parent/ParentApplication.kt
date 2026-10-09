@@ -165,6 +165,13 @@ class ParentApplication : Application() {
         val value=usageStore.read(lease.ownerId)
         value.takeIf {currentUsageLease(lease)}
     }
+    fun isUsageAccessGranted(): Boolean = usagePermission.isGranted()
+    fun usageSettingsIntent(): android.content.Intent = usagePermission.settingsIntent()
+    fun childUsageView(stored: UsageStoredState?, runtime: UsageRuntimeStatus): UsageViewState =
+        UsageViewState.fromLocal(stored, runtime, usagePermission.isGranted(), System.currentTimeMillis()) { name ->
+            // Labels are resolved on this phone only and are never uploaded from here.
+            runCatching { packageManager.getApplicationInfo(name, 0).loadLabel(packageManager).toString() }.getOrNull()
+        }
     fun setChildUsageSharing(lease: ProfileLease,enabled: Boolean) { accountScope.launch {
         if(!currentUsageLease(lease))return@launch
         profileWork(lease) {childUsage?.setSharing(lease,enabled);scheduleUsageIfOpted(lease);true}
