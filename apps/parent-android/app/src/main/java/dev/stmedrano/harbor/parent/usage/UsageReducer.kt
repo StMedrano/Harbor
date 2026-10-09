@@ -31,7 +31,11 @@ fun reduceUsage(events:List<UsageEvent>,window:UsageWindow):UsageReduction {
     }
     for(e in events.distinct().sortedBy{it.atMs}) {
         if(e.atMs>window.endMs)break
-        if(e.atMs>window.startMs)account(e.atMs)
+        if(e.atMs>window.startMs) {
+            // A boot without a logged shutdown or a clock jump hides an unknown stretch: skip it instead of crediting it to the last app.
+            if(e.kind==UsageEventKind.STARTUP||e.kind==UsageEventKind.CLOCK_GAP)cursor=maxOf(cursor,minOf(e.atMs,window.endMs))
+            else account(e.atMs)
+        }
         when(e.kind) {
             UsageEventKind.SCREEN_OFF->{interactive=false;active.clear();activeKnown=true}
             UsageEventKind.LOCKED->{unlocked=false;active.clear();activeKnown=true}

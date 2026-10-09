@@ -114,7 +114,14 @@ class ChildApi(private val url: String, private val publishableKey: String,
         val bytes=body.toByteArray(Charsets.UTF_8)
         require(bytes.size<=1_048_576)
         val reply=requestBytes("/functions/v1/$operation",bytes,session,binding)
-        if(reply.status!=200) failure(reply)
+        if(reply.status!=200) {
+            // Only 401/403 mean the child identity is wrong; other 4xx are rejections of this one request.
+            if(reply.status in 400..499&&reply.status !in setOf(401,403,429)) {
+                val code=try{Json.parseToJsonElement(reply.body).jsonObject["code"]?.jsonPrimitive?.content}catch(_:Exception){null}
+                throw UsageRequestRejected(reply.status,code?.takeIf{it.matches(Regex("[A-Z_]{1,40}"))}?:"REQUEST_FAILED")
+            }
+            failure(reply)
+        }
         return reply.body
     }
     companion object {

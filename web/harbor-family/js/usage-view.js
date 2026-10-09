@@ -38,6 +38,7 @@ export function toUsageView(reply, nowMs, { offline = false } = {}) {
     quality: ['observed', 'partial', 'unavailable'].includes(d.quality) ? d.quality : 'unavailable',
     totalMs: isNum(d.totalMs) ? d.totalMs : null,
     coverageStart: isTime(d.coverageStart) ? d.coverageStart : null,
+    startAt: isTime(d.startAt) ? d.startAt : null,
     observedThrough: isTime(d.observedThrough) ? d.observedThrough : null,
     apps: Array.isArray(d.apps) ? d.apps.filter(a => a && typeof a.packageName === 'string') : [],
   })).sort((a, b) => a.localDate.localeCompare(b.localDate));
@@ -88,7 +89,10 @@ export function renderUsageView(v) {
     return head + when + flags + note('w', '<b>Usage access is off on the child’s phone.</b> No screen time was measured, so nothing is shown. Totals are not zero; they are unknown.') + provenance;
   }
   const t = v.today;
-  const partial = t && t.quality === 'partial' && t.coverageStart ? note('', `<b>Partial day.</b> Measurement for ${esc(shortDate(t.localDate))} starts at ${stamp(t.coverageStart)}; earlier use is not included.`) : '';
+  const fromStart = t && t.coverageStart && t.startAt && Date.parse(t.coverageStart) === Date.parse(t.startAt);
+  const partial = t && t.quality === 'partial' && t.coverageStart ? note('', fromStart
+    ? `<b>Partial day.</b> Some activity on ${esc(shortDate(t.localDate))} could not be fully confirmed, so this total may be incomplete.`
+    : `<b>Partial day.</b> Measurement for ${esc(shortDate(t.localDate))} starts at ${stamp(t.coverageStart)}; earlier use is not included.`) : '';
   const total = t ? `<div class="panel"><div class="use"><div><div class="muted sm">${esc(shortDate(t.localDate))} · measured total</div><b class="num">${esc(formatDuration(t.totalMs))}</b></div></div>${t.quality === 'unavailable' ? '<div class="rs">Not measured for this day.</div>' : ''}${bars(v.days)}</div>` : '<div class="empty"><h2>Not measured</h2><p class="sm">The report has no measured days.</p></div>';
   const inv = v.inventoryStatus === 'truncated' ? note('w', 'The app list was truncated, so not every launchable app is shown.')
     : v.inventoryStatus === 'unavailable' ? note('w', 'The app list was not available.') : '';

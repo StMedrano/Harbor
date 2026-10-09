@@ -44,11 +44,24 @@ class UsageReducerTest {
         val d=reduceUsage(events,UsageWindow(start,end,"America/New_York")).days.first()
         assertEquals(82800000L,d.totalMs);assertEquals(end-start,Instant.parse(d.endAt).toEpochMilli()-Instant.parse(d.startAt).toEpochMilli())
     }
-    @Test fun rebootAndClockRollbackCloseCoverage() {
-        for(kind in listOf(UsageEventKind.SHUTDOWN,UsageEventKind.STARTUP,UsageEventKind.CLOCK_GAP)) {
-            val r=reduceUsage(seed()+listOf(e(0,UsageEventKind.RESUMED,"example.a"),e(30000,kind)),w())
-            assertEquals(30000L,r.days.single().totalMs);assertEquals(UsageQuality.PARTIAL,r.days.single().quality)
+    @Test fun gracefulShutdownCreditsTheTimeTheDeviceWasOn() {
+        val r=reduceUsage(seed()+listOf(e(0,UsageEventKind.RESUMED,"example.a"),e(30000,UsageEventKind.SHUTDOWN)),w())
+        assertEquals(30000L,r.days.single().totalMs);assertEquals(UsageQuality.PARTIAL,r.days.single().quality)
+    }
+    @Test fun bootOrClockJumpNeverCarriesAnOpenIntervalThroughTheUnknownGap() {
+        // No shutdown was logged (crash, battery death, clock change): the time before the event is unknown, not app time.
+        for(kind in listOf(UsageEventKind.STARTUP,UsageEventKind.CLOCK_GAP)) {
+            val r=reduceUsage(seed()+listOf(e(0,UsageEventKind.RESUMED,"example.a"),e(50_400_000,kind)),w(51_000_000))
+            val day=r.days.single()
+            assertNull("$kind",day.totalMs);assertEquals(UsageQuality.UNAVAILABLE,day.quality);assertTrue(day.apps.isEmpty())
         }
+    }
+    @Test fun measurementResumesOnlyFromKnownStateAfterABoot() {
+        val after=listOf(e(50_400_000,UsageEventKind.STARTUP),e(50_500_000,UsageEventKind.SCREEN_ON),e(50_500_000,UsageEventKind.UNLOCKED),
+            e(50_500_000,UsageEventKind.RESUMED,"example.b"),e(50_560_000,UsageEventKind.PAUSED,"example.b"))
+        val day=reduceUsage(seed()+listOf(e(0,UsageEventKind.RESUMED,"example.a"))+after,w(51_000_000)).days.single()
+        assertEquals(60_000L,day.totalMs);assertEquals(mapOf("example.b" to 60_000L),day.apps.associate{it.packageName to it.foregroundMs})
+        assertEquals(UsageQuality.PARTIAL,day.quality)
     }
     @Test fun repeatWindowDoesNotAccumulateAndRetainsOlderObservedRanges() {
         val events=seed()+listOf(e(0,UsageEventKind.RESUMED,"example.a"),e(60000,UsageEventKind.PAUSED,"example.a"))

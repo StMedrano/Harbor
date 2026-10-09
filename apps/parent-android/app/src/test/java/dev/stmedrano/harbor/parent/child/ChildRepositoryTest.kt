@@ -224,6 +224,15 @@ class ChildRepositoryTest {
         catch(_:IllegalStateException){}
         assertEquals(0,calls)
     }
+    @Test fun usageRejectionDoesNotBlockTheChildProfileOrSync()=runTest {
+        val store=Store().apply{record=ChildRecord(session(),confirmed)}
+        val value=repository(store,Backend(store));value.restore()
+        val before=value.state.value
+        try {value.withCurrentSession(confirmed){throw UsageRequestRejected(409,"STALE_VERSION")};fail("rejection hidden")}
+        catch(_:UsageRequestRejected){}
+        assertEquals(before,value.state.value)
+        assertEquals(ChildSyncState.Fresh(1000,2),value.sync(confirmed))
+    }
     @Test fun refreshOutagePreservesCredentialsAndReopensAfterReconnect() = runTest {
         val store = Store(); val original = ChildRecord(session(expires = 999), confirmed)
         store.record = original

@@ -38,6 +38,16 @@ class UsageViewStateTest {
         assertTrue(usageNotices(view).single().contains("unknown, not zero"))
     }
 
+    @Test fun partialDayFromMidnightDoesNotClaimALateStart() {
+        val day = base.days.single().copy(quality = UsageQuality.PARTIAL, coverageStart = base.days.single().startAt, totalMs = 60_000, apps = emptyList())
+        val view = UsageViewState.fromReply(reply(base.copy(days = listOf(day))), now)
+        val notice = usageNotices(view).first { it.startsWith("Partial day") }
+        assertTrue(notice.contains("could not be fully confirmed"))
+        assertFalse(notice.contains("starts at"))
+        val late = base.days.single().copy(quality = UsageQuality.PARTIAL, coverageStart = "2026-10-08T09:30:00Z", totalMs = 60_000, apps = emptyList())
+        assertTrue(usageNotices(UsageViewState.fromReply(reply(base.copy(days = listOf(late))), now)).any { it.contains("starts at") })
+    }
+
     @Test fun staleIsOlderThanThirtyMinutesOfServerReceipt() {
         assertFalse(UsageViewState.fromReply(reply(received = "2026-10-08T11:50:00Z"), now).stale)
         assertTrue(UsageViewState.fromReply(reply(received = "2026-10-08T11:49:59Z"), now).stale)

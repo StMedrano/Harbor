@@ -157,18 +157,28 @@ class ParentApplication : Application() {
         }
     }
     private fun scheduleUsageIfOpted(lease: ProfileLease) {
-        val opted=try {currentUsageLease(lease)&&usageStore.read(lease.ownerId)?.consent==true}catch(_:UsageCheckpointLost){false}
-        if(opted)UsageJobService.schedule(this,lease)else UsageJobService.cancel(this)
+        // Stay scheduled until an opt-out deletion is confirmed, so a clear made offline is retried in the background.
+        val needed=try {currentUsageLease(lease)&&usageStore.read(lease.ownerId)?.needsBackgroundWork==true}catch(_:UsageCheckpointLost){false}
+        if(needed)UsageJobService.schedule(this,lease)else UsageJobService.cancel(this)
     }
-    suspend fun localChildUsage(lease: ProfileLease): UsageStoredState? = withContext(Dispatchers.IO) {
+    @Volatile private var inventoryCache: Pair<Long, InventoryResult>? = null
+    private fun launchableInventory(): InventoryResult {
+        val now=System.currentTimeMillis()
+        inventoryCache?.takeIf {now-it.first<60_000}?.let {return it.second}
+        return AndroidAppInventory(this).read().also {inventoryCache=now to it}
+    }
+    suspend fun localChildUsage(lease: ProfileLease): LocalChildUsage? = withContext(Dispatchers.IO) {
         if(!currentUsageLease(lease))return@withContext null
-        val value=usageStore.read(lease.ownerId)
-        value.takeIf {currentUsageLease(lease)}
+        // A lost checkpoint is shown as "restoring"; recovery runs in the foreground refresh. It must never crash the UI.
+        val read=usageStore.readForView(lease.ownerId)
+        val snapshot=LocalChildUsage(read,if(read.state?.consent==true)launchableInventory() else null)
+        snapshot.takeIf {currentUsageLease(lease)}
     }
     fun isUsageAccessGranted(): Boolean = usagePermission.isGranted()
     fun usageSettingsIntent(): android.content.Intent = usagePermission.settingsIntent()
-    fun childUsageView(stored: UsageStoredState?, runtime: UsageRuntimeStatus): UsageViewState =
-        UsageViewState.fromLocal(stored, runtime, usagePermission.isGranted(), System.currentTimeMillis()) { name ->
+    fun childUsageView(local: LocalChildUsage?, runtime: UsageRuntimeStatus): UsageViewState =
+        UsageViewState.fromLocal(local?.read?.state, runtime, usagePermission.isGranted(), System.currentTimeMillis(),
+            recovering = local?.read?.recovering == true, inventory = local?.inventory) { name ->
             // Labels are resolved on this phone only and are never uploaded from here.
             runCatching { packageManager.getApplicationInfo(name, 0).loadLabel(packageManager).toString() }.getOrNull()
         }
@@ -187,8 +197,14 @@ class ParentApplication : Application() {
         // Periodic references trigger current encrypted Auth validation; they are never role or session authority.
         val captured=profiles.currentLease()?.takeIf {it.role==ProfileRole.CHILD&&it.ownerId==reference.ownerId}?:return false
         return profileWork(captured) {
-            if(!currentUsageLease(captured)||usageStore.read(captured.ownerId)?.consent!=true)return@profileWork false
+            val saved=try {usageStore.read(captured.ownerId)}catch(_:UsageCheckpointLost){null}
+            if(!currentUsageLease(captured)||saved?.needsBackgroundWork!=true)return@profileWork false
             childUsage?.refresh(captured)
+            if(currentUsageLease(captured)) {
+                // Nothing left to send once an opt-out deletion is confirmed: stop waking the phone.
+                val after=try {usageStore.read(captured.ownerId)}catch(_:UsageCheckpointLost){null}
+                if(after?.needsBackgroundWork!=true)UsageJobService.cancel(this)
+            }
             currentUsageLease(captured)
         }
     }
