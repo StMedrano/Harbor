@@ -169,7 +169,7 @@ jobs:
         run: |
           deno test --frozen tests/notification-acceptance
           deno test --frozen --allow-read --allow-write tests/notification-acceptance/windows-acl.test.ts
-          deno check --frozen tests/hosted/notification-acceptance.ts
+          deno check --frozen tests/hosted/notification-acceptance.ts tests/hosted/usage-reporting-acceptance.ts
           deno check --frozen tests/hosted/platform-acceptance.ts
           deno check --frozen tools/notification-acceptance/web/app.ts
           deno run --frozen --allow-read --allow-write --allow-run=deno tools/notification-acceptance/web/build.ts
