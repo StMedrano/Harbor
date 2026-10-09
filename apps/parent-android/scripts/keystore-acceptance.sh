@@ -3,10 +3,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 api="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
 [[ "$api" == 29 || "$api" == 36 ]]
-./gradlew -PparentCiFixture=true --no-daemon --dependency-verification=strict assembleDebug assembleDebugAndroidTest
+mkdir -p keystore-evidence
+./gradlew -PparentCiFixture=true --no-daemon --dependency-verification=strict assembleDebug assembleDebugAndroidTest 2>&1 | tee keystore-evidence/gradle.log
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-mkdir -p keystore-evidence
 run_test() {
   local method="$1"; local class="${2:-dev.stmedrano.harbor.parent.auth.KeystorePersistenceTest}"
   adb shell am instrument -w -e class "$class#$method" \

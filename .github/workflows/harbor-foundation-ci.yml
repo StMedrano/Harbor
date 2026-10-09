@@ -45,6 +45,17 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           script: |
             bash apps/parent-android/scripts/keystore-acceptance.sh
+      - name: Surface failure tail as annotations
+        if: failure()
+        run: |
+          cd apps/parent-android
+          note() { # $1 title, $2 file
+            [ -s "$2" ] || return 0
+            body="$(tail -n 40 "$2" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            echo "::error title=$1::${body}"
+          }
+          note "gradle build tail" keystore-evidence/gradle.log
+          for log in $(grep -L 'OK (1 test)' keystore-evidence/*.log 2>/dev/null | grep -v gradle.log); do note "failing test $(basename "$log")" "$log"; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
