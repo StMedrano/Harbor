@@ -26,11 +26,11 @@ class UsageHttpTransportTest {
   }finally{client.close()}
  }
  @Test fun cancelledHttpWorkCannotProduceAReply()=runTest {
-  val entered=CompletableDeferred<Unit>();var cancelled=false
-  val client=HttpClient(MockEngine {entered.complete(Unit);try{awaitCancellation()}finally{cancelled=true}})
+  val entered=CompletableDeferred<Unit>();val unwound=CompletableDeferred<Unit>()
+  val client=HttpClient(MockEngine {entered.complete(Unit);try{awaitCancellation()}finally{unwound.complete(Unit)}})
   try {
    val work=async{UsageHttpTransport(client).execute(request())};entered.await();work.cancelAndJoin()
-   assertTrue(work.isCancelled);assertTrue(cancelled)
+   assertTrue(work.isCancelled);withContext(Dispatchers.Default){withTimeout(5000){unwound.await()}}
   }finally{client.close()}
  }
 }
