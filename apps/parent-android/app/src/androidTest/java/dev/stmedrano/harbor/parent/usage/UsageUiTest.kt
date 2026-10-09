@@ -99,6 +99,7 @@ class UsageUiTest {
         compose.onNodeWithText("Stop sharing and remove my report").performScrollTo().performClick()
         assertEquals(1, stopped)
         compose.onNodeWithText("Apps").performClick()
-        compose.onNodeWithText("Usage Access is off", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Open Usage Access settings").assertDoesNotExist()
+        compose.onNodeWithText("Usage Access is off. No screen time is measured, so totals are unknown, not zero.").assertIsDisplayed()
     }
 }
