@@ -70,7 +70,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                             Text(child.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                             TextButton({ onSelectChild(child.id) }) { Text(if (selectedChildId == child.id) "Selected child" else "View child") }
                         }
-                        snapshot.devices.filter { it.childId == child.id }.forEach { device ->
+                        snapshot.devices.filter { it.childId == child.id && it.status != "revoked" }.forEach { device ->
                             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
                                 .background(MaterialTheme.colorScheme.surface)
                                 .clickable(role = Role.Button) { onDevice(device) }
@@ -78,7 +78,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                                 Text("${device.displayName} · ${device.status} · ${device.supervisionMode}", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        if (snapshot.devices.none { it.childId == child.id }) Text("No enrolled device reported.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (snapshot.devices.none { it.childId == child.id && it.status != "revoked" }) Text("No enrolled device reported.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

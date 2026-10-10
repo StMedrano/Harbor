@@ -20,6 +20,17 @@ fun rememberChildUsageUi(graph: ParentApplication, lease: ProfileLease, resumeTi
             delay(3000)
         }
     }
+    // Sharing is on by default for a paired child phone (a parent turns it off by removing the device). Try once per phone profile;
+    // the Start button stays as a fallback if this could not run.
+    var autoStarted by remember(lease) { mutableStateOf(false) }
+    val loaded = local
+    LaunchedEffect(lease, loaded) {
+        if (loaded != null && !autoStarted && !loaded.read.recovering && loaded.read.state?.consent != true) {
+            autoStarted = true
+            graph.setChildUsageSharing(lease, true)
+            tick++
+        }
+    }
     return ChildUsageUi(
         view = graph.childUsageView(local, runtime),
         consent = local?.read?.state?.consent == true,
