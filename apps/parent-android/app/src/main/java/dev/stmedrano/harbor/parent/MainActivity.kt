@@ -25,6 +25,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
 import dev.stmedrano.harbor.parent.ui.ParentApp
+import dev.stmedrano.harbor.parent.ui.HarborTab
+import dev.stmedrano.harbor.parent.ui.HarborTabs
 import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
@@ -104,7 +106,12 @@ class MainActivity : ComponentActivity() {
                     FamilyRoleContent(entryState,
                         entry = { FamilyEntryScreen(
                             onParent = { if (graph.openParentSetup()) setupRole.value = ProfileRole.PARENT },
-                            onChild = { if (graph.childForSetup() != null) setupRole.value = ProfileRole.CHILD }) },
+                            onChild = {
+                                // Never ignore the tap: say why child setup is unavailable instead of doing nothing.
+                                if (graph.childForSetup() != null) { transitionMessage.value = null; setupRole.value = ProfileRole.CHILD }
+                                else transitionMessage.value = "Child setup is unavailable while a parent sign-in is open or saved on this phone. " +
+                                    "Finish signing in as a parent, then use Settings > Change this phone's role, or use another phone for the child."
+                            }) },
                         parentAuth = {}, parentMenu = {}, parentContent = {},
                         childPairing = {
                             Text("Enter pairing code")
@@ -201,9 +208,11 @@ class MainActivity : ComponentActivity() {
                                     }, onCallbackConsumed = { callback.value = null })
                             },
                             parentMenu = {
-                                TextButton({ authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() }) { Text("Family") }
-                                TextButton({ settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() }) { Text("Settings") }
-                                TextButton({ securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() }) { Text("Security") }
+                                HarborTabs(listOf(
+                                    HarborTab("Family", !settingsPage.value && !securityPage.value) { authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
+                                    HarborTab("Settings", settingsPage.value) { settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
+                                    HarborTab("Security", securityPage.value) { securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
+                                ))
                             },
                             parentContent = {
                                 tap.message?.let { Text(it) }

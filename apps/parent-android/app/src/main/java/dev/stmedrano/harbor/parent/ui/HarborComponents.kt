@@ -2,11 +2,18 @@ package dev.stmedrano.harbor.parent.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -35,6 +42,41 @@ fun HarborBrand() {
         Text("Harbor", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
 }
+
+data class HarborTab(val label: String, val selected: Boolean, val onClick: () -> Unit)
+
+/** Segmented tab bar modelled on the web `.seg` control: tinted track, raised selected pill. */
+@Composable
+fun HarborTabs(tabs: List<HarborTab>, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, shape).padding(3.dp)) {
+        tabs.forEach { tab ->
+            Box(Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(9.dp))
+                .background(if (tab.selected) MaterialTheme.colorScheme.surface else Color.Transparent)
+                .selectable(selected = tab.selected, role = Role.Tab, onClick = tab.onClick)
+                .padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                Text(tab.label, style = MaterialTheme.typography.labelLarge,
+                    color = if (tab.selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+fun HarborAvatar(name: String, size: Dp = 30.dp) {
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(size)) {
+        Box(contentAlignment = Alignment.Center) { Text(name.take(1).uppercase(), style = MaterialTheme.typography.labelMedium) }
+    }
+}
+
+@Composable
+fun HarborButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
+    Button(onClick, modifier.heightIn(min = 44.dp), enabled = enabled, shape = MaterialTheme.shapes.medium, content = content)
+
+@Composable
+fun HarborOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
+    OutlinedButton(onClick, modifier.heightIn(min = 44.dp), enabled = enabled, shape = MaterialTheme.shapes.medium, content = content)
 
 @Composable
 fun HarborPanel(title: String, content: @Composable ColumnScope.() -> Unit) {

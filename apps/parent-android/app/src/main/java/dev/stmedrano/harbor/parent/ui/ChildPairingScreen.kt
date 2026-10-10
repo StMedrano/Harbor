@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.child.*
@@ -40,7 +42,7 @@ import kotlinx.coroutines.withContext
             if (!busy && value.length <= 6 && value.all { it in '0'..'9' }) code = value
         }, label = { Text("Pairing code") }, singleLine = true, enabled = !busy,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
-        Button(enabled = !busy && code.matches(Regex("[0-9]{6}")), onClick = {
+        HarborButton(modifier = Modifier.fillMaxWidth(), enabled = !busy && code.matches(Regex("[0-9]{6}")), onClick = {
             val submitted = code
             busy = true
             message = null
