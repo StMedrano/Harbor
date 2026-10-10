@@ -47,6 +47,7 @@ import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
@@ -133,6 +134,13 @@ class MainActivity : ComponentActivity() {
                             val usageUi = if (BuildConfig.CI_FIXTURE) null else rememberChildUsageUi(graph, lease, resumeTick.intValue) {
                                 try { startActivity(graph.usageSettingsIntent()) } catch (_: Exception) { startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                             }
+                            val locationFine = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { graph.refreshChildLocation(lease) }
+                            val locationBackground = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { graph.refreshChildLocation(lease) }
+                            val locationUi = if (BuildConfig.CI_FIXTURE) null else rememberChildLocationUi(graph, lease, resumeTick.intValue,
+                                onAllowLocation = { locationFine.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
+                                onAllowAllTheTime = { locationBackground.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) },
+                                onOpenLocationSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
+                                onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -143,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, tab = childTab.value,
+                                usage = usageUi, location = locationUi, tab = childTab.value,
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
