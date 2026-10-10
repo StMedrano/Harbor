@@ -69,7 +69,7 @@ class ChildLocationHostTest {
         assertEquals(listOf(true), serviceCalls)
         assertEquals(LocationStatus.SHARING, host.state.value.status)
         assertEquals(1, bodies.size)
-        assertEquals(1, Json.decodeFromString<LocationReportV1>(bodies[0]).fixes.size, "the cached place is reported at once")
+        assertEquals("the cached place is reported at once", 1, Json.decodeFromString<LocationReportV1>(bodies[0]).fixes.size)
         host.supervise(lease)
         assertEquals("already listening", 1, updatesStarted)
         assertEquals("service is only started once", listOf(true), serviceCalls)

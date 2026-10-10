@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicLong
 
-interface ParentLocationApi { suspend fun read(deviceId: String): LocationReadReplyV1 }
+fun interface ParentLocationApi { suspend fun read(deviceId: String): LocationReadReplyV1 }
 
 enum class LocationViewStatus { AVAILABLE, NONE, EXPIRED, ACCESS_LOST, LOAD_FAILED }
 const val LOCATION_STALE_AFTER_MS = 30L * 60_000L
