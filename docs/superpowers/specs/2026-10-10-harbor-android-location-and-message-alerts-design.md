@@ -1,7 +1,7 @@
 # Harbor Android location sharing and message alerts — design
 
 Date: 2026-10-10
-Status: written specification awaiting owner approval; no implementation authorized by this document alone.
+Status: owner supplied the decisions below on 2026-10-10 and asked for the implementation plan; plan: `docs/superpowers/plans/2026-10-10-harbor-android-location-and-message-alerts.md`. Implementation starts only on the owner's go.
 Base: branch `feat/android-usage-reporting` (draft PR #23, unmerged). This work is stacked on it and must not be merged before it.
 
 ## Owner decisions (2026-10-10)
@@ -12,7 +12,7 @@ Base: branch `feat/android-usage-reporting` (draft PR #23, unmerged). This work 
 - Still excluded unless separately approved: app blocking or limits, web filtering, SOS, device-admin or anti-removal behavior, microphone, camera or screen capture, and any covert operation (hidden app icon, hidden notification).
 - Map provider: OpenStreetMap data. Development uses a client library (osmdroid or MapLibre) with required OSM attribution and an identifying User-Agent. The public openstreetmap.org tile servers forbid heavy or production use, so before any wider release a tile host that permits it (self-hosted or a commercial OSM-tile provider) must be chosen. No Google Maps SDK or API key.
 - Message alerts carry no excerpt: no message text of any length leaves the phone.
-- Monitored apps (default list, social and messaging): the phone's Messages app (SMS/RCS notifications), WhatsApp, Facebook, Messenger, Instagram, TikTok, Snapchat. Proposed additions, to be confirmed: Discord, Telegram, X. The list is visible to the child and editable only through app releases or parent-side settings added later.
+- Monitored apps (default list, social and messaging): the phone's Messages app (SMS/RCS notifications), WhatsApp, Facebook, Messenger, Instagram, TikTok, Snapchat. Discord, Telegram and X were confirmed by the owner on 2026-10-10. The list is visible to the child and editable only through app releases or parent-side settings added later.
 - Distribution stays on Firebase App Distribution for now; Google Play is deferred, so Play's SMS/notification-access declarations are not a current blocker.
 - Design source: the owner's Figma file (`0U0Ibmj63W1rmwJQMsGgRA`). The Figma tool limit was exhausted on 2026-10-10, so screens below follow the web tokens already in the app until the file can be read. Revisit when readable.
 
@@ -72,7 +72,6 @@ Resolved 2026-10-10: map provider (OpenStreetMap), no excerpt, monitored-app lis
 
 Still open:
 1. Location retention (default 30 days) and update cadence (default 5 minutes moving, 15 stationary).
-2. Confirm the proposed additions to the monitored list (Discord, Telegram, X).
-3. Languages beyond English for the first rule set.
-4. Whether any item in the "Still excluded" list should become a separate design.
-5. Tile host for anything beyond development use.
+2. Languages beyond English for the first rule set.
+3. Whether any item in the "Still excluded" list should become a separate design.
+4. Tile host for anything beyond development use.
