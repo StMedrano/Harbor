@@ -3,10 +3,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 api="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
 [[ "$api" == 29 || "$api" == 36 ]]
-./gradlew -PparentCiFixture=true --no-daemon --dependency-verification=strict assembleDebug assembleDebugAndroidTest
+mkdir -p keystore-evidence
+./gradlew -PparentCiFixture=true --no-daemon --dependency-verification=strict assembleDebug assembleDebugAndroidTest 2>&1 | tee keystore-evidence/gradle.log
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-mkdir -p keystore-evidence
 run_test() {
   local method="$1"; local class="${2:-dev.stmedrano.harbor.parent.auth.KeystorePersistenceTest}"
   adb shell am instrument -w -e class "$class#$method" \
@@ -111,3 +111,23 @@ adb shell settings put system font_scale 1.0
 [[ "$composition_status" == 0 ]]
 
 
+usage_platform_status=0
+for method in permissionManifestAndSettingsRoundTrip nativePermissionDenialBlocksReadAndGrantIsObserved onlyVisibleLaunchableInventoryIsReported; do
+  run_test "$method" dev.stmedrano.harbor.parent.usage.UsagePlatformTest || usage_platform_status=1
+done
+[[ "$usage_platform_status" == 0 ]]
+usage_storage_status=0
+run_test seedUsageColdStart dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
+adb shell am force-stop dev.stmedrano.harbor.parent
+run_test restoreUsageColdStartAndClearPreservesOtherNamespace dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
+run_test usageKeyLossRetainsCheckpointAndDoesNotEraseParent dev.stmedrano.harbor.parent.usage.UsagePersistenceTest || usage_storage_status=1
+[[ "$usage_storage_status" == 0 ]]
+run_test protectedPeriodicJobContainsOnlyValidatedReferences dev.stmedrano.harbor.parent.usage.UsageJobTest
+usage_ui_status=0
+adb shell settings put system font_scale 1.8
+for method in noReportAndLostPermissionNeverShowZeroOrApps measuredPartialStaleOfflineAreDistinguishedAndAppsAreReadOnly revokedAccessHidesThePreviousReport largeTextTodayAndAppsRenderInLightAndDark consentIsExplicitAndStopIsAlwaysAvailable; do
+  run_test "$method" dev.stmedrano.harbor.parent.usage.UsageUiTest || usage_ui_status=1
+done
+adb shell settings put system font_scale 1.0
+[[ "$usage_ui_status" == 0 ]]
+for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/$shot.png keystore-evidence/; done

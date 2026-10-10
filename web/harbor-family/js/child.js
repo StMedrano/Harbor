@@ -17,10 +17,10 @@ function today() {
   return `<div class="hello"><h1>Hi${st.child.name ? ' ' + e(st.child.name) : ' there'}</h1><p>${new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p></div>
 <div class="panel"><div class="row"><div><div class="rt">This phone is paired</div><div class="rs">Connected to your family\u2019s Harbor Family account</div></div><span class="tag ${st.offline ? 'm' : ''}">${st.offline ? 'Offline' : 'Connected'}</span></div>
 <div class="row"><div><div class="rt">Last sync</div><div class="rs">${st.lastSync ? e(when(st.lastSync)) : 'Not synced yet'}${st.offline ? ' (showing the last known state)' : ''}</div></div></div></div>
-<p class="rs" style="text-align:center;margin-top:12px">Screen time, limits and requests will appear here when they are available.</p>`;
+<p class="rs" style="text-align:center;margin-top:12px">Screen time is measured only by the Harbor Family Android app. This browser does not report usage.</p>`;
 }
 function apps() {
-  return `<div class="head"><h1>Apps</h1></div>${emptyKid('Not available yet', 'App time and limits will show up here once Harbor Family supports them on this phone.')}`;
+  return `<div class="head"><h1>Apps</h1></div>${emptyKid('Not measured here', 'App use is measured only by the Harbor Family Android app. This browser does not report usage.')}`;
 }
 function about() {
   return `<div class="head"><h1>About me</h1></div>

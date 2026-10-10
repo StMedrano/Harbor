@@ -152,6 +152,8 @@ export const supabaseApi = {
     const kids = await this.listChildren(); const c = kids.find(k => k.id === id);
     return { ...c, pairingCode: fmtCode(r.code), pairingExpiresAt: r.expiresAt };
   },
+  /** Read-only usage report for a paired device (UsageReadReplyV1). Access is enforced server-side; a lost membership surfaces as 'forbidden'. */
+  async getDeviceUsage(deviceId) { return fn('get-device-usage', { deviceId }); },
   async setAlertReviewed() { throw unavailable(); },
   async respondToRequest() { throw unavailable(); },
   async grantTime() { throw unavailable(); },

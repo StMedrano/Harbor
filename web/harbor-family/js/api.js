@@ -51,6 +51,7 @@
  * setAlertReviewed(alertId, reviewed)
  * respondToRequest(childId, requestId, approve)
  * grantTime(childId, minutes)          → Child  (extra minutes for today only)
+ * getDeviceUsage(deviceId)             → UsageReadReplyV1 {state:'available'|'none'|'expired', report, receivedAt}; read-only, parent only
  * sendCommand(childId, 'checkin'|'ring')   ('no_device' if not paired)
  * inviteParent(email)
  *
@@ -143,6 +144,7 @@ export const localApi = {
     });
   },
   async grantTime(cid, minutes) { return mutate(d => { const c = child(d, cid); c.bonusMin = (c.bonusMin || 0) + minutes; return c; }); },
+  async getDeviceUsage() { await delay(120); return { state: 'none', report: null, receivedAt: null }; },
   async sendCommand(cid, type) { await delay(200); mutate(d => { const c = child(d, cid); if (!c.device) throw new ApiError('no_device', 'This child\u2019s device isn\u2019t paired yet.'); c.pendingCommand = type; }); },
   async inviteParent() { await delay(300); },
 

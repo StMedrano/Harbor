@@ -41,6 +41,8 @@ interface ChildBackend {
     suspend fun registerFcm(binding: ChildBinding, token: String, session: ChildAuthSession)
 }
 class ChildRequestDenied(val status: Int, val code: String) : IllegalStateException("Child request denied")
+/** An application-level rejection (validation, stale sequence, conflict). It is not an authentication failure and never blocks the child profile. */
+class UsageRequestRejected(val status: Int, val code: String) : IllegalStateException("Usage request rejected")
 
 
 class ChildConnectionUnavailable : java.io.IOException("Child connection unavailable")
