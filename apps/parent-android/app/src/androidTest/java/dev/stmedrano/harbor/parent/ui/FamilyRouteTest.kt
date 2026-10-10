@@ -107,7 +107,7 @@ class FamilyRouteTest {
         currentDevice.set(device.copy(displayName = "Updated phone", lastSeenAt = date))
         kotlinx.coroutines.runBlocking { model.refresh(identity) }
         compose.onNodeWithText("Updated phone").assertExists()
-        compose.onNodeWithText("Last seen: $date").assertExists()
+        compose.onNodeWithText("Last seen: ${formatTimestamp(date)}").assertExists()
         offline.set(true)
         kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
         compose.onNodeWithText("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(1234)}. Connect to make changes.").assertExists()

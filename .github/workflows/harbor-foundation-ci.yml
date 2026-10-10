@@ -45,6 +45,17 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           script: |
             bash apps/parent-android/scripts/keystore-acceptance.sh
+      - name: Surface failure tail as annotations
+        if: failure()
+        run: |
+          cd apps/parent-android
+          note() { # $1 title, $2 file
+            [ -s "$2" ] || return 0
+            body="$(tail -n 40 "$2" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            echo "::error title=$1::${body}"
+          }
+          note "gradle build tail" keystore-evidence/gradle.log
+          for log in $(grep -L 'OK (1 test)' keystore-evidence/*.log 2>/dev/null | grep -v gradle.log); do note "failing test $(basename "$log")" "$log"; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -158,13 +169,30 @@ jobs:
         run: |
           deno test --frozen tests/notification-acceptance
           deno test --frozen --allow-read --allow-write tests/notification-acceptance/windows-acl.test.ts
-          deno check --frozen tests/hosted/notification-acceptance.ts
+          deno check --frozen tests/hosted/notification-acceptance.ts tests/hosted/usage-reporting-acceptance.ts
           deno check --frozen tests/hosted/platform-acceptance.ts
           deno check --frozen tools/notification-acceptance/web/app.ts
           deno run --frozen --allow-read --allow-write --allow-run=deno tools/notification-acceptance/web/build.ts
           VERCEL_ENV=preview sh tools/notification-acceptance/web/preview-build.sh
           cmp index.html preview-dist/index.html
           for part in frontend-bundle/part-*.txt; do cmp "$part" "preview-dist/$part"; done
+
+  family-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web/harbor-family
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Usage view tests and build
+        run: |
+          npm ci
+          npm test
+          npm run build
 
   foundation:
     runs-on: ubuntu-latest
@@ -238,7 +266,7 @@ jobs:
       - name: Run shared-contract tests when present
         run: |
           if [ -f packages/contracts/test/contracts.test.ts ]; then
-            deno test --frozen packages/contracts/test/contracts.test.ts
+            deno test --frozen packages/contracts/test
             deno check --frozen packages/contracts/src/index.ts
           fi
 
@@ -252,13 +280,22 @@ jobs:
           tests/integration/outbox-persistence.test.ts
           tests/integration/child-creation.test.ts
           tests/integration/parent-fcm-persistence.test.ts
+          tests/integration/usage-persistence.test.ts
 
       - name: Verify shared backend platform acceptance
         env:
           SUPABASE_DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
-        run: >-
-          deno test --frozen
-          --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS
-          --allow-net=127.0.0.1:54322
-          tests/end-to-end/platform-foundation.test.ts
-          tests/end-to-end/parent-android-foundation.test.ts
+        run: |
+          set -o pipefail
+          deno test --frozen \
+            --allow-env=SUPABASE_DB_URL,ECE_KEYLOG,PGSSL,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS \
+            --allow-net=127.0.0.1:54322 \
+            tests/end-to-end/platform-foundation.test.ts \
+            tests/end-to-end/parent-android-foundation.test.ts \
+            tests/end-to-end/usage-reporting.test.ts 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+      - name: Surface platform acceptance failure as annotations
+        if: failure()
+        run: |
+          [ -s "$RUNNER_TEMP/e2e.log" ] || exit 0
+          body="$(tail -n 60 "$RUNNER_TEMP/e2e.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::error title=platform acceptance tail::${body}"

@@ -12,6 +12,14 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
     val binding = currentBinding.asStateFlow()
     private val mutableState = MutableStateFlow<ChildSyncState>(ChildSyncState.Stale(null))
     val state = mutableState.asStateFlow()
+    private val mutableDetail = MutableStateFlow<String?>(null)
+    /** Short, non-secret reason the last pairing step failed on this phone (exception type and a trimmed message), shown to help diagnose a blocked setup. */
+    val failureDetail = mutableDetail.asStateFlow()
+    private fun describe(e: Throwable, stage: String): String {
+        val text = (e.message ?: "").replace(Regex("[\\r\\n]+"), " ").take(100)
+        val cause = e.cause?.let { " / ${it::class.simpleName}" } ?: ""
+        return "$stage: ${e::class.simpleName}$cause" + if (text.isNotEmpty()) " ($text)" else ""
+    }
     private val operations = Mutex()
     private var record: ChildRecord? = null
     private val uuid = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -102,6 +110,7 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             PairResult.Confirmed(binding)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (denied: ChildRequestDenied) {
+            mutableDetail.value = "pairing request: HTTP ${denied.status} ${denied.code}"
             if (denied.status in setOf(400, 401, 403, 409)) {
                 store.claimPending = false
                 PairResult.Rejected
@@ -110,9 +119,11 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
                 PairResult.UnknownOutcome
             }
         } catch (invalid: Invalid) {
+            mutableDetail.value = describe(invalid, if (claiming) "pairing request" else if (awaitingAuthReply) "sign-in" else "setup check") + " [${invalid.reason}]"
             mutableState.value = ChildSyncState.Blocked(invalid.reason)
             if (claiming || awaitingAuthReply) PairResult.UnknownOutcome else PairResult.Rejected
-        } catch (_: Exception) {
+        } catch (failure: Exception) {
+            mutableDetail.value = describe(failure, if (claiming) "pairing request" else if (awaitingAuthReply) "sign-in" else "saving on this phone")
             val unknown = claiming || awaitingAuthReply
             mutableState.value = ChildSyncState.Blocked(if (unknown) ChildFailure.UNKNOWN_OUTCOME else ChildFailure.STORAGE_UNAVAILABLE)
             if (unknown) PairResult.UnknownOutcome else PairResult.Rejected
@@ -160,6 +171,19 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
         catch (_: Exception) { mutableState.value = ChildSyncState.Stale(record?.lastSuccessAt) }
         state.value
     }
+    suspend fun <T> withCurrentSession(expected:ChildBinding,action:suspend(ChildAuthSession)->T):T=operations.withLock {
+        check(currentBinding.value==expected&&mutableState.value !is ChildSyncState.Blocked){"Current child binding required"}
+        try {
+            if(!key.exists())throw Invalid(ChildFailure.KEY_LOST)
+            val active=sessionFor(checkNotNull(record))
+            if(active.revoked||active.binding!=expected)throw Invalid(ChildFailure.REVOKED)
+            val result=action(active.session)
+            check(currentBinding.value==expected&&record?.revoked==false){"Child binding changed"}
+            result
+        } catch(cancelled:CancellationException){throw cancelled}
+        catch(invalid:Invalid){mutableState.value=ChildSyncState.Blocked(invalid.reason);throw invalid}
+        catch(denied:ChildRequestDenied){handleDenied(denied);throw denied}
+    }
     internal suspend fun confirmRevocation(expected: ChildBinding) = operations.withLock {
         val value = checkNotNull(record)
         check(value.binding == expected)
@@ -176,5 +200,3 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
         mutableState.value = ChildSyncState.Blocked(ChildFailure.REVOKED)
     }
 }
-
-

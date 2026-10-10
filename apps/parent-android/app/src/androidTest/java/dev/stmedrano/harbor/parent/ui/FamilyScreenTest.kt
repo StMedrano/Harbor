@@ -62,6 +62,19 @@ class FamilyScreenTest {
         compose.onNodeWithText("Create family").assertIsNotEnabled()
     }
 
+    @Test fun revokedDevicesDisappearFromTheFamilyList() {
+        val base = snapshot()
+        fun phone(id: String, name: String, status: String) = DevicePublicV1(1, id, "family", "child", name, "standard", status, null,
+            "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z")
+        val withDevices = base.copy(devices = listOf(phone("old", "Removed phone", "revoked"), phone("now", "Current phone", "active")))
+        compose.setContent { HarborTheme { ParentApp {
+            FamilyScreen(FamilyState(withDevices), listOf(withDevices.family), "child", onRefresh = {}, onSelectFamily = {},
+                onSelectChild = {}, onCreateFamily = {}, onAddChild = {}, onPair = {}, onDevice = {})
+        } } }
+        compose.onNodeWithText("Current phone", substring = true).assertExists()
+        compose.onNodeWithText("Removed phone", substring = true).assertDoesNotExist()
+    }
+
     @Test fun deviceViewReportsActualMetadataWithoutClaimingAppliedPolicy() {
         val device = DevicePublicV1(1, "device", "family", "child", "Phone", "standard", "revoked", null,
             "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z")

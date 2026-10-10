@@ -1,14 +1,14 @@
 // PARENT experience: map, alerts, controls, activity, family. Mounted only for role === 'parent'.
 import { api, ApiError } from './api.js';
 import { mountMap } from './map.js';
+import { toUsageView, renderUsageView } from './usage-view.js';
 import { $, e, fmt, clock, when, ago, LOGO, toast, open, shut, sw, fld, form, emptyCard } from './common.js';
 
-const lim = k => (k.limitMin || 0) + (k.bonusMin || 0);
 const SEV = { h: 'High', m: 'Medium', l: 'Low' };
 const ico = { map: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', alerts: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>', controls: '<rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M12 8v4l2.5 1.5"/>', activity: '<path d="M3 12h4l2.5-6 5 12 2.5-6h4"/>', family: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 19a4 4 0 0 1 6.5-3.1"/>' };
 const TABS = { map: 'Map', alerts: 'Alerts', controls: 'Controls', activity: 'Activity', family: 'Family' };
 
-const S = { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview' };
+const S = { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview', usage: null };
 let cb = {};
 const kid = () => S.children.find(c => c.id === S.k) || null;
 
@@ -45,40 +45,50 @@ function alertsView() {
       : emptyCard('All caught up', `No alerts need review for ${e(k.name)}. Harbor will tell you if something comes up.`));
 }
 
-function appStatus(k, a) {
-  if (!a.allowed) return ['Blocked', 'blk'];
-  if (a.limitMin == null) return [`${a.usedMin ? a.usedMin + 'm today · ' : ''}Unlimited, works after time\u2019s up`, ''];
-  if (k.usedMin >= lim(k)) return [`${a.usedMin}m today · locked, time\u2019s up`, 'blk'];
-  if (a.usedMin >= a.limitMin) return [`${a.usedMin}m today · limit reached`, 'blk'];
-  return [`${a.usedMin}m of ${a.limitMin}m today`, ''];
-}
 function controlsView() {
-  const k = kid(), L = lim(k), over = k.usedMin >= L;
-  return `<div class="head"><h1>Screen time</h1></div>
+  const k = kid();
+  return `<div class="head"><h1>Controls</h1></div>
 ${k.paused ? `<div class="ban"><span>${e(k.name)}\u2019s phone is paused</span><button class="btn s d" data-a="pause">Resume</button></div>` : ''}
-<div class="panel"><div class="use"><div><div class="muted sm">Used today</div><b class="num">${fmt(k.usedMin)}</b></div><div style="text-align:right"><div class="muted sm">Daily limit</div><div class="step"><button data-a="lim" data-v="-15" aria-label="Decrease limit">−</button><output class="num">${fmt(L)}</output><button data-a="lim" data-v="15" aria-label="Increase limit">+</button></div></div></div>
-<div class="bar ${over ? 'o' : ''}"><i style="width:${Math.min(100, k.usedMin / L * 100)}%"></i></div><div class="sm ${over ? '' : 'muted'}" style="${over ? 'color:var(--warni);font-weight:600' : ''}">${over ? 'Time\u2019s up' : fmt(L - k.usedMin) + ' left today'}</div></div>
-${over ? `<div class="ban" style="display:block"><b>Time\u2019s up. ${e(k.name)}\u2019s apps are locked.</b><div class="sm muted" style="font-weight:400">Only unlimited apps work until midnight. Calls to parents and SOS always work.</div></div>` : ''}
-<div class="two"><button class="btn ${k.paused ? 'o' : 'd'}" data-a="pause">${k.paused ? 'Resume phone' : 'Pause phone now'}</button><button class="btn o" data-a="bonus">Give 15 more min</button></div>
+<div class="panel"><div class="row" style="display:block"><div class="rt">Limits and blocking are not available yet</div><div class="rs">Harbor currently measures screen time only. Measured screen time is under Activity \u203a Overview.</div></div></div>
+<div class="two"><button class="btn ${k.paused ? 'o' : 'd'}" data-a="pause">${k.paused ? 'Resume phone' : 'Pause phone now'}</button></div>
 ${k.requests.length ? `<div class="lab">Requests</div><div class="panel">${k.requests.map(r => `<div class="row" style="display:block"><div class="rt">${e(r.title)}</div><div class="rs">${e(r.detail)}</div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn s p" data-a="req" data-rid="${e(r.id)}" data-ok="1">Approve</button><button class="btn s o" data-a="req" data-rid="${e(r.id)}">Deny</button></div></div>`).join('')}</div>` : ''}
-<div class="lab">Schedules</div><div class="panel"><div class="row"><div><div class="rt">Bedtime</div><div class="rs">Phone locks overnight</div></div>${sw('bed', k.bedtime, 'Bedtime')}</div><div class="row"><div><div class="rt">School time</div><div class="rs">School apps only during class hours</div></div>${sw('school', k.schoolTime, 'School time')}</div></div>
-<div class="lab">App limits</div>
-${k.apps.length ? `<p class="rs" style="margin:-4px 0 8px">Hard stops. Kids can\u2019t go over; they can only ask you for more time.</p><div class="panel">${k.apps.map((a, i) => { const s = appStatus(k, a); return `<div class="row"><div class="rm"><span class="ic" style="background:${e(a.color || '#56605c')}">${e(a.name[0])}</span><div><div class="rt">${e(a.name)}</div><div class="rs ${s[1]}">${s[0]}</div></div></div><button class="btn s o" data-a="app" data-i="${i}">${!a.allowed ? 'Blocked' : a.limitMin == null ? 'Unlimited' : a.limitMin + 'm/day'}</button></div>`; }).join('')}</div>` : emptyCard('No apps yet', 'Apps appear here after the device syncs.')}`;
+<div class="lab">Schedules</div><div class="panel"><div class="row"><div><div class="rt">Bedtime</div><div class="rs">Phone locks overnight</div></div>${sw('bed', k.bedtime, 'Bedtime')}</div><div class="row"><div><div class="rt">School time</div><div class="rs">School apps only during class hours</div></div>${sw('school', k.schoolTime, 'School time')}</div></div>`;
 }
+
+/* ───────────── usage (read-only, memory only, scoped to parent + child + device) ───────────── */
+const usageKey = k => (k && k.device && S.user ? `${S.user.id}|${k.id}|${k.device.id || k.id}` : null);
+let usageSeq = 0;
+function usageSection(k) {
+  if (!k.device) return emptyCard('No device paired', `Pair ${e(k.name)}\u2019s phone to see measured screen time.`);
+  const u = S.usage && S.usage.key === usageKey(k) ? S.usage : null;
+  if (u && u.denied) return emptyCard('No access', 'You no longer have access to this device\u2019s usage.');
+  if (!u || (u.loading && !u.reply)) return emptyCard('Loading usage', 'Checking the last report from the phone.');
+  if (!u.reply) return emptyCard('Couldn\u2019t load usage', 'Check your connection and try again.') + '<button class="btn o" style="width:100%;margin-top:12px" data-a="usagerefresh">Refresh</button>';
+  return renderUsageView(toUsageView(u.reply, Date.now(), { offline: !!u.offline })) + '<button class="btn o" style="width:100%;margin-top:12px" data-a="usagerefresh">Refresh</button>';
+}
+async function loadUsage(k, force) {
+  const key = usageKey(k); if (!key) return;
+  if (!force && S.usage && S.usage.key === key) return;
+  const seq = ++usageSeq, prev = S.usage && S.usage.key === key ? S.usage : null;
+  S.usage = { key, reply: prev ? prev.reply : null, loading: true, offline: false };
+  try {
+    const reply = await api.getDeviceUsage(k.device.id || k.id);
+    if (seq !== usageSeq || usageKey(kid()) !== key) return;
+    S.usage = { key, reply };
+  } catch (x) {
+    if (seq !== usageSeq || usageKey(kid()) !== key) return;
+    if (handle(x)) { S.usage = null; return; }
+    S.usage = ['forbidden', 'not_found', 'device_revoked'].includes(x && x.code)
+      ? { key, reply: null, denied: true }
+      : { key, reply: prev ? prev.reply : null, offline: true };
+  }
+  render();
+}
+const onVisible = () => { const k = kid(); if (document.visibilityState === 'visible' && S.tab === 'activity' && S.act === 'overview' && k && k.device) { loadUsage(k, true).then(() => 0); } };
 
 function activityView() {
   const k = kid(), T = [['overview', 'Overview'], ['calls', 'Calls'], ['msgs', 'Messages'], ['web', 'Web']]; let b = '';
-  if (S.act === 'overview') {
-    const L = lim(k), mx = Math.max(...k.week, L, 1), avg = Math.round(k.week.reduce((a, c) => a + c, 0) / 7), by = {};
-    k.apps.forEach(a => { by[a.category || 'Other'] = (by[a.category || 'Other'] || 0) + a.usedMin; });
-    const unk = k.calls.filter(c => !c.isContact).length + k.threads.filter(t => !t.isContact).length, tot = Object.values(by).reduce((a, c) => a + c, 0);
-    const days = [...Array(7)].map((_, i) => 'SMTWTFS'[new Date(Date.now() - (6 - i) * 864e5).getDay()]);
-    b = `<div class="panel"><div class="use"><div><div class="muted sm">Daily average · 7 days</div><b class="num">${fmt(avg)}</b></div><div class="sm muted" style="text-align:right">Limit<br><b class="num">${fmt(L)}</b></div></div>
-<div class="chart" role="img" aria-label="Screen time, last 7 days">${k.week.map((m, i) => `<div class="cc"><i class="${m > L ? 'o' : ''}" style="height:${Math.round(m / mx * 104)}px"></i>${days[i]}</div>`).join('')}<div class="lim" style="bottom:${20 + Math.round(L / mx * 104)}px"></div></div></div>
-<div class="kpi"><div><b class="num">${+k.pickups}</b><span>Phone pickups</span></div><div><b class="num">${+k.notifications}</b><span>Notifications</span></div><div><b>${k.firstUse ? clock(k.firstUse) : '–'}</b><span>First use today</span></div><div><b style="font-size:15px">${k.afterBedtime == null ? '–' : e(k.afterBedtime)}</b><span>After bedtime</span></div></div>
-${unk ? `<button class="note w" data-a="act" data-v="msgs"><b>${unk} new contact${unk > 1 ? 's' : ''}</b> not in ${e(k.name)}\u2019s contacts. Review calls and messages</button>` : ''}
-<div class="lab">Time by category</div>${tot ? `<div class="panel">${Object.entries(by).filter(x => x[1]).sort((a, c) => c[1] - a[1]).map(([c, m]) => `<div class="cat"><span>${e(c)}</span><div class="bar"><i style="width:${m / tot * 100}%"></i></div><b class="num">${m}m</b></div>`).join('')}</div>` : emptyCard('No usage yet', 'Usage shows up once the device reports.')}`;
-  }
+  if (S.act === 'overview') b = usageSection(k);
   if (S.act === 'calls') b = `<div class="panel"><div class="row"><div><div class="rt">Block unknown callers</div><div class="rs">Only contacts you approve can call</div></div>${sw('unk', k.blockUnknownCallers, 'Block unknown callers')}</div></div><div class="lab">Recent calls</div>` +
     (k.calls.length ? `<div class="panel">${k.calls.map((c, i) => { const id = c.number || c.name, blocked = k.blockedContacts.includes(id); return `<div class="row"><div><div class="rt">${e(c.name || c.number)} ${c.isContact ? '' : '<span class="tag m">Not a contact</span>'}</div><div class="rs">${{ in: 'Incoming', out: 'Outgoing', missed: 'Missed' }[c.direction] || ''} · ${when(c.time)}${c.durationSec ? ' · ' + Math.floor(c.durationSec / 60) + 'm ' + String(c.durationSec % 60).padStart(2, '0') + 's' : ''}</div></div>${c.isContact ? '' : blocked ? '<span class="blk">Blocked</span>' : `<button class="btn s o" data-a="bcall" data-i="${i}">Block</button>`}</div>`; }).join('')}</div>` : emptyCard('No calls yet', 'Recent calls will appear here.'));
   if (S.act === 'msgs') b = `<p class="note">Harbor surfaces flagged parts of conversations, not everything.</p>` +
@@ -111,6 +121,7 @@ function render(en) {
   const v = $('#view'), keep = v.scrollTop; v.className = en ? 'in' : '';
   v.innerHTML = S.tab === 'family' ? familyView() : kid() ? VIEWS[S.tab]() : noKids();
   v.scrollTop = keep;
+  if (S.tab === 'activity' && S.act === 'overview' && kid() && kid().device) loadUsage(kid());
   if (S.tab === 'map' && kid()) mountMap($('#map'), kid());
   const n = S.alerts.filter(a => !a.reviewed).length;
   $('#tabs').innerHTML = Object.keys(TABS).map(t => `<button class="tab" data-a="tab" data-v="${t}" ${S.tab === t ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ico[t]}</svg><span>${TABS[t]}</span>${t === 'alerts' && n ? `<i class="badge" style="font-style:normal">${n}</i>` : ''}</button>`).join('');
@@ -129,6 +140,7 @@ const onClick = async ev => {
       case 'kid': S.k = t.dataset.id; break;
       case 'af': S.af = v; break;
       case 'act': S.act = v; break;
+      case 'usagerefresh': if (k) loadUsage(k, true); break;
       case 'addkid': open(`<h2 style="font-size:19px">Add a child</h2><p class="muted sm">You\u2019ll get a code to pair their phone.</p>` + form('addchild', `<div style="margin-top:14px">${fld('name', 'Name', 'text', 'off')}</div>`, 'Continue')); return;
       case 'code': pairModal(S.children.find(c => c.id === t.dataset.id)); return;
       case 'newcode': { const c = await api.regeneratePairingCode(t.dataset.id); Object.assign(S.children.find(x => x.id === c.id), c); pairModal(c); return; }
@@ -136,13 +148,8 @@ const onClick = async ev => {
       case 'cmd': await api.sendCommand(k.id, v); toast(v === 'ring' ? `Ringing ${k.name}\u2019s phone\u2026` : `Check-in request sent to ${k.name}`); return;
       case 'alert': { const x = S.alerts.find(y => y.id === t.dataset.id); open(`<span class="tag ${e(x.severity)}">${SEV[x.severity] || ''} priority</span><h2 style="margin-top:8px;font-size:19px">${e(x.category)}</h2><p class="muted sm">${e(x.app)} · ${when(x.time)} · ${e(x.from)}</p><div class="msg">${x.lines.map(l => `<p class="${l.flagged ? 'flag' : ''}"><span class="fr">${e(l.who)}</span><br>${e(l.text)}</p>`).join('')}</div><p class="sm muted">Harbor only shows the flagged part of the conversation.</p>${x.tips.length ? `<div class="lab">Suggested next steps</div><ul class="tips">${x.tips.map(q => `<li>${e(q)}</li>`).join('')}</ul>` : ''}<div class="ma"><button class="btn p" data-a="rev" data-id="${e(x.id)}">${x.reviewed ? 'Mark as needs review' : 'Mark as reviewed'}</button><button class="btn o" data-a="x">Close</button></div>`); return; }
       case 'rev': { const x = S.alerts.find(y => y.id === t.dataset.id); x.reviewed = !x.reviewed; await api.setAlertReviewed(x.id, x.reviewed); shut(); toast(x.reviewed ? 'Marked as reviewed' : 'Moved back to review'); break; }
-      case 'lim': patch(k, { limitMin: Math.max(15, Math.min(600, k.limitMin + +v)) }); break;
       case 'pause': patch(k, { paused: !k.paused }); toast(k.paused ? `${k.name}\u2019s phone is paused` : `${k.name}\u2019s phone resumed`); break;
-      case 'bonus': Object.assign(k, await api.grantTime(k.id, 15)); toast(`${k.name} got 15 extra minutes today`); break;
       case 'req': { await api.respondToRequest(k.id, t.dataset.rid, !!t.dataset.ok); await refresh(); toast(t.dataset.ok ? 'Approved' : 'Denied'); break; }
-      case 'app': { const x = k.apps[i], cur = !x.allowed ? 'b' : x.limitMin == null ? 'u' : String(x.limitMin);
-        open(`<h2 style="font-size:19px">${e(x.name)} for ${e(k.name)}</h2><p class="muted sm">${x.usedMin}m used today. Limits are hard stops.</p><div class="panel" style="margin-top:12px" role="radiogroup">${[['u', 'Unlimited', 'Keeps working after daily time is up'], ...[15, 30, 45, 60, 90, 120].map(m => [String(m), m + ' min a day', 'Locks when used up']), ['b', 'Blocked', 'Can\u2019t be opened']].map(([o, l, d]) => `<button class="row" role="radio" aria-checked="${cur === o}" data-a="setlim" data-i="${i}" data-v="${o}"><div><div class="rt">${l}</div><div class="rs">${d}</div></div><span style="width:22px;height:22px;border-radius:50%;flex:none;border:${cur === o ? '7px solid var(--acc)' : '2px solid var(--line)'}"></span></button>`).join('')}</div><button class="btn o" style="width:100%" data-a="x">Cancel</button>`); return; }
-      case 'setlim': { const apps = k.apps.map((x, n) => n === i ? { ...x, allowed: v !== 'b', limitMin: v === 'u' || v === 'b' ? null : +v } : x); patch(k, { apps }); shut(); toast(`${k.apps[i].name}: ${v === 'b' ? 'blocked' : v === 'u' ? 'unlimited' : v + ' min a day'}`); break; }
       case 'bcall': { const c = k.calls[i]; patch(k, { blockedContacts: [...k.blockedContacts, c.number || c.name] }); toast(`Blocked ${c.name || c.number}`); break; }
       case 'bsite': { const h = k.history[i]; patch(k, { blockedSites: [...k.blockedSites, h.url] }); toast(`Blocked ${h.url}`); break; }
       case 'cat': patch(k, { filters: { ...k.filters, [v]: !k.filters[v] } }); toast(`${v} ${k.filters[v] ? 'blocked' : 'allowed'}`); break;
@@ -182,11 +189,13 @@ const onSubmit = async ev => {
 export async function mountParent(session, callbacks) {
   cb = callbacks; S.user = session.user;
   document.addEventListener('click', onClick); document.addEventListener('change', onChange); document.addEventListener('submit', onSubmit);
+  document.addEventListener('visibilitychange', onVisible);
   await loadApp();
 }
 export function unmountParent() {
-  document.removeEventListener('click', onClick); document.removeEventListener('change', onChange); document.removeEventListener('submit', onSubmit);
-  Object.assign(S, { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview' });
+  document.removeEventListener('click', onClick); document.removeEventListener('change', onChange); document.removeEventListener('submit', onSubmit); document.removeEventListener('visibilitychange', onVisible);
+  usageSeq++;
+  Object.assign(S, { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview', usage: null });
   shut(); $('#shell').hidden = true;
   // Wipe the rendered family data so nothing lingers in the page after sign-out (shared phones).
   for (const id of ['#view', '#kids', '#tabs', '#brand']) $(id).innerHTML = '';
