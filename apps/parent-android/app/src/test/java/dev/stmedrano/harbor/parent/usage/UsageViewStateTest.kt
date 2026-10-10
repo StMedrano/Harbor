@@ -94,4 +94,12 @@ class UsageViewStateTest {
             .flatMap(::usageNotices).joinToString(" ").lowercase()
         listOf("block", "limit", "locked", "restrict").forEach { assertFalse(all.contains(it)) }
     }
+    @Test fun collectionFailureIsNotShownAsOffline() {
+        val state = UsageStoredState("22222222-2222-4222-8222-222222222222", "11111111-1111-4111-8111-111111111111", consent = true)
+        val view = UsageViewState.fromLocal(state, UsageRuntimeStatus.COLLECTION_FAILED, true, now) { null }
+        assertTrue(view.collectionFailed); assertFalse(view.offline)
+        val notices = usageNotices(view)
+        assertTrue(notices.any { it.contains("couldn't read this phone's screen time") })
+        assertTrue(notices.none { it.startsWith("Offline") })
+    }
 }

@@ -29,6 +29,19 @@ class UsageCollectorTest {
   assertEquals(first.report.days,repeat.report.days)
   validateUsageReport(repeat.report,now)
  }
+ @Test fun systemSurfacesWithoutADottedIdAreNotCountedAndTheReportStaysValid()=runTest {
+  // Real phones report the single-word package "android" (share sheet, permission prompts); the report contract cannot carry it.
+  val source=object:UsageSource {override fun read(window:UsageWindow)=UsageSourceResult.Observed(listOf(
+   UsageEvent(now-120000,UsageEventKind.SCREEN_ON,null,null),UsageEvent(now-120000,UsageEventKind.UNLOCKED,null,null),
+   UsageEvent(now-110000,UsageEventKind.RESUMED,"com.example.test",1),UsageEvent(now-50000,UsageEventKind.PAUSED,"com.example.test",1),
+   UsageEvent(now-50000,UsageEventKind.RESUMED,"android",2),UsageEvent(now-40000,UsageEventKind.PAUSED,"android",2),
+   UsageEvent(now-40000,UsageEventKind.RESUMED,"com.example.test",1),UsageEvent(now,UsageEventKind.PAUSED,"com.example.test",1))) }
+  val data=UsageCollector(source,inventory(),{it==lease},{now},{"UTC"},{emptySet()}).collect(lease,saved)
+  validateUsageReport(data.report,now)
+  val today=data.report.days.last()
+  assertEquals(listOf("com.example.test"),today.apps.map{it.packageName})
+  assertEquals(100000L,today.totalMs)
+ }
  @Test fun unavailableAndDeniedAreNotZeroAndLockedDoesNotEnumerate()=runTest {
   var inventoryReads=0
   val inv=object:AppInventorySource {override fun read():InventoryResult {inventoryReads++;return InventoryResult.Unavailable}}

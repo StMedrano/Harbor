@@ -51,6 +51,18 @@ class UsageRuntimeTest {
   val saved=checkNotNull(s.read(lease.ownerId));assertFalse(saved.consent);assertNull(saved.latestAggregate)
   assertEquals(2L,(saved.pending as PendingClear).clear.sequence)
  }
+ @Test fun aFailureReadingUsageIsReportedAsThatAndNotAsOffline()=runTest {
+  var sends=0;val s=store();s.update(lease.ownerId){it.copy(consent=true)}
+  val r=UsageRuntime(backgroundScope,s,UsageReporter({it==lease},{_,_,_->sends++;reply(1)}),{it==lease},{true},{_,_->throw IllegalArgumentException("unreportable")},{denied})
+  r.start(lease);r.refresh(lease)
+  assertEquals(UsageRuntimeStatus.COLLECTION_FAILED,r.state.value);assertEquals(0,sends);assertNull(s.read(lease.ownerId)?.pending)
+ }
+ @Test fun aNetworkFailureStillMeansOffline()=runTest {
+  val s=store();s.update(lease.ownerId){it.copy(consent=true)}
+  val r=UsageRuntime(backgroundScope,s,UsageReporter({it==lease},{_,_,_->throw java.io.IOException("offline")}),{it==lease},{true},{_,_->UsageCollection(report,null)},{denied})
+  r.start(lease);r.refresh(lease)
+  assertEquals(UsageRuntimeStatus.OFFLINE,r.state.value)
+ }
  @Test fun deliberateNewOptInUsesHigherSequenceAndAcknowledgesOnlyMatchingPending()=runTest {
   val s=store();s.update(lease.ownerId){it.copy(consent=true)};s.newPendingReport(lease.ownerId,report)
   val sequences=mutableListOf<Long>()

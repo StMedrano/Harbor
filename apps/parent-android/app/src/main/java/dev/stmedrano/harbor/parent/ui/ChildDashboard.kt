@@ -34,11 +34,11 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                     when (state) {
                         is ChildSyncState.Fresh -> {
                             Text("Signed sync confirmed. State version: ${state.desiredVersion}.")
-                            Text("Last sync: ${java.time.Instant.ofEpochSecond(state.receivedAt)}")
+                            Text("Last sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}")
                         }
                         is ChildSyncState.Stale -> {
                             Text("Showing saved setup. Current status has not been confirmed.")
-                            state.lastSuccessAt?.let { Text("Last confirmed sync: ${java.time.Instant.ofEpochSecond(it)}") }
+                            state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}") }
                         }
                         is ChildSyncState.Blocked -> Unit
                     }

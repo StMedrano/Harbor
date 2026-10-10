@@ -29,6 +29,8 @@ private val usageInstant = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\
 private fun checkedText(value:String,max:Int) {
     require(value.isNotEmpty() && value.codePointCount(0,value.length)<=max && value.none { it.code<32 || it.code in 127..159 })
 }
+/** True when [value] can be sent: the report contract needs a dotted application id, so the single-word system package "android" cannot be. */
+fun isReportablePackage(value:String):Boolean = value.length<=255&&usagePackage.matches(value)
 private fun checkedPackage(value:String) { checkedText(value,255);require(usagePackage.matches(value)) }
 private fun checkedSequence(value:Long,min:Long=1) { require(value in min..MAX_SAFE_INTEGER) }
 private fun instantMs(value:String):Long {

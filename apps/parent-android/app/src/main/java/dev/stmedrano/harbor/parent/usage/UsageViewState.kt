@@ -19,6 +19,8 @@ data class UsageViewState(
     val zoneId: String? = null,
     val stale: Boolean = false,
     val offline: Boolean = false,
+    /** Child only: this phone could not read its own usage, so nothing was sent (not a network problem). */
+    val collectionFailed: Boolean = false,
     val uploadPending: Boolean = false,
     val collecting: Boolean = false,
     /** Child only: local state is being restored from the server checkpoint. */
@@ -79,7 +81,8 @@ data class UsageViewState(
             if (state == null || !state.consent) return UsageViewState(UsageViewStatus.SHARING_OFF, origin, deletionPending = state?.pending is PendingClear)
             val received = state.receivedAt
             val base = UsageViewState(UsageViewStatus.NO_REPORT, origin, receivedAt = received, stale = isStale(received, nowMs),
-                offline = runtime == UsageRuntimeStatus.OFFLINE, uploadPending = state.pending is PendingReport)
+                offline = runtime == UsageRuntimeStatus.OFFLINE, collectionFailed = runtime == UsageRuntimeStatus.COLLECTION_FAILED,
+                uploadPending = state.pending is PendingReport)
             if (!permissionGranted) return base.copy(status = UsageViewStatus.PERMISSION_REQUIRED)
             val aggregate = state.latestAggregate ?: return base.copy(collecting = true)
             val days = aggregate.days.sortedBy { it.localDate }
@@ -129,6 +132,7 @@ fun usageNotices(state: UsageViewState): List<String> = buildList {
             if (state.inventory == InventoryStatus.UNAVAILABLE) add("The app list was not available.")
         }
     }
+    if (state.collectionFailed) add("Harbor couldn't read this phone's screen time just now, so nothing was sent. It will try again.")
     if (state.stale) add("Out of date: the last upload was more than 30 minutes ago.")
     if (state.offline) add(if (state.origin == UsageViewOrigin.PARENT_READ) "Can't reach Harbor. Showing the last confirmed report." else "Offline. Reports upload when the phone reconnects.")
     if (state.uploadPending && !state.offline) add("Latest measurement is waiting to upload.")

@@ -8,7 +8,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 data class UsageCollection(val report:UsageReportV1,val aggregate:UsageReduction?)
-enum class UsageRuntimeStatus { DISABLED, READY, PERMISSION_DENIED, OFFLINE, CHECKPOINT_REQUIRED }
+enum class UsageRuntimeStatus { DISABLED, READY, PERMISSION_DENIED, OFFLINE, CHECKPOINT_REQUIRED, COLLECTION_FAILED }
+/** Reading this phone's own usage failed before anything was sent: that is not a network problem. */
+class UsageCollectionFailed(cause:Throwable):Exception("Usage could not be read on this phone",cause)
 class UsagePermissionChanged:IllegalStateException("Usage permission changed")
 class UsageRuntime(private val scope:CoroutineScope,private val store:EncryptedUsageStore,private val reporter:UsageReporter,
  private val current:(ProfileLease)->Boolean,private val permission:()->Boolean,
@@ -58,6 +60,7 @@ class UsageRuntime(private val scope:CoroutineScope,private val store:EncryptedU
   catch(_:TimeoutCancellationException){if(valid(lease))mutableState.value=UsageRuntimeStatus.OFFLINE}
   catch(cancelled:CancellationException){throw cancelled}
   catch(_:UsageCheckpointLost){if(valid(lease))mutableState.value=UsageRuntimeStatus.CHECKPOINT_REQUIRED}
+  catch(_:UsageCollectionFailed){if(valid(lease))mutableState.value=UsageRuntimeStatus.COLLECTION_FAILED}
   catch(_:Exception){if(valid(lease))mutableState.value=UsageRuntimeStatus.OFFLINE}
  }
  suspend fun refresh(lease:ProfileLease) {
@@ -72,7 +75,7 @@ class UsageRuntime(private val scope:CoroutineScope,private val store:EncryptedU
       if(clear!=null){checked(lease);acknowledge(lease,clear,reporter.clear(lease,clear))}
       mutableState.value=UsageRuntimeStatus.DISABLED;return@attempt
      }
-     val collected=if(permission())collect(lease,saved)else UsageCollection(denied(),null)
+     val collected=if(permission())try{collect(lease,saved)}catch(cancelled:CancellationException){throw cancelled}catch(e:UsageCheckpointLost){throw e}catch(e:Exception){if(valid(lease))throw UsageCollectionFailed(e)else throw e}else UsageCollection(denied(),null)
      checked(lease);check(store.read(lease.ownerId)?.consent==true)
      val allowed=permission()
      val report=if(allowed)collected.report else denied()

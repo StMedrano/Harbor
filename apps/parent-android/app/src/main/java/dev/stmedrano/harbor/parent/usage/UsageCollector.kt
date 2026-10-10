@@ -19,7 +19,8 @@ class UsageCollector(private val source:UsageSource,private val inventory:AppInv
   val result=source.read(window);checked(lease)
   if(result==UsageSourceResult.PermissionDenied)return UsageCollection(unavailableUsageReport(at,zoneId,UsagePermissionState.DENIED),null)
   if(result==UsageSourceResult.UserLocked)return UsageCollection(unavailableUsageReport(at,zoneId),null)
-  val observed=(result as? UsageSourceResult.Observed)?.events.orEmpty()
+  // System surfaces such as the share sheet report the package "android", which the report contract cannot carry: they are not an app, so they are not counted.
+  val observed=(result as? UsageSourceResult.Observed)?.events.orEmpty().filter{it.packageName==null||isReportablePackage(it.packageName)}
   val aggregate=reconcileUsage(saved.latestAggregate,observed,window)
   checked(lease);val apps=inventory.read();checked(lease)
   val status=when(apps){is InventoryResult.Observed->if(apps.truncated)InventoryStatus.TRUNCATED else InventoryStatus.COMPLETE;else->InventoryStatus.UNAVAILABLE}
