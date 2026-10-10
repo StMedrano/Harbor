@@ -10,6 +10,10 @@ Base: branch `feat/android-usage-reporting` (draft PR #23, unmerged). This work 
 - Message monitoring means SMS plus chat-app notifications, producing alerts for parents. It does not mean a parent reading full message threads.
 - As with screen time: sharing starts automatically once a child phone is paired, the child cannot turn it off, and a parent stops it by removing the device. Nothing is hidden from the child.
 - Still excluded unless separately approved: app blocking or limits, web filtering, SOS, device-admin or anti-removal behavior, microphone, camera or screen capture, and any covert operation (hidden app icon, hidden notification).
+- Map provider: OpenStreetMap data. Development uses a client library (osmdroid or MapLibre) with required OSM attribution and an identifying User-Agent. The public openstreetmap.org tile servers forbid heavy or production use, so before any wider release a tile host that permits it (self-hosted or a commercial OSM-tile provider) must be chosen. No Google Maps SDK or API key.
+- Message alerts carry no excerpt: no message text of any length leaves the phone.
+- Monitored apps (default list, social and messaging): the phone's Messages app (SMS/RCS notifications), WhatsApp, Facebook, Messenger, Instagram, TikTok, Snapchat. Proposed additions, to be confirmed: Discord, Telegram, X. The list is visible to the child and editable only through app releases or parent-side settings added later.
+- Distribution stays on Firebase App Distribution for now; Google Play is deferred, so Play's SMS/notification-access declarations are not a current blocker.
 - Design source: the owner's Figma file (`0U0Ibmj63W1rmwJQMsGgRA`). The Figma tool limit was exhausted on 2026-10-10, so screens below follow the web tokens already in the app until the file can be read. Revisit when readable.
 
 ## Principles shared by every feature
@@ -28,7 +32,7 @@ Collection: balanced-power priority, requested interval 5 minutes while moving a
 
 Upload: new signed ops `report-device-location` (batch of up to 100 fixes, 256 KiB) and `clear-device-location`. Monotonic sequence per device, idempotent replace, tombstone on clear, future-time bound 5 minutes, server `receivedAt` separate from device time. Offline fixes queue encrypted (latest 500). Retention 30 days server-side (configurable; open decision), purged by scheduled job.
 
-Parent read: `get-device-location` (latest fix plus history window), shown on a map with accuracy circle, "last updated" age and a staleness banner after 30 minutes. States: sharing on, location permission lost, background permission missing, location services off, offline, never reported. Map provider is an open decision (Google Maps SDK needs a restricted API key and billing; OpenStreetMap tiles need attribution and a usage-policy-compliant host).
+Parent read: `get-device-location` (latest fix plus history window), shown on a map with accuracy circle, "last updated" age and a staleness banner after 30 minutes. States: sharing on, location permission lost, background permission missing, location services off, offline, never reported. Map provider: OpenStreetMap (see owner decisions).
 
 Out of scope here: geofence alerts, check-ins, SOS, driving reports (follow-on designs).
 
@@ -40,7 +44,7 @@ Capture paths:
 
 Processing is on-device. Notification text is read into memory, classified, then discarded. Version 1 uses reviewable rule sets (keyword and pattern lists per category, languages: English first) in the app, not a remote model. Categories: bullying or harassment, self-harm or wellbeing concern, adult content, drugs or alcohol, violence or threats, contact from an unknown adult. The rule set version is part of each alert.
 
-What leaves the phone (default): alert id, app label, category, rule-set version, time, and whether the sender was a saved contact (yes/no). Not sent by default: message text, sender name or number, attachments. An optional short redacted excerpt (max 120 characters) is an open decision; if approved it is a parent-visible, child-disclosed setting fixed at pairing, not a per-message secret.
+What leaves the phone (default): alert id, app label, category, rule-set version, time, and whether the sender was a saved contact (yes/no). Not sent by default: message text, sender name or number, attachments. No excerpt is sent (owner decision).
 
 Honest limits (shown in both child and parent views): only notification text is seen for chat apps, so muted notifications, message previews hidden by the sender app, or end-to-end encrypted content not shown in a notification are missed; classification makes mistakes both ways; the app does not claim to review every message. A parent view labels alerts as "possible" and never as a verdict.
 
@@ -64,10 +68,11 @@ Each ships as its own stacked PR, development-only, no merge or production claim
 
 ## Open decisions for the owner
 
-1. Map provider (Google Maps vs OpenStreetMap).
-2. Location retention (default 30 days) and update cadence.
-3. Message alerts: send no excerpt (default) or a 120-character redacted excerpt.
-4. Which chat apps are on the default monitored list.
-5. Languages beyond English for the first rule set.
-6. Whether any item in the "Still excluded" list above should become a separate design.
-7. Google Play: SMS permissions would need a declaration; confirm distribution stays on Firebase App Distribution for now.
+Resolved 2026-10-10: map provider (OpenStreetMap), no excerpt, monitored-app list (above), Firebase-only distribution.
+
+Still open:
+1. Location retention (default 30 days) and update cadence (default 5 minutes moving, 15 stationary).
+2. Confirm the proposed additions to the monitored list (Discord, Telegram, X).
+3. Languages beyond English for the first rule set.
+4. Whether any item in the "Still excluded" list should become a separate design.
+5. Tile host for anything beyond development use.
