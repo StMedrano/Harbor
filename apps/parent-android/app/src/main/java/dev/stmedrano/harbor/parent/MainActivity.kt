@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                         childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     } else graph.enableChildNotifications(lease)
                                 })
-                        }, onRetry = graph::retrySetupValidation)
+                        }, onRetry = graph::retrySetupValidation, detail = child?.failureDetail?.collectAsState()?.value)
                 } }
                 return@setContent
             }

@@ -145,6 +145,17 @@ class ChildRepositoryTest {
         assertEquals(ChildSyncState.Blocked(ChildFailure.STORAGE_UNAVAILABLE), value.state.value)
         assertEquals(0, backend.authCalls)
     }
+    @Test fun aFailureAfterSignInSaysWhereItFailedWithoutSecrets() = runTest {
+        val store = Store().apply { writeFails = true }; val backend = Backend(store)
+        val value = repository(store, backend)
+        assertNull(value.failureDetail.value)
+        assertEquals(PairResult.Rejected, value.pair("123456"))
+        val detail = checkNotNull(value.failureDetail.value)
+        assertTrue(detail, detail.startsWith("saving on this phone: IOException"))
+        assertTrue(detail.contains("fixture write failure"))
+        assertFalse(detail.contains("child-access") || detail.contains("child-refresh"))
+        assertEquals(0, backend.claims)
+    }
     @Test fun revokedReplyHidesStateEvenIfPersistenceFails() = runTest {
         val store = Store().apply { record = ChildRecord(session(), confirmed) }
         val backend = Backend(store).apply { revoked = true }

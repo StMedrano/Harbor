@@ -15,7 +15,7 @@ import dev.stmedrano.harbor.parent.profile.ProfileBlock
 fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
     parentAuth: @Composable () -> Unit, parentMenu: @Composable () -> Unit,
     parentContent: @Composable () -> Unit, childPairing: @Composable () -> Unit,
-    childContent: @Composable () -> Unit, onRetry: (() -> Unit)? = null) {
+    childContent: @Composable () -> Unit, onRetry: (() -> Unit)? = null, detail: String? = null) {
     when (state.destination()) {
         FamilyDestination.ENTRY -> entry()
         FamilyDestination.PARENT_AUTH -> parentAuth()
@@ -30,6 +30,7 @@ fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
                     Text("A parent removed this phone from the family, so it no longer shares anything. To use it again, clear Harbor's storage " +
                         "(Android Settings > Apps > Harbor > Storage > Clear storage), open Harbor, and choose Child with a new pairing code.")
                 }
+                if (!detail.isNullOrBlank()) Text("Technical detail: $detail", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
                 if (network && onRetry != null) HarborButton(onClick = onRetry) { Text("Retry saved setup") }
             }
         }
