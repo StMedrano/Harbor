@@ -101,8 +101,8 @@ class MainActivity : ComponentActivity() {
                     childPermissionRequest.value = null
                     if (expected != null && graph.profiles.isCurrent(expected)) graph.enableChildNotifications(expected)
                 }
-                HarborTheme { ParentApp(showBrand = false) {
-                    transitionMessage.value?.let { Text(it) }
+                HarborTheme { ParentApp(showBrand = false, centered = entryState.destination() == FamilyDestination.ENTRY) {
+                    transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     FamilyRoleContent(entryState,
                         entry = { FamilyEntryScreen(
                             onParent = { if (graph.openParentSetup()) setupRole.value = ProfileRole.PARENT },
