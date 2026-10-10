@@ -68,6 +68,7 @@ class FamilyRoleNavigationTest {
         compose.onNodeWithText("Parent controls").assertDoesNotExist()
         compose.onNodeWithText("Today").assertDoesNotExist()
         compose.onNodeWithText("This phone needs a parent to check its setup.").assertExists()
+        compose.onNodeWithText("A parent removed this phone from the family", substring = true).assertExists()
     }
     @Test fun largeTextChildDashboardShowsHonestTabsInBothThemes() {
         val dark = mutableStateOf(false)

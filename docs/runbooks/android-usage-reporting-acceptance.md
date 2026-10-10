@@ -35,7 +35,7 @@ Use two Android roles: a parent device (or the parent browser) and a child devic
 6. **Offline / reconnect.** Disable the network, produce usage, re-enable it. Only the latest report is sent; the parent shows the previous confirmed report as out of date or "can't reach Harbor" until then.
 7. **Inventory.** Confirm launchable apps appear with labels, unknown labels read "name unavailable", and a truncated inventory is called out. Do not publish the inventory.
 8. **Parent reads.** Native and browser show the same confirmed report, read-only. Check dark mode, font scale 1.8, TalkBack reading of the day bars, and Back behavior.
-9. **Opt-out.** Tap *Stop sharing and remove my report*. Confirm jobs are cancelled, the parent read becomes "no report", and a delayed upload from the old session cannot bring data back (server checkpoint rejects it).
+9. **No child opt-out.** Confirm the child phone has no stop control and says only parents can turn sharing off. (Parents stop sharing by removing the device, step 10. The earlier child opt-out path was exercised on a real phone on 2026-10-10 before this product decision.)
 10. **Revocation.** Revoke the child device from the parent. The child's next upload and the parent's read are both denied, and the stored payload is gone.
 11. **Cold restart.** Force-stop and reboot the child phone with sharing on; confirm the job resumes only while consent is still on and the profile lease matches.
 

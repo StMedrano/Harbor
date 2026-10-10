@@ -82,9 +82,9 @@ class UsageUiTest {
     }
 
     @Test fun consentIsExplicitAndStopIsAlwaysAvailable() {
-        var started = 0; var stopped = 0; var opened = 0
+        var started = 0; var opened = 0
         val ui = mutableStateOf(ChildUsageUi(UsageViewState(UsageViewStatus.SHARING_OFF, UsageViewOrigin.CHILD_PHONE), false, false,
-            { started++ }, { stopped++ }, { opened++ }, {}))
+            { started++ }, { opened++ }, {}))
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
             ChildDashboard(ChildSyncState.Stale(1000), ChildBinding("device-a", "family-a", "child-a"), {}, {}, usage = ui.value)
         } } }
@@ -93,11 +93,11 @@ class UsageUiTest {
         assertEquals(0, started)
         compose.onNodeWithText("Start sharing screen time").performScrollTo().performClick()
         assertEquals(1, started)
-        compose.runOnIdle { ui.value = ChildUsageUi(UsageViewState(UsageViewStatus.PERMISSION_REQUIRED, UsageViewOrigin.CHILD_PHONE), true, false, { started++ }, { stopped++ }, { opened++ }, {}) }
+        compose.runOnIdle { ui.value = ChildUsageUi(UsageViewState(UsageViewStatus.PERMISSION_REQUIRED, UsageViewOrigin.CHILD_PHONE), true, false, { started++ }, { opened++ }, {}) }
         compose.onNodeWithText("Open Usage Access settings").performScrollTo().performClick()
         assertEquals(1, opened)
-        compose.onNodeWithText("Stop sharing and remove my report").performScrollTo().performClick()
-        assertEquals(1, stopped)
+        compose.onNodeWithText("Stop sharing and remove my report").assertDoesNotExist()
+        compose.onNodeWithText("Only your parents can turn sharing off.", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Apps").performScrollTo().performClick()
         compose.onNodeWithText("Usage Access is off. No screen time is measured, so totals are unknown, not zero.").performScrollTo().assertIsDisplayed()
     }

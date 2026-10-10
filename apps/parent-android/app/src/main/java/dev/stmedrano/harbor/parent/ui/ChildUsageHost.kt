@@ -25,7 +25,6 @@ fun rememberChildUsageUi(graph: ParentApplication, lease: ProfileLease, resumeTi
         consent = local?.read?.state?.consent == true,
         permissionGranted = permission,
         onStart = { graph.setChildUsageSharing(lease, true); tick++ },
-        onStop = { graph.setChildUsageSharing(lease, false); tick++ },
         onOpenSettings = openSettings,
         onCheckAgain = { graph.refreshChildUsage(lease); tick++ },
     )
