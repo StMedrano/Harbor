@@ -42,4 +42,19 @@ class HarborStyleTest {
         compose.onNodeWithText("Settings").assertIsSelected()
         compose.onNodeWithText("Showing Settings").assertExists()
     }
+
+    @Test fun bottomBarShowsAndMovesTheSelectedDestination() {
+        compose.setContent {
+            HarborTheme {
+                var selected by remember { mutableStateOf("Family") }
+                HarborBottomBar(listOf("Family" to HarborGlyph.FAMILY, "Settings" to HarborGlyph.SETTINGS, "Security" to HarborGlyph.SECURITY)
+                    .map { (label, glyph) -> HarborNavItem(label, glyph, selected == label) { selected = label } })
+                Text("Showing $selected")
+            }
+        }
+        compose.onNodeWithText("Family").assertIsSelected()
+        compose.onNodeWithText("Security").performClick()
+        compose.onNodeWithText("Security").assertIsSelected()
+        compose.onNodeWithText("Showing Security").assertExists()
+    }
 }

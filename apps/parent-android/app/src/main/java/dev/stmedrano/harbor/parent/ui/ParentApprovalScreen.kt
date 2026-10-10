@@ -44,7 +44,7 @@ import kotlinx.coroutines.*
                 OutlinedTextField(password, { if (!busy) password = it }, label = { Text("Parent password") },
                     singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-                Button(enabled = !busy && email.isNotBlank() && password.isNotBlank(), onClick = {
+                HarborButton(enabled = !busy && email.isNotBlank() && password.isNotBlank(), onClick = {
                     val submittedEmail = email; val submittedPassword = password; password = ""
                     perform(1, "Use a confirmed parent account with an authenticator set up.") { onSignIn(submittedEmail, submittedPassword) }
                 }) { Text(if (busy) "Checking…" else "Continue as parent") }
@@ -53,12 +53,12 @@ import kotlinx.coroutines.*
                 OutlinedTextField(code, { if (!busy && it.length <= 6 && it.all { char -> char in '0'..'9' }) code = it },
                     label = { Text("Authenticator code") }, singleLine = true, enabled = !busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
-                Button(enabled = !busy && code.length == 6, onClick = {
+                HarborButton(enabled = !busy && code.length == 6, onClick = {
                     val submitted = code; code = ""
                     perform(2, "Parent approval was not confirmed for this phone.") { onVerify(submitted) }
                 }) { Text(if (busy) "Checking…" else "Verify parent approval") }
             }
-            else -> Button(enabled = !busy, onClick = {
+            else -> HarborButton(enabled = !busy, onClick = {
                 perform(2, "Removal was not confirmed. This phone remains enrolled.", onRemove)
             }) { Text(if (busy) "Removing…" else "Remove enrollment") }
         }

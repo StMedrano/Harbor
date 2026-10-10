@@ -18,8 +18,8 @@ fun PairingSheet(state: PairingState, expired: Boolean, error: String?, onRenew:
             }
             Text(if (state.enrolled) "Enrollment confirmed by a fresh device read." else "Enter this code on the child device, then check enrollment.")
             if (error != null) Text(error)
-            OutlinedButton(onRenew, enabled = !state.loading) { Text("Renew pairing code") }
-            OutlinedButton(onCheck, enabled = !state.loading) { Text("Check enrollment") }
+            HarborOutlinedButton(onRenew, enabled = !state.loading) { Text("Renew pairing code") }
+            HarborOutlinedButton(onCheck, enabled = !state.loading) { Text("Check enrollment") }
         }
     }, confirmButton = { TextButton(onClose) { Text("Close") } })
 }

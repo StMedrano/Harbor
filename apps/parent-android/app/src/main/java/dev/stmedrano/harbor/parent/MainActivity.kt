@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
@@ -25,8 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
 import dev.stmedrano.harbor.parent.ui.ParentApp
-import dev.stmedrano.harbor.parent.ui.HarborTab
-import dev.stmedrano.harbor.parent.ui.HarborTabs
+import dev.stmedrano.harbor.parent.ui.HarborBottomBar
+import dev.stmedrano.harbor.parent.ui.HarborGlyph
+import dev.stmedrano.harbor.parent.ui.HarborNavItem
+import dev.stmedrano.harbor.parent.ui.childNavItems
 import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
@@ -101,7 +104,12 @@ class MainActivity : ComponentActivity() {
                     childPermissionRequest.value = null
                     if (expected != null && graph.profiles.isCurrent(expected)) graph.enableChildNotifications(expected)
                 }
-                HarborTheme { ParentApp(showBrand = false, centered = entryState.destination() == FamilyDestination.ENTRY) {
+                val childTab = remember { mutableStateOf("Today") }
+                val destination = entryState.destination()
+                val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME) {
+                    @Composable { HarborBottomBar(childNavItems(childTab.value) { childTab.value = it }) }
+                } else null
+                HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
                     transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     FamilyRoleContent(entryState,
                         entry = { FamilyEntryScreen(
@@ -135,7 +143,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi,
+                                usage = usageUi, tab = childTab.value,
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -189,8 +197,19 @@ class MainActivity : ComponentActivity() {
                 enableNotifications(expected)
             }
             val authenticationOpen = authenticationPage.value || callback.value != null
+            val parentHome = identity != null && profile is ProfileState.Parent && profile.lease.ownerId == identity.userId && !authenticationOpen
+            val parentBar: (@Composable () -> Unit)? = if (parentHome && runtime?.signingOut != true) {
+                @Composable { HarborBottomBar(listOf(
+                    HarborNavItem("Family", HarborGlyph.FAMILY, !settingsPage.value && !securityPage.value) {
+                        authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
+                    HarborNavItem("Settings", HarborGlyph.SETTINGS, settingsPage.value) {
+                        settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
+                    HarborNavItem("Security", HarborGlyph.SECURITY, securityPage.value) {
+                        securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
+                )) }
+            } else null
             HarborTheme {
-                ParentApp(showBrand = identity != null && !authenticationOpen) {
+                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
@@ -207,13 +226,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }, onCallbackConsumed = { callback.value = null })
                             },
-                            parentMenu = {
-                                HarborTabs(listOf(
-                                    HarborTab("Family", !settingsPage.value && !securityPage.value) { authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
-                                    HarborTab("Settings", settingsPage.value) { settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
-                                    HarborTab("Security", securityPage.value) { securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
-                                ))
-                            },
+                            parentMenu = {},
                             parentContent = {
                                 tap.message?.let { Text(it) }
                                 val family = graph.familyViewModel?.repository?.state?.collectAsState()?.value

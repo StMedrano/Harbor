@@ -24,7 +24,7 @@ fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
             val network = (state.profile as? ProfileState.Blocked)?.reason == ProfileBlock.NETWORK_UNAVAILABLE
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if (network) "Connection unavailable. Connect and retry your saved setup." else "This phone needs a parent to check its setup.")
-                if (network && onRetry != null) Button(onClick = onRetry) { Text("Retry saved setup") }
+                if (network && onRetry != null) HarborButton(onClick = onRetry) { Text("Retry saved setup") }
             }
         }
         FamilyDestination.RESTORING -> Text("Restoring your family setup…")

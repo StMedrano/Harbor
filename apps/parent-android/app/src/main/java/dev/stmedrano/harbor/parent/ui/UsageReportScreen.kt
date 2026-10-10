@@ -118,8 +118,8 @@ fun UsageReportScreen(state: UsageViewState, onRefresh: (() -> Unit)? = null) {
     var tab by remember { mutableStateOf("Today") }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Screen time", style = MaterialTheme.typography.titleLarge)
-        Row { listOf("Today", "Apps").forEach { title -> TextButton(onClick = { tab = title }) { Text(title) } } }
+        HarborTabs(listOf("Today", "Apps").map { title -> HarborTab(title, tab == title) { tab = title } })
         if (tab == "Today") UsageTodayPanel(state) else UsageAppsPanel(state)
-        if (onRefresh != null) OutlinedButton(onRefresh, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Refresh") }
+        if (onRefresh != null) HarborOutlinedButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh") }
     }
 }

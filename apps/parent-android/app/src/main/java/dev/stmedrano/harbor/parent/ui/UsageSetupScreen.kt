@@ -27,15 +27,15 @@ fun UsageSetupPanel(ui: ChildUsageUi) {
         Text("Only apps you can launch on this phone profile are listed. Your parents see the last report your phone sent, and it may be a few minutes old.",
             style = MaterialTheme.typography.bodySmall)
         if (!ui.consent) {
-            Button(ui.onStart, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Start sharing screen time") }
+            HarborButton(ui.onStart, Modifier.fillMaxWidth()) { Text("Start sharing screen time") }
         } else {
             Text("Sharing is on.", style = MaterialTheme.typography.titleSmall)
             if (!ui.permissionGranted) {
                 Text("Usage Access is off for Harbor, so nothing can be measured yet. Turn it on in Android settings, then come back.")
-                Button(ui.onOpenSettings, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Open Usage Access settings") }
-                OutlinedButton(ui.onCheckAgain, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Check again") }
+                HarborButton(ui.onOpenSettings, Modifier.fillMaxWidth()) { Text("Open Usage Access settings") }
+                HarborOutlinedButton(ui.onCheckAgain, Modifier.fillMaxWidth()) { Text("Check again") }
             }
-            OutlinedButton(ui.onStop, Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Stop sharing and remove my report") }
+            HarborOutlinedButton(ui.onStop, Modifier.fillMaxWidth()) { Text("Stop sharing and remove my report") }
         }
     }
 }

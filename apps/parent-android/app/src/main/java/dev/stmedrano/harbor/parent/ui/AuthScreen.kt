@@ -165,9 +165,9 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                 Text(if (recoveryReady) "Recovery verified. Choose a new password." else "Request and verify a fresh recovery link first.")
                 HarborPasswordField(newPassword, { newPassword = it }, "New password", enabled && recoveryReady)
                 HarborPasswordField(confirmPassword, { confirmPassword = it }, "Confirm new password", enabled && recoveryReady)
-                Button(onClick = { val secret = newPassword; submit("Password updated. You can now sign in with your new password.", ::openParentIfVerified) { it.changePassword(secret); navigate(AccountPage.SIGN_IN) } },
+                HarborButton(onClick = { val secret = newPassword; submit("Password updated. You can now sign in with your new password.", ::openParentIfVerified) { it.changePassword(secret); navigate(AccountPage.SIGN_IN) } },
                     enabled = enabled && recoveryReady && newPassword.isNotBlank() && newPassword == confirmPassword,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = MaterialTheme.shapes.medium) { Text("Update password") }
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Update password") }
             }
             if (page != AccountPage.SIGN_IN) {
                 TextButton(onClick = { backToSignIn() }, enabled = navigationEnabled) { Text("Back to sign in") }
@@ -196,5 +196,5 @@ private fun HarborPasswordField(value: String, onChange: (String) -> Unit, label
                 modifier = Modifier.semantics { contentDescription = "${if (visible) "Hide" else "Show"} ${label.lowercase()}" }) {
                 Text(if (visible) "Hide" else "Show")
             }
-        }, shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth())
+        }, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth())
 }

@@ -20,25 +20,25 @@ fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntim
             Text(if (notifications.confirmed) "Registration confirmed" else "Registration unconfirmed", style = MaterialTheme.typography.titleMedium)
             Text("Notifications contain a generic hint. Harbor checks current access before showing family details.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             notifications.message?.let { Text(it) }
-            Button(onEnable, enabled = enabled, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Enable notifications") }
-            OutlinedButton(onRemove, enabled = enabled, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Remove notification registration") }
+            HarborButton(onEnable, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Enable notifications") }
+            HarborOutlinedButton(onRemove, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Remove notification registration") }
         }
         HarborPanel("Account") {
-            OutlinedButton(onSignOut, enabled = available && !runtime.signingOut,
-                modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Sign out this device") }
+            HarborOutlinedButton(onSignOut, enabled = available && !runtime.signingOut,
+                modifier = Modifier.fillMaxWidth()) { Text("Sign out this device") }
             if (runtime.signingOut) Text("Signing out…")
             if (runtime.cleanupConfirmed) Text("Current-device cleanup confirmed.")
             if (!available) Text("Sign in to manage this device. Live actions are disabled in the offline preview.")
             onChangeRole?.let { change ->
-                OutlinedButton(change, enabled = available && !runtime.signingOut,
-                    modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Change this phone's role") }
+                HarborOutlinedButton(change, enabled = available && !runtime.signingOut,
+                    modifier = Modifier.fillMaxWidth()) { Text("Change this phone's role") }
             }
         }
         developmentReceipt?.let { receipt ->
             HarborPanel("Development receipt evidence") {
                 Text("Received: ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(receipt.receivedAt))}")
                 Text("Event reference: ${receipt.route.resourceId}")
-                if (onExport != null) OutlinedButton(onExport, enabled = enabled, shape = MaterialTheme.shapes.medium) { Text("Export latest receipt") }
+                if (onExport != null) HarborOutlinedButton(onExport, enabled = enabled) { Text("Export latest receipt") }
             }
         }
     }

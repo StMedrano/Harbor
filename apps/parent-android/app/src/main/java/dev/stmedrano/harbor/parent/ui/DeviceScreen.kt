@@ -22,7 +22,7 @@ fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedA
             Text("Last seen: ${device.lastSeenAt ?: "not reported"}")
         }
         if (usage != null) UsageReportScreen(usage, onRefreshUsage)
-        if (onRevoke != null && device.status == "active") OutlinedButton(onRevoke, modifier = Modifier.fillMaxWidth(),
+        if (onRevoke != null && device.status == "active") OutlinedButton(onRevoke, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             shape = MaterialTheme.shapes.medium, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Revoke device") }
         TextButton(onBack) { Text("Back to family") }
     }

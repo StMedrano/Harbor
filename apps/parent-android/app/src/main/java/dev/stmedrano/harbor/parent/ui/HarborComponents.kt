@@ -1,7 +1,6 @@
 package dev.stmedrano.harbor.parent.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -14,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -72,19 +72,45 @@ fun HarborAvatar(name: String, size: Dp = 30.dp) {
 
 @Composable
 fun HarborButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    Button(onClick, modifier.heightIn(min = 44.dp), enabled = enabled, shape = MaterialTheme.shapes.medium, content = content)
+    Button(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = MaterialTheme.shapes.medium, content = content)
 
 @Composable
 fun HarborOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    OutlinedButton(onClick, modifier.heightIn(min = 44.dp), enabled = enabled, shape = MaterialTheme.shapes.medium, content = content)
+    OutlinedButton(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = MaterialTheme.shapes.medium, content = content)
+
+/** Web `.panel`: tinted rounded card without a border. */
+@Composable
+fun HarborCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    }
+}
 
 @Composable
 fun HarborPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        HarborCard(content = content)
+    }
+}
+
+data class HarborNavItem(val label: String, val glyph: HarborGlyph, val selected: Boolean, val onClick: () -> Unit)
+
+/** Bottom navigation modelled on the web `.tabs` bar: hairline top border, 24dp line icon over an 11.5sp label. */
+@Composable
+fun HarborBottomBar(items: List<HarborNavItem>) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+            items.forEach { item ->
+                val tint = if (item.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                Column(Modifier.weight(1f).heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp))
+                    .selectable(selected = item.selected, role = Role.Tab, onClick = item.onClick).padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
+                    HarborIcon(item.glyph, tint, strokeWidth = if (item.selected) 2.3f else 1.8f)
+                    Text(item.label, color = tint, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                }
+            }
         }
     }
 }

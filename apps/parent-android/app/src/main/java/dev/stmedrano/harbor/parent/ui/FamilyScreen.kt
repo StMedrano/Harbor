@@ -31,7 +31,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
         if (state.loading) { CircularProgressIndicator(); Text("Refreshing family…") }
         if (state.cached && snapshot != null) Text("Cached view · last refreshed ${Instant.ofEpochMilli(snapshot.fetchedAt)}. Connect to make changes.", style = MaterialTheme.typography.bodySmall)
         if (state.failure != null) Text(if (state.failure == FamilyFailure.ACCESS_DENIED) "Family access was removed." else "Refresh failed. Check your connection and retry.")
-        OutlinedButton(onRefresh, enabled = !state.loading, shape = MaterialTheme.shapes.medium) { Text("Refresh family") }
+        HarborOutlinedButton(onRefresh, enabled = !state.loading) { Text("Refresh family") }
         if (families.size > 1) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 families.forEach { family -> FilterChip(selected = snapshot?.family?.id == family.id,
@@ -41,7 +41,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
         if (snapshot == null) {
             HarborPanel("Get started") {
                 Text("Create or select a family to get started.")
-                Button(onCreateFamily, enabled = online, shape = MaterialTheme.shapes.medium) { Text("Create family") }
+                HarborButton(onCreateFamily, enabled = online) { Text("Create family") }
             }
         } else {
             Text("Children", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
