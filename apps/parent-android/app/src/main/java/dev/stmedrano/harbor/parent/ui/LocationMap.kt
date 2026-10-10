@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.location.*
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private const val TRAIL_WINDOW_MS = 6L * 3_600_000L
