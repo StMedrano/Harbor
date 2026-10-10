@@ -281,6 +281,7 @@ jobs:
           tests/integration/child-creation.test.ts
           tests/integration/parent-fcm-persistence.test.ts
           tests/integration/usage-persistence.test.ts
+          tests/integration/location-persistence.test.ts
 
       - name: Verify shared backend platform acceptance
         env:
@@ -292,7 +293,8 @@ jobs:
             --allow-net=127.0.0.1:54322 \
             tests/end-to-end/platform-foundation.test.ts \
             tests/end-to-end/parent-android-foundation.test.ts \
-            tests/end-to-end/usage-reporting.test.ts 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+            tests/end-to-end/usage-reporting.test.ts \
+            tests/end-to-end/location-reporting.test.ts 2>&1 | tee "$RUNNER_TEMP/e2e.log"
       - name: Surface platform acceptance failure as annotations
         if: failure()
         run: |
