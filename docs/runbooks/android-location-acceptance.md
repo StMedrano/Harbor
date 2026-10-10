@@ -45,4 +45,4 @@ Remove only exact disposable fixtures, verify zero owned rows by count, keep aud
 
 - Cadence and background resumption are at the mercy of Android battery/background policy; "background missing" is reported honestly rather than hidden.
 - Standard OpenStreetMap tiles are for development only; a hosted tile provider replaces them before any wider release. A tile request reveals the viewed area to the tile server.
-- Positions come from the phone and are not attested; mock locations are ignored on Android 12+ (and flagged on older versions).
+- Positions come from the phone and are not attested; places the platform marks as mock locations are ignored.
