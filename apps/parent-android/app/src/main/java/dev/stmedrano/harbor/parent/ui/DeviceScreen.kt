@@ -19,7 +19,7 @@ fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedA
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text("Supervision: ${device.supervisionMode}")
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-            Text("Last seen: ${device.lastSeenAt ?: "not reported"}")
+            Text("Last seen: ${device.lastSeenAt?.let(::formatTimestamp) ?: "not reported"}")
         }
         if (usage != null) UsageReportScreen(usage, onRefreshUsage)
         if (onRevoke != null && device.status == "active") OutlinedButton(onRevoke, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),

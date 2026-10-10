@@ -19,6 +19,14 @@ fun HarborTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -
         surfaceContainerHigh = Color(0xFF171F1E), surfaceContainerHighest = Color(0xFF1F2927),
         onBackground = Color(0xFFECEBE5), onSurface = Color(0xFFECEBE5),
         onSurfaceVariant = Color(0xFFAAB3AE), error = Color(0xFFF0796C),
+        // Web --accs / --warn / --dans tints, so no stock Material purple shows through.
+        primaryContainer = Color(0xFF1D3A33), onPrimaryContainer = Color(0xFFCFE5DC),
+        secondaryContainer = Color(0xFF1D3A33), onSecondaryContainer = Color(0xFFECEBE5),
+        tertiary = Color(0xFFE9A23B), onTertiary = Color(0xFF0F1514),
+        tertiaryContainer = Color(0xFF3A2C14), onTertiaryContainer = Color(0xFFF2C37A),
+        errorContainer = Color(0xFF3C1F1B), onErrorContainer = Color(0xFFF0796C),
+        surfaceContainerLowest = Color(0xFF171F1E), surfaceContainerLow = Color(0xFF171F1E), surfaceContainer = Color(0xFF1F2927),
+        surfaceTint = Color(0xFFCFE5DC),
     ) else lightColorScheme(
         primary = Color(0xFF163A3A), onPrimary = Color(0xFFF4EFE6), secondary = Color(0xFF1F6B5C),
         background = Color(0xFFECE6DA), surface = Color(0xFFFBF8F2),
@@ -26,6 +34,13 @@ fun HarborTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -
         surfaceContainerHigh = Color(0xFFFBF8F2), surfaceContainerHighest = Color(0xFFF3EEE4),
         onBackground = Color(0xFF1C2422), onSurface = Color(0xFF1C2422),
         onSurfaceVariant = Color(0xFF56605C), error = Color(0xFFB4382C),
+        primaryContainer = Color(0xFFDCEBE4), onPrimaryContainer = Color(0xFF163A3A),
+        secondaryContainer = Color(0xFFDCEBE4), onSecondaryContainer = Color(0xFF1C2422),
+        tertiary = Color(0xFFE9A23B), onTertiary = Color(0xFF1C2422),
+        tertiaryContainer = Color(0xFFFBECD2), onTertiaryContainer = Color(0xFF7A4D08),
+        errorContainer = Color(0xFFF6DCD7), onErrorContainer = Color(0xFFB4382C),
+        surfaceContainerLowest = Color(0xFFFBF8F2), surfaceContainerLow = Color(0xFFFBF8F2), surfaceContainer = Color(0xFFF3EEE4),
+        surfaceTint = Color(0xFF163A3A),
     )
     MaterialTheme(colorScheme = colors, typography = harborTypography(), shapes = Shapes(
         small = RoundedCornerShape(8.dp), medium = RoundedCornerShape(12.dp), large = RoundedCornerShape(22.dp),

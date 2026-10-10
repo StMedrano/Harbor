@@ -25,6 +25,10 @@ import java.time.format.FormatStyle
 
 private val stampFormat = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 private fun stamp(iso: String?): String = iso?.let { runCatching { stampFormat.format(Instant.parse(it).atZone(ZoneId.systemDefault())) }.getOrNull() } ?: "not yet"
+
+/** Local, readable time for a server timestamp; an unparseable value is shown unchanged rather than hidden. */
+internal fun formatTimestamp(iso: String): String =
+    runCatching { stampFormat.format(java.time.OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault())) }.getOrDefault(iso)
 private fun dayLabel(localDate: String): String = runCatching {
     java.time.LocalDate.parse(localDate).format(DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()))
 }.getOrDefault(localDate)
