@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "epochId": "9b2f3c1e-6a47-4d58-8e0b-3f1a2c4d5e6f",
+  "sequence": 7,
+  "observedAt": "2026-10-10T18:00:00Z",
+  "status": "sharing",
+  "fixes": [
+    { "at": "2026-10-10T17:50:00Z", "latitude": 41.878114, "longitude": -87.629798, "accuracyM": 18, "provider": "fused" },
+    { "at": "2026-10-10T17:55:00Z", "latitude": 41.878301, "longitude": -87.629512, "accuracyM": 650, "provider": "network" }
+  ]
+}
