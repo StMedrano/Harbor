@@ -6,6 +6,14 @@ Applies to `docs/superpowers/specs/2026-10-10-harbor-android-location-and-messag
 
 A paired child phone sends its position (latitude, longitude, accuracy, provider, time) to its own parents. Sharing follows the phone's permission state and starts by itself once the child grants location; the child has no stop control, and a parent ends sharing by removing the device. A persistent Android notification is shown while the background service runs. The server keeps the newest 500 places for up to 30 days, plus a status (sharing / permission lost / background missing / location switched off). Parents read the last server-confirmed places on an OpenStreetMap map; a place older than 30 minutes since the last upload is labelled "last known" and drawn grey. No messages, geofences, alerts or location history beyond the retained places are involved.
 
+## Single-app profile and location cadence checks
+
+Harbor Family is **one Android app** (one signed APK and application ID) with an explicitly selected Parent or Child profile. Only an authenticated, currently paired child profile starts location collection; a Parent or Setup profile must never start it. A parent reads the child's last server-confirmed location through the same installed app on the parent's phone, not through a separate parent/child binary. Keep the existing package name for upgrade compatibility.
+
+Collection targets a minimum five-minute spacing when the child has moved more than GPS accuracy noise and a 15-minute spacing when stationary or the fix is too imprecise to prove movement. The platform is requested at a five-minute sampling interval. Upload timing is opportunistic: a first fix may arrive immediately from Android cache, and background restrictions, network loss, or Android GPS scheduling can delay later updates. The parent map must not imply live tracking or guaranteed cadence.
+
+Verify both motion and stationary periods on owned test phones (record only approximate interval success/failure, never coordinates). Check role switching, profile logout and revocation stop the existing location service without exposing one role's stored data to the other.
+
 ## Evidence classes
 
 | Class | Proves | Does not prove |
