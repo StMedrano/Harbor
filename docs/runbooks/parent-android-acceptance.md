@@ -31,6 +31,14 @@ FCM callbacks enqueue reference-only work through the existing platform JobSched
 
 Stop at any exact missing configuration, credential, permission, deployment or decision gate. Do not create live fixtures until the required environment and recipient are available.
 
+## UI-only Android fixture artifact
+
+GitHub Actions `Harbor Foundation CI` uploads `harbor-family-ui-only-offline-ci-fixture-apk` from the `parent-android` job **only after** its Android unit tests, strict dependency verification, lint, assemble, fixture manifest checks and absent-real-config guard pass. This is the single combined Harbor Family Android package (`dev.stmedrano.harbor.parent`), at the version declared in the branch. Download the artifact ZIP from that exact PR run, extract `app-debug.apk`, and install on an **owned test device** with `adb install -r app-debug.apk`; it is a debug/fixture build, not a signed public release or a verified upgrade from a differently signed installation.
+
+**Important limitations:** this offline CI fixture intentionally has no `android.permission.INTERNET`, uses invalid fixture Supabase and Firebase client values, and cannot authenticate, pair real phones, deliver notifications, report location/usage to the service, or establish live family state. The APK is useful for basic installed-device layout and role-chooser inspection, not for checking real Parent/Child functionality, network behavior, or a live backend. It is never offered as the missing development APK. CI emulator screenshots use synthetic fixture state and are similarly visual/test evidence, not live integration proof.
+
+For a usable development build, provide the **public Firebase Android client** `google-services.json` from the development Firebase project that has an Android app registered for `dev.stmedrano.harbor.parent`, plus the already approved public Supabase publishable key in local development configuration. Never use a Firebase service-account JSON, Supabase secret/service key, or a child's mismatched Firebase client config. Keep real client config outside GitHub and configure `apps/parent-android/parent.properties` as required by the Gradle validation. Build locally with Android SDK 37/JDK 17 and verify the real, authorized backend with owned devices; do not upload the live-config APK to public GitHub artifacts.
+
 ## Real native checklist
 
 Use Pixel 9a and an owned disposable development inbox. Keep passwords, tokens, TOTP setup/code and worker keys out of chat, GitHub, screenshots and the public artifact. Auth/MFA screens intentionally prevent capture.
