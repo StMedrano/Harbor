@@ -21,25 +21,43 @@ fun locationStatus(access: LocationAccess): LocationStatus = when {
 fun locationServiceAllowed(access: LocationAccess): Boolean = access.fineGranted && access.servicesOn
 
 object LocationCadence {
-    /** Providers are asked every minute; fixes closer together than this are not stored. */
-    const val REQUEST_INTERVAL_MS = 60_000L
-    const val MIN_DISTANCE_M = 25f
-    const val MIN_SPACING_MS = 45_000L
-    /** A weak fix is still kept if nothing better arrived for this long, so a parent always sees the last known place. */
-    const val WEAK_FIX_PATIENCE_MS = 10 * 60_000L
+    /** Request at most one platform fix every five minutes; throttle stationary stored fixes to 15 minutes. */
+    const val MOVING_INTERVAL_MS = 5 * 60_000L
+    const val STATIONARY_INTERVAL_MS = 15 * 60_000L
+    const val REQUEST_INTERVAL_MS = MOVING_INTERVAL_MS
+    /** Zero distance threshold lets Android deliver a stationary fix for the 15-minute status/trail policy. */
+    const val MIN_DISTANCE_M = 0f
     const val WEAK_ACCURACY_M = 1_000
-    /** The engine is flushed this often at most while fixes arrive. */
+    private const val MIN_MOVEMENT_M = 25.0
+    private const val EARTH_RADIUS_M = 6_371_000.0
+    /** Network flushes may occur once per minute, but only *accepted* fixes are included. */
     const val FLUSH_INTERVAL_MS = 60_000L
     /** Re-check permission/setting changes and resend status this often while the service runs. */
     const val SUPERVISE_INTERVAL_MS = 5 * 60_000L
 
+    /** Great-circle distance across the date line as well as ordinary longitudes. */
+    private fun distanceMeters(a: LocationFix, b: LocationFix): Double {
+        val dLat = Math.toRadians(b.latitude - a.latitude)
+        val dLon = Math.toRadians(b.longitude - a.longitude)
+        val latA = Math.toRadians(a.latitude)
+        val latB = Math.toRadians(b.latitude)
+        val h = kotlin.math.sin(dLat / 2).let { it * it } +
+            kotlin.math.cos(latA) * kotlin.math.cos(latB) * kotlin.math.sin(dLon / 2).let { it * it }
+        return 2 * EARTH_RADIUS_M * kotlin.math.asin(kotlin.math.sqrt(h.coerceIn(0.0, 1.0)))
+    }
+
+    /**
+     * The first usable fix is shared promptly. Subsequent fixes are stored after five minutes of credible
+     * movement or 15 minutes while stationary/low accuracy. GPS jitter alone must not imply movement.
+     * Android's provider scheduling and battery policy may delay either interval.
+     */
     fun shouldRecord(last: LocationFix?, next: LocationFix): Boolean {
         if (last == null) return true
         val gap = locationInstantMs(next.at) - locationInstantMs(last.at)
         if (gap <= 0) return false
-        if (gap < MIN_SPACING_MS) return false
-        if (next.accuracyM > WEAK_ACCURACY_M && gap < WEAK_FIX_PATIENCE_MS) return false
-        return true
+        val credibleMovement = last.accuracyM <= WEAK_ACCURACY_M && next.accuracyM <= WEAK_ACCURACY_M &&
+            distanceMeters(last, next) > maxOf(MIN_MOVEMENT_M, last.accuracyM.toDouble() + next.accuracyM)
+        return gap >= if (credibleMovement) MOVING_INTERVAL_MS else STATIONARY_INTERVAL_MS
     }
 }
 
