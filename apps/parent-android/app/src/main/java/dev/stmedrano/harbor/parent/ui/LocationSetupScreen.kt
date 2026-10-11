@@ -42,7 +42,7 @@ fun rememberChildLocationUi(graph: ParentApplication, lease: ProfileLease, resum
 @Composable
 fun LocationSetupPanel(ui: ChildLocationUi) {
     HarborPanel("Share your location with your parents") {
-        Text("Harbor sends this phone's location to your parents about once a minute while you move: latitude, longitude, how accurate it is and the time. " +
+        Text("Harbor sends this phone's location to your parents about every 5 minutes while moving or 15 minutes while still, when Android allows: latitude, longitude, accuracy and time. Updates may be delayed by location permissions or battery settings. " +
             "It keeps up to 30 days of recent places for them. A notification stays visible while location is being shared. " +
             "Only your parents can turn sharing off, by removing this device in the parent app.")
         when (locationStatus(ui.access)) {
