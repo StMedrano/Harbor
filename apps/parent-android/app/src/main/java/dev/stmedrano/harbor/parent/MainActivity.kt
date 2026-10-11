@@ -267,7 +267,7 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation) }
                             })
                     }
                 }
