@@ -18,11 +18,18 @@ import androidx.compose.ui.unit.dp
 fun ParentApp(showBrand: Boolean = true, centered: Boolean = false, bottomBar: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Matches web `header.top`: the brand is pinned above the scrolling view and bottom tabs.
+            if (showBrand) {
+                Box(Modifier.fillMaxWidth().widthIn(max = 480.dp).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 4.dp)) {
+                    HarborBrand()
+                }
+            }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().widthIn(max = 480.dp)) {
-                Column(Modifier.fillMaxWidth().heightIn(min = maxHeight).verticalScroll(rememberScrollState()).padding(24.dp),
-                    verticalArrangement = if (centered) Arrangement.spacedBy(24.dp, Alignment.CenterVertically) else Arrangement.spacedBy(24.dp),
+                Column(Modifier.fillMaxWidth().heightIn(min = maxHeight).verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp, vertical = if (centered) 22.dp else 8.dp),
+                    verticalArrangement = if (centered) Arrangement.spacedBy(20.dp, Alignment.CenterVertically)
+                        else Arrangement.spacedBy(16.dp),
                     horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
-                    if (showBrand) HarborBrand()
                     content()
                 }
             }

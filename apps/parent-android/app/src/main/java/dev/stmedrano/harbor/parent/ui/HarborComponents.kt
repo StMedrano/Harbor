@@ -39,7 +39,7 @@ fun HarborBrand() {
             drawPath(house, onBrand, style = Stroke(2.4f * unit, join = StrokeJoin.Round))
             drawCircle(Color(0xFFE9A23B), 2.6f * unit, Offset(16f * unit, 18f * unit))
         }
-        Text("Harbor", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Harbor Family", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
 }
 
