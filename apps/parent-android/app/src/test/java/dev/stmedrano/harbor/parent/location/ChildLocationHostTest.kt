@@ -44,7 +44,7 @@ class ChildLocationHostTest {
     private var updatesStopped = 0
     private val serviceCalls = mutableListOf<Boolean>()
     private var cached: LocationFix? = null
-    private fun fix(secondsFromStart: Long) = LocationFix(locationInstantString(t0 + secondsFromStart * 1000 - 60_000), 41.878114, -87.629798, 15, LocationProvider.GPS)
+    private fun fix(secondsFromStart: Long, latitude: Double = 41.878114) = LocationFix(locationInstantString(t0 + secondsFromStart * 1000 - 60_000), latitude, -87.629798, 15, LocationProvider.GPS)
     private val platform = LocationPlatform(
         access = { access },
         startUpdates = { callback = it; updatesStarted++; true },
@@ -97,18 +97,33 @@ class ChildLocationHostTest {
         assertEquals(1, updatesStarted)
     }
 
-    @Test fun closeFixesAreThinnedAndUploadsAreThrottled() = runTest {
+    @Test fun stationaryFixesAreThinnedToFifteenMinutes() = runTest {
         val host = host(this)
         host.start(lease); host.supervise(lease)
         val first = bodies.size
         callback!!(fix(0)); advanceUntilIdle()
         callback!!(fix(10)); advanceUntilIdle()
-        assertEquals("flush interval has not passed", first, bodies.size)
-        nowMs += 61_000
         callback!!(fix(70)); advanceUntilIdle()
+        assertEquals("a still phone must not upload new locations every minute", first, bodies.size)
+        nowMs += 15 * 60_000L
+        callback!!(fix(910)); advanceUntilIdle()
         assertEquals(first + 1, bodies.size)
         val sent = Json.decodeFromString<LocationReportV1>(bodies.last()).fixes
-        assertEquals(listOf(fix(0).at, fix(70).at), sent.map { it.at })
+        assertEquals(listOf(fix(0).at, fix(910).at), sent.map { it.at })
+    }
+
+    @Test fun movingFixesAreThinnedToFiveMinutes() = runTest {
+        val host = host(this)
+        host.start(lease); host.supervise(lease)
+        val first = bodies.size
+        callback!!(fix(0)); advanceUntilIdle()
+        callback!!(fix(240, latitude = 41.880114)); advanceUntilIdle()
+        assertEquals(first, bodies.size)
+        nowMs += 310_000L
+        callback!!(fix(310, latitude = 41.880114)); advanceUntilIdle()
+        assertEquals(first + 1, bodies.size)
+        val sent = Json.decodeFromString<LocationReportV1>(bodies.last()).fixes
+        assertEquals(listOf(fix(0).at, fix(310).at), sent.map { it.at })
     }
 
     @Test fun offlineFlagsFailureAndKeepsFixesForLater() = runTest {
