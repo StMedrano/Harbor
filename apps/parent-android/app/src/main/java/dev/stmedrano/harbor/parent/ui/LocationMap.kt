@@ -45,7 +45,7 @@ fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, m
         val height = with(density) { maxHeight.toPx() }.toDouble()
         val points = trail.map { it.latitude to it.longitude }
         val centerLat = (points.maxOf { it.first } + points.minOf { it.first }) / 2
-        val centerLon = (points.maxOf { it.second } + points.minOf { it.second }) / 2
+        val centerLon = MapMath.centerLongitude(points)
         val fitted = remember(trail, width, height) { MapMath.fitZoom(points, width, height) }
         var zoom by remember(fitted) { mutableIntStateOf(fitted) }
         val tiles = remember(centerLat, centerLon, zoom, width, height) { MapMath.tilesFor(centerLat, centerLon, zoom, width, height) }
