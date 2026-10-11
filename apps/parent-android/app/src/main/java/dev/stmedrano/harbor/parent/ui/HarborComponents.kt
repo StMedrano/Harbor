@@ -208,21 +208,31 @@ data class HarborNavItem(val label: String, val glyph: HarborGlyph, val selected
 /** Bottom navigation (design system `TabBar`): hairline top border, 24dp line icon over an 11.5sp label; the active icon is heavier and lifts slightly. */
 @Composable
 fun HarborBottomBar(items: List<HarborNavItem>) {
+    // Keep full, readable labels for accessibility; a text-size increase must not
+    // paint one navigation destination over its neighbour or clip a wrapped label.
+    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.4f
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 4.dp)) {
             items.forEach { item ->
                 val tint = if (item.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 val lift = animateFloatAsState(if (item.selected) 1f else 0f, label = "tabLift").value
-                Column(Modifier.weight(1f).heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp))
-                    .selectable(selected = item.selected, role = Role.Tab, onClick = item.onClick).padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
+                Column(Modifier.weight(1f).heightIn(min = if (largeText) 96.dp else 56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .selectable(selected = item.selected, role = Role.Tab, onClick = item.onClick)
+                    .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
                     HarborIcon(item.glyph, tint, Modifier.graphicsLayer {
                         translationY = -2.dp.toPx() * lift
                         scaleX = 1f + 0.08f * lift
                         scaleY = 1f + 0.08f * lift
                     }, strokeWidth = if (item.selected) 2.3f else 1.8f)
-                    Text(item.label, color = tint, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                    Text(item.label, modifier = Modifier.fillMaxWidth(), color = tint,
+                        fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        fontWeight = FontWeight.Medium)
                 }
             }
         }
