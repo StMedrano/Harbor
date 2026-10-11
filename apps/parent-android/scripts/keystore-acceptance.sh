@@ -138,3 +138,13 @@ for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIs
   run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
 done
 [[ "$location_ui_status" == 0 ]]
+
+# Native parent shell must match the five web destinations without advertising unshipped monitoring features.
+web_parity_status=0
+for method in parentBottomNavigationMatchesTheFiveWebDestinations unsupportedTabsDoNotPretendToMonitorOrBlock childHomeUsesFriendlyWebGreetingAndTruthfulPairingStatus; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || web_parity_status=1
+done
+[[ "$web_parity_status" == 0 ]]
+for shot in native-web-parent-shell native-web-child-today; do
+  adb pull "/sdcard/Android/data/dev.stmedrano.harbor.parent/files/${shot}.png" keystore-evidence/
+done

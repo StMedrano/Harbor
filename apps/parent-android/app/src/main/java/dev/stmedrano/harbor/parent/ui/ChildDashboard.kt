@@ -5,9 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -25,21 +23,45 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
     }
     var localTab by remember(binding.deviceId) { mutableStateOf("Today") }
     val current = tab ?: localTab
+    // Observe Android configuration so locale changes recompose this screen (Compose NonObservableLocale lint).
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Your phone", style = MaterialTheme.typography.headlineSmall)
+        Text("Hi there", style = MaterialTheme.typography.headlineMedium)
+        Text(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", locale)),
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (tab == null) HarborTabs(CHILD_TABS.map { title -> HarborTab(title, current == title) { localTab = title } })
         when (current) {
             "Today" -> {
                 HarborCard {
-                    Text("Connected to your family", style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("This phone is paired", style = MaterialTheme.typography.titleMedium)
+                            Text("Paired with your family's Harbor Family account", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = if (state is ChildSyncState.Fresh) MaterialTheme.colorScheme.secondaryContainer
+                                else MaterialTheme.colorScheme.tertiaryContainer,
+                        ) {
+                            Text(if (state is ChildSyncState.Fresh) "Connected" else "Unconfirmed",
+                                Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                     when (state) {
                         is ChildSyncState.Fresh -> {
-                            Text("Signed sync confirmed. State version: ${state.desiredVersion}.")
-                            Text("Last sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}")
+                            Text("Last sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}",
+                                style = MaterialTheme.typography.bodyMedium)
                         }
                         is ChildSyncState.Stale -> {
                             Text("Showing saved setup. Current status has not been confirmed.")
-                            state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}") }
+                            state.lastSuccessAt?.let {
+                                Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}",
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                         is ChildSyncState.Blocked -> Unit
                     }
@@ -53,6 +75,11 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
             }
             "Apps" -> if (usage != null) UsageAppsPanel(usage.view) else Text("App information is not available yet.")
             "About" -> {
+                Text("About me", style = MaterialTheme.typography.headlineSmall)
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text("Nothing is hidden. Harbor Family is on this phone to help your family stay connected. You can see what it shares.",
+                        Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodyMedium)
+                }
                 HarborCard {
                     Text("Harbor stores this phone’s pairing credentials securely and checks its family connection with signed requests.")
                     if (usage != null) Text("Harbor measures screen time only while sharing is on. It does not limit or block apps.")
