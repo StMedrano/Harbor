@@ -37,6 +37,23 @@ class MapMathTest {
         assertEquals(16, MapMath.fitZoom(listOf(41.0 to -87.0), 400.0, 300.0))
         assertEquals(MapMath.MIN_ZOOM, MapMath.fitZoom(emptyList(), 400.0, 300.0))
     }
+    @Test fun dateLineHistoryFitsNearbyLocationsRatherThanTheWholePlanet() {
+        val points = listOf(0.0 to 179.95, 0.0 to -179.95)
+        val zoom = MapMath.fitZoom(points, 400.0, 300.0)
+        assertTrue("Near-date-line fixes should remain zoomed into the local area", zoom >= 9)
+        val center = MapMath.centerLongitude(points)
+        assertTrue("Centre must stay at the date line, not Greenwich", kotlin.math.abs(center) >= 179.9)
+    }
+
+    @Test fun dateLineHistoryProjectsOntoTheSameMapViewport() {
+        val center = MapMath.centerLongitude(listOf(0.0 to 179.99, 0.0 to -179.99))
+        val east = MapMath.toViewport(0.0, 179.99, 0.0, center, 12, 400.0, 300.0)
+        val west = MapMath.toViewport(0.0, -179.99, 0.0, center, 12, 400.0, 300.0)
+        assertTrue(east.first in 150.0..250.0)
+        assertTrue(west.first in 150.0..250.0)
+        assertTrue(kotlin.math.abs(east.first - west.first) < 100.0)
+    }
+
     @Test fun urlsUseTheStandardTileHost() {
         assertEquals("https://tile.openstreetmap.org/10/301/385.png", MapMath.tileUrl(MapMath.Tile(10, 301, 385, 0.0, 0.0)))
     }
