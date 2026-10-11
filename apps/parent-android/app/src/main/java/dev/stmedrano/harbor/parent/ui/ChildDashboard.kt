@@ -33,13 +33,16 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
         when (current) {
             "Today" -> {
                 HarborCard {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Column(Modifier.weight(1f)) {
+                    // At accessibility font sizes, putting the long pairing label beside the
+                    // connection badge squeezes it into a one-word-wide strip. Stack them instead.
+                    val pairedText: @Composable () -> Unit = {
+                        Column {
                             Text("This phone is paired", style = MaterialTheme.typography.titleMedium)
                             Text("Paired with your family's Harbor Family account", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                    val connectionBadge: @Composable () -> Unit = {
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = if (state is ChildSyncState.Fresh) MaterialTheme.colorScheme.secondaryContainer
@@ -48,6 +51,18 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                             Text(if (state is ChildSyncState.Fresh) "Connected" else "Unconfirmed",
                                 Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                 style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.4f) {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            pairedText()
+                            connectionBadge()
+                        }
+                    } else {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.weight(1f)) { pairedText() }
+                            connectionBadge()
                         }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
