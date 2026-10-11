@@ -141,7 +141,7 @@ done
 
 # Native parent shell must match the five web destinations without advertising unshipped monitoring features.
 web_parity_status=0
-for method in parentBottomNavigationMatchesTheFiveWebDestinations unsupportedTabsDoNotPretendToMonitorOrBlock; do
+for method in parentBottomNavigationMatchesTheFiveWebDestinations unsupportedTabsDoNotPretendToMonitorOrBlock childHomeUsesFriendlyWebGreetingAndTruthfulPairingStatus; do
   run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || web_parity_status=1
 done
 [[ "$web_parity_status" == 0 ]]
