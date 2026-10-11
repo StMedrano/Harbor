@@ -35,7 +35,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text("This phone is paired", style = MaterialTheme.typography.titleMedium)
-                            Text("Connected to your family's Harbor Family account", style = MaterialTheme.typography.bodySmall,
+                            Text("Paired with your family's Harbor Family account", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Surface(
@@ -43,7 +43,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                             color = if (state is ChildSyncState.Fresh) MaterialTheme.colorScheme.secondaryContainer
                                 else MaterialTheme.colorScheme.tertiaryContainer,
                         ) {
-                            Text(if (state is ChildSyncState.Fresh) "Connected" else "Offline",
+                            Text(if (state is ChildSyncState.Fresh) "Connected" else "Unconfirmed",
                                 Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                 style = MaterialTheme.typography.labelMedium)
                         }
