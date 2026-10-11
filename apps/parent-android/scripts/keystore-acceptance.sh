@@ -131,3 +131,10 @@ done
 adb shell settings put system font_scale 1.0
 [[ "$usage_ui_status" == 0 ]]
 for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/$shot.png keystore-evidence/; done
+
+# Location UI smoke checks run on API 29 and API 36 without network or live location data.
+location_ui_status=0
+for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim; do
+  run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
+done
+[[ "$location_ui_status" == 0 ]]

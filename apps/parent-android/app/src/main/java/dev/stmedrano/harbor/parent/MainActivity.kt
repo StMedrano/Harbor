@@ -47,7 +47,9 @@ import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
+import dev.stmedrano.harbor.parent.ui.rememberParentLocationView
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
@@ -133,6 +135,13 @@ class MainActivity : ComponentActivity() {
                             val usageUi = if (BuildConfig.CI_FIXTURE) null else rememberChildUsageUi(graph, lease, resumeTick.intValue) {
                                 try { startActivity(graph.usageSettingsIntent()) } catch (_: Exception) { startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                             }
+                            val locationFine = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { graph.refreshChildLocation(lease) }
+                            val locationBackground = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { graph.refreshChildLocation(lease) }
+                            val locationUi = if (BuildConfig.CI_FIXTURE) null else rememberChildLocationUi(graph, lease, resumeTick.intValue,
+                                onAllowLocation = { locationFine.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
+                                onAllowAllTheTime = { locationBackground.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) },
+                                onOpenLocationSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
+                                onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -143,7 +152,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, tab = childTab.value,
+                                usage = usageUi, location = locationUi, tab = childTab.value,
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -237,10 +246,12 @@ class MainActivity : ComponentActivity() {
                                 if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
                                 else if (identity != null && visibleDevice != null) {
                                     val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
+                                    val location = rememberParentLocationView(graph.parentLocation, identity, visibleDevice.id, resumeTick.intValue)
                                     DeviceScreen(visibleDevice,
                                         onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
                                         cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
-                                        onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                        onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
                                 }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
@@ -256,7 +267,7 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation) }
                             })
                     }
                 }

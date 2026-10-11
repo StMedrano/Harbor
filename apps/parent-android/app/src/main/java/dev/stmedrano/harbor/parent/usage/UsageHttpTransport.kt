@@ -14,12 +14,13 @@ import java.net.URI
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
-/** Usage-only transport; it does not replace existing child wire transports. */
+/** Transport for the child's usage and location reports only; it does not replace existing child wire transports. */
 class UsageHttpTransport(private val client:HttpClient) {
  suspend fun execute(request:ChildRequest):ChildReply {
   val uri=URI(request.url);val assigned=URI(BuildConfig.SUPABASE_URL)
   require(uri.scheme=="https"&&uri.host==assigned.host&&uri.port==assigned.port&&uri.userInfo==null&&uri.query==null&&uri.fragment==null)
-  require(uri.path in setOf("/functions/v1/report-device-usage","/functions/v1/clear-device-usage","/functions/v1/get-device-usage-checkpoint"))
+  require(uri.path in setOf("/functions/v1/report-device-usage","/functions/v1/clear-device-usage","/functions/v1/get-device-usage-checkpoint",
+  "/functions/v1/report-device-location","/functions/v1/clear-device-location","/functions/v1/get-device-location-checkpoint"))
   require(request.method=="POST"&&request.body.size<=1048576)
   require(request.headers.keys==setOf("apikey","Content-Type","Authorization","X-Harbor-Device-Id","X-Harbor-Timestamp","X-Harbor-Nonce","X-Harbor-Signature"))
   return client.prepareRequest(request.url) {
