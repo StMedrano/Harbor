@@ -104,6 +104,17 @@ jobs:
           if grep -F 'android.permission.INTERNET' app/build/reports/parent-manifest.xml; then exit 1; fi
           if ./gradlew --no-daemon --dependency-verification=strict help >/tmp/harbor-parent-config.log 2>&1; then exit 1; fi
           grep -F 'Supply development parent.properties' /tmp/harbor-parent-config.log
+      # A safely isolated Android debug build for inspecting screens only.
+      # Not a development/service-connected app: CI manifest has no INTERNET permission,
+      # Firebase and Supabase values are invalid fixtures, and release credentials are absent.
+      # This runs only after tests, lint, manifest isolation, and missing-config guard all pass.
+      - name: Upload UI-only offline Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: harbor-family-ui-only-offline-ci-fixture-apk
+          path: apps/parent-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: always()
         with:
