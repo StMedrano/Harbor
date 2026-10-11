@@ -23,9 +23,11 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
     }
     var localTab by remember(binding.deviceId) { mutableStateOf("Today") }
     val current = tab ?: localTab
+    // Observe Android configuration so locale changes recompose this screen (Compose NonObservableLocale lint).
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Hi there", style = MaterialTheme.typography.headlineMedium)
-        Text(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())),
+        Text(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", locale)),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (tab == null) HarborTabs(CHILD_TABS.map { title -> HarborTab(title, current == title) { localTab = title } })
         when (current) {
