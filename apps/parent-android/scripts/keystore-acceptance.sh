@@ -145,3 +145,6 @@ for method in parentBottomNavigationMatchesTheFiveWebDestinations unsupportedTab
   run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || web_parity_status=1
 done
 [[ "$web_parity_status" == 0 ]]
+for shot in native-web-parent-shell native-web-child-today; do
+  adb pull "/sdcard/Android/data/dev.stmedrano.harbor.parent/files/${shot}.png" keystore-evidence/
+done
