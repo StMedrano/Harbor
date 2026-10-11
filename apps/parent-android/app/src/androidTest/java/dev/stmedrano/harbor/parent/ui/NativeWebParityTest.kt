@@ -65,6 +65,23 @@ class NativeWebParityTest {
         listOf("Map", "Alerts", "Controls", "Activity", "Family").forEach { label ->
             compose.onNodeWithText(label).assertIsDisplayed()
         }
+        // At 180% font scaling, adjacent navigation labels must not collide
+        // or extend outside their individual fifth of the bottom bar.
+        val names = listOf("Map", "Alerts", "Controls", "Activity", "Family")
+        val rootWidth = compose.onRoot().fetchSemanticsNode().boundsInRoot.width
+        val bounds = names.map { compose.onNodeWithText(it).fetchSemanticsNode().boundsInRoot }
+        bounds.forEachIndexed { index, b ->
+            org.junit.Assert.assertTrue(
+                "Navigation label ${names[index]} exceeds its allotted width",
+                b.width <= rootWidth / names.size + 1f
+            )
+        }
+        bounds.zipWithNext().forEachIndexed { index, (a, b) ->
+            org.junit.Assert.assertTrue(
+                "Navigation labels ${names[index]} and ${names[index + 1]} overlap",
+                a.right <= b.left + 1f
+            )
+        }
         compose.onNodeWithText("Family").performClick()
         compose.onNodeWithText("Family").assertIsSelected()
         capture("native-web-parent-shell-dark-large-text.png")
