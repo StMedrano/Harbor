@@ -1,6 +1,9 @@
 package dev.stmedrano.harbor.parent.ui
 
 import androidx.activity.ComponentActivity
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import java.io.File
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -11,6 +14,13 @@ import org.junit.Test
 /** Native navigation and unavailable-state contract, checked on API 29 and 36 without live credentials. */
 class NativeWebParityTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+
+    private fun capture(name: String) {
+        val image = compose.onRoot().captureToImage().asAndroidBitmap()
+        File(compose.activity.getExternalFilesDir(null), name).outputStream().use {
+            image.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
 
     @Test fun parentBottomNavigationMatchesTheFiveWebDestinations() {
         val selected = mutableStateOf("Map")
@@ -25,6 +35,7 @@ class NativeWebParityTest {
         compose.onNodeWithText("Map").assertIsSelected()
         compose.onNodeWithText("Activity").performClick()
         compose.onNodeWithText("Activity").assertIsSelected()
+        capture("native-web-parent-shell.png")
     }
 
     @Test fun childHomeUsesFriendlyWebGreetingAndTruthfulPairingStatus() {
@@ -36,6 +47,7 @@ class NativeWebParityTest {
         compose.onNodeWithText("This phone is paired").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Showing saved setup. Current status has not been confirmed.")
             .performScrollTo().assertIsDisplayed()
+        capture("native-web-child-today.png")
     }
 
     @Test fun unsupportedTabsDoNotPretendToMonitorOrBlock() {
