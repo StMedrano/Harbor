@@ -27,6 +27,17 @@ class NativeWebParityTest {
         compose.onNodeWithText("Activity").assertIsSelected()
     }
 
+    @Test fun childHomeUsesFriendlyWebGreetingAndTruthfulPairingStatus() {
+        val binding = dev.stmedrano.harbor.parent.child.ChildBinding("device-a", "family-a", "child-a")
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) {
+            ChildDashboard(dev.stmedrano.harbor.parent.child.ChildSyncState.Stale(null), binding, {}, {})
+        } } }
+        compose.onNodeWithText("Hi there").assertExists()
+        compose.onNodeWithText("This phone is paired").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Showing saved setup. Current status has not been confirmed.")
+            .performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun unsupportedTabsDoNotPretendToMonitorOrBlock() {
         val identity = ParentIdentity("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "fixture")
         val selected = mutableStateOf("Alerts")
