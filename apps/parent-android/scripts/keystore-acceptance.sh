@@ -145,6 +145,14 @@ for method in parentBottomNavigationMatchesTheFiveWebDestinations unsupportedTab
   run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || web_parity_status=1
 done
 [[ "$web_parity_status" == 0 ]]
-for shot in native-web-parent-shell native-web-child-today; do
+# Exercise the web-matching navigation and child status disclosure at Android accessibility font scale.
+adb shell settings put system font_scale 1.8
+large_web_parity_status=0
+for method in largeTextDarkParentShellRetainsAllFiveWebDestinations largeTextDarkChildTodayMakesUnconfirmedStatusVisible; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || large_web_parity_status=1
+done
+adb shell settings put system font_scale 1.0
+[[ "$large_web_parity_status" == 0 ]]
+for shot in native-web-parent-shell native-web-child-today native-web-parent-shell-dark-large-text native-web-child-today-dark-large-text; do
   adb pull "/sdcard/Android/data/dev.stmedrano.harbor.parent/files/${shot}.png" keystore-evidence/
 done

@@ -50,6 +50,40 @@ class NativeWebParityTest {
         capture("native-web-child-today.png")
     }
 
+    /**
+     * High-font screenshots are intentionally captured against fixture-only state on each emulator:
+     * they protect navigation/disclosure legibility without inventing backend results.
+     * The runner switches Android's font_scale to 1.8 before invoking these methods.
+     */
+    @Test fun largeTextDarkParentShellRetainsAllFiveWebDestinations() {
+        val selected = mutableStateOf("Map")
+        compose.setContent { HarborTheme(dark = true) {
+            ParentApp(bottomBar = { HarborBottomBar(parentWebNavItems(selected.value) { selected.value = it }) }) {
+                androidx.compose.material3.Text("Native Harbor")
+            }
+        } }
+        listOf("Map", "Alerts", "Controls", "Activity", "Family").forEach { label ->
+            compose.onNodeWithText(label).assertIsDisplayed()
+        }
+        compose.onNodeWithText("Family").performClick()
+        compose.onNodeWithText("Family").assertIsSelected()
+        capture("native-web-parent-shell-dark-large-text.png")
+    }
+
+    @Test fun largeTextDarkChildTodayMakesUnconfirmedStatusVisible() {
+        val binding = dev.stmedrano.harbor.parent.child.ChildBinding("device-a", "family-a", "child-a")
+        compose.setContent { HarborTheme(dark = true) {
+            ParentApp(showBrand = false) {
+                ChildDashboard(dev.stmedrano.harbor.parent.child.ChildSyncState.Stale(null), binding, {}, {})
+            }
+        } }
+        compose.onNodeWithText("Hi there").assertExists()
+        compose.onNodeWithText("Unconfirmed").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Showing saved setup. Current status has not been confirmed.")
+            .performScrollTo().assertIsDisplayed()
+        capture("native-web-child-today-dark-large-text.png")
+    }
+
     @Test fun unsupportedTabsDoNotPretendToMonitorOrBlock() {
         val identity = ParentIdentity("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "fixture")
         val selected = mutableStateOf("Alerts")
