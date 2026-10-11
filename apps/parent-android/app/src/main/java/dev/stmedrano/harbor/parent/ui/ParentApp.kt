@@ -12,18 +12,22 @@ import androidx.compose.ui.unit.dp
 /**
  * App chrome shared by every screen, like the web `#app` column: content is capped at 480dp and
  * centred on wide windows, scrolls above an optional pinned [bottomBar], and [centered] places short
- * single-purpose screens (the Parent/Child choice) in the middle of the window.
+ * single-purpose screens (the Parent/Child choice) in the middle of the window. The brand header stays
+ * pinned above the scrolling content, with the design system's 18dp screen gutter.
  */
 @Composable
 fun ParentApp(showBrand: Boolean = true, centered: Boolean = false, bottomBar: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().widthIn(max = 480.dp)) {
-                Column(Modifier.fillMaxWidth().heightIn(min = maxHeight).verticalScroll(rememberScrollState()).padding(24.dp),
-                    verticalArrangement = if (centered) Arrangement.spacedBy(24.dp, Alignment.CenterVertically) else Arrangement.spacedBy(24.dp),
-                    horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
-                    if (showBrand) HarborBrand()
-                    content()
+            Column(Modifier.weight(1f).fillMaxWidth().widthIn(max = 480.dp)) {
+                if (showBrand) Box(Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 4.dp)) { HarborBrand() }
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().heightIn(min = maxHeight).verticalScroll(rememberScrollState())
+                        .padding(horizontal = if (centered) 24.dp else 18.dp, vertical = if (showBrand) 12.dp else 24.dp),
+                        verticalArrangement = if (centered) Arrangement.spacedBy(24.dp, Alignment.CenterVertically) else Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
+                        content()
+                    }
                 }
             }
             if (bottomBar != null) Box(Modifier.fillMaxWidth().widthIn(max = 480.dp)) { bottomBar() }

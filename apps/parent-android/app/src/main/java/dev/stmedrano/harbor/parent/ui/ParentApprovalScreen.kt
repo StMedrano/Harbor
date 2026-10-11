@@ -1,5 +1,6 @@
 package dev.stmedrano.harbor.parent.ui
 
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.layout.*
@@ -40,8 +41,10 @@ import kotlinx.coroutines.*
         when (step) {
             0 -> {
                 OutlinedTextField(email, { if (!busy) email = it }, label = { Text("Parent email") },
+                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth(),
                     singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 OutlinedTextField(password, { if (!busy) password = it }, label = { Text("Parent password") },
+                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth(),
                     singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                 HarborButton(enabled = !busy && email.isNotBlank() && password.isNotBlank(), onClick = {
@@ -52,6 +55,7 @@ import kotlinx.coroutines.*
             1 -> {
                 OutlinedTextField(code, { if (!busy && it.length <= 6 && it.all { char -> char in '0'..'9' }) code = it },
                     label = { Text("Authenticator code") }, singleLine = true, enabled = !busy,
+                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
                 HarborButton(enabled = !busy && code.length == 6, onClick = {
                     val submitted = code; code = ""
@@ -62,7 +66,7 @@ import kotlinx.coroutines.*
                 perform(2, "Removal was not confirmed. This phone remains enrolled.", onRemove)
             }) { Text(if (busy) "Removing…" else "Remove enrollment") }
         }
-        message?.let { Text(it) }
+        message?.let { HarborNote(it, HarborTone.DANGER, emphasis = true) }
         TextButton(onClick = { cancel() }) { Text("Cancel approval") }
     }
 }

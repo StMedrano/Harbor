@@ -14,7 +14,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.usage.*
@@ -33,13 +36,22 @@ private fun dayLabel(localDate: String): String = runCatching {
     java.time.LocalDate.parse(localDate).format(DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()))
 }.getOrDefault(localDate)
 
+/** Decorative app tile: first letter on a family colour, as in the design system's rows. Hidden from TalkBack because the row already names the app. */
+@Composable
+private fun AppTile(name: String, color: Color) {
+    Box(Modifier.size(34.dp).background(color, RoundedCornerShape(9.dp)).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        Text(name.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
 @Composable
 fun UsageNoticeList(state: UsageViewState) {
-    usageNotices(state).forEach { notice ->
-        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
-            Text(notice, Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
-        }
+    val tone = when (state.status) {
+        UsageViewStatus.LOAD_FAILED, UsageViewStatus.ACCESS_LOST -> HarborTone.DANGER
+        UsageViewStatus.MEASURED, UsageViewStatus.PERMISSION_REQUIRED -> HarborTone.WARN
+        else -> HarborTone.INFO
     }
+    usageNotices(state).forEach { notice -> HarborNote(notice, tone) }
 }
 
 @Composable
@@ -66,9 +78,10 @@ private fun DayBars(days: List<UsageDayRow>) {
                     }
                 } else {
                     Box(Modifier.fillMaxWidth().height((day.totalMs.toFloat() / known * 104f).coerceAtLeast(2f).dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 3.dp, bottomEnd = 3.dp)))
+                        .background(MaterialTheme.colorScheme.secondary, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 3.dp, bottomEnd = 3.dp)))
                 }
-                Text(dayLabel(day.localDate).takeLast(2).trim(), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
+                Text(dayLabel(day.localDate).takeLast(2).trim(), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
         }
     }
@@ -81,7 +94,7 @@ fun UsageTodayPanel(state: UsageViewState) {
         val today = state.today
         if (state.status == UsageViewStatus.MEASURED && today != null) {
             HarborPanel("${dayLabel(today.localDate)} · measured total") {
-                Text(formatUsageDuration(today.totalMs), style = MaterialTheme.typography.headlineMedium)
+                Text(formatUsageDuration(today.totalMs), style = HarborMetricStyle)
                 DayBars(state.days)
                 Text("Apps used side by side can add up to more than the total, which counts overlapping time once.", style = MaterialTheme.typography.bodySmall)
             }
@@ -100,15 +113,13 @@ fun UsageAppsPanel(state: UsageViewState) {
         if (state.apps.isEmpty()) Text("No launchable apps were reported.")
         else HarborPanel("Apps today") {
             state.apps.forEachIndexed { index, app ->
-                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(app.label ?: app.packageName)
-                        Text(if (app.label == null) "${app.packageName} · name unavailable" else app.packageName, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(if (app.foregroundMs == null) unmeasured else formatUsageDuration(app.foregroundMs))
-                }
+                HarborRow(app.label ?: app.packageName, divider = index > 0,
+                    subtitle = if (app.label == null) "${app.packageName} · name unavailable" else app.packageName,
+                    leading = { AppTile(app.label ?: app.packageName, HarborKid.color(app.packageName.hashCode())) },
+                    trailing = {
+                        Text(if (app.foregroundMs == null) unmeasured else formatUsageDuration(app.foregroundMs),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.Medium)
+                    })
             }
         }
         Text("Apps are the launchable apps visible to this Android profile. This is a measurement only; Harbor does not limit or block apps from this view.",
@@ -121,7 +132,7 @@ fun UsageAppsPanel(state: UsageViewState) {
 fun UsageReportScreen(state: UsageViewState, onRefresh: (() -> Unit)? = null) {
     var tab by remember { mutableStateOf("Today") }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Screen time", style = MaterialTheme.typography.titleLarge)
+        Text("Screen time", style = MaterialTheme.typography.titleMedium)
         HarborTabs(listOf("Today", "Apps").map { title -> HarborTab(title, tab == title) { tab = title } })
         if (tab == "Today") UsageTodayPanel(state) else UsageAppsPanel(state)
         if (onRefresh != null) HarborOutlinedButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh") }

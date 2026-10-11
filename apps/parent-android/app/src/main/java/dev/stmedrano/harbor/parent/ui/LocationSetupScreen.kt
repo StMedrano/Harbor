@@ -47,16 +47,16 @@ fun LocationSetupPanel(ui: ChildLocationUi) {
             "Only your parents can turn sharing off, by removing this device in the parent app.")
         when (locationStatus(ui.access)) {
             LocationStatus.PERMISSION_LOST -> {
-                Text("Location is not allowed for Harbor yet, so your parents cannot see where this phone is.", style = MaterialTheme.typography.titleSmall)
+                HarborNote("Location is not allowed for Harbor yet, so your parents cannot see where this phone is.", HarborTone.WARN, emphasis = true)
                 HarborButton(ui.onAllowLocation, Modifier.fillMaxWidth()) { Text("Allow location") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }
             LocationStatus.SERVICES_OFF -> {
-                Text("Location is switched off on this phone. Turn it on in Android settings.", style = MaterialTheme.typography.titleSmall)
+                HarborNote("Location is switched off on this phone. Turn it on in Android settings.", HarborTone.WARN, emphasis = true)
                 HarborButton(ui.onOpenLocationSettings, Modifier.fillMaxWidth()) { Text("Open location settings") }
             }
             LocationStatus.BACKGROUND_MISSING -> {
-                Text("Sharing works while Harbor is open. Allow location \"all the time\" so it keeps working when Harbor is closed.", style = MaterialTheme.typography.titleSmall)
+                HarborNote("Sharing works while Harbor is open. Allow location \"all the time\" so it keeps working when Harbor is closed.", HarborTone.WARN, emphasis = true)
                 HarborButton(ui.onAllowAllTheTime, Modifier.fillMaxWidth()) { Text("Allow all the time") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }

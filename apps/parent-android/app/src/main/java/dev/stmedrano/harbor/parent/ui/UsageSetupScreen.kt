@@ -30,7 +30,7 @@ fun UsageSetupPanel(ui: ChildUsageUi) {
         } else {
             Text("Sharing is on.", style = MaterialTheme.typography.titleSmall)
             if (!ui.permissionGranted) {
-                Text("Usage Access is off for Harbor, so nothing can be measured yet. Turn it on in Android settings, then come back.")
+                HarborNote("Usage Access is off for Harbor, so nothing can be measured yet. Turn it on in Android settings, then come back.", HarborTone.WARN, emphasis = true)
                 HarborButton(ui.onOpenSettings, Modifier.fillMaxWidth()) { Text("Open Usage Access settings") }
                 HarborOutlinedButton(ui.onCheckAgain, Modifier.fillMaxWidth()) { Text("Check again") }
             }
