@@ -78,6 +78,15 @@ class NativeWebParityTest {
             }
         } }
         compose.onNodeWithText("Hi there").assertExists()
+        // At 180% font scale the pairing headline needs usable horizontal space,
+        // not a one-word-per-line strip squeezed beside the connection badge.
+        val viewportWidth = compose.onRoot().fetchSemanticsNode().boundsInRoot.width
+        val pairingHeadlineWidth = compose.onNodeWithText("This phone is paired")
+            .fetchSemanticsNode().boundsInRoot.width
+        org.junit.Assert.assertTrue(
+            "Pairing headline collapses at accessibility text sizes",
+            pairingHeadlineWidth >= viewportWidth * 0.40f
+        )
         compose.onNodeWithText("Unconfirmed").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Showing saved setup. Current status has not been confirmed.")
             .performScrollTo().assertIsDisplayed()
