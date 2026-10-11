@@ -46,17 +46,51 @@ object MapMath {
         return tiles
     }
 
-    /** Viewport pixel of a coordinate, relative to the same centre used for [tilesFor]. */
-    fun toViewport(lat: Double, lon: Double, centerLat: Double, centerLon: Double, zoom: Int, width: Double, height: Double): Pair<Double, Double> =
-        (worldX(lon, zoom) - worldX(centerLon, zoom) + width / 2) to (worldY(lat, zoom) - worldY(centerLat, zoom) + height / 2)
+    /**
+     * Minimal longitude arc, not the naive min/max of longitude. Two points on opposite sides of
+     * the International Date Line are neighbours, not almost one full world apart.
+     * [values] must be in [0, circumference), with the returned start in the same range.
+     */
+    private fun minimalCircularArc(values: List<Double>, circumference: Double): Pair<Double, Double> {
+        require(values.isNotEmpty())
+        val ordered = values.sorted()
+        var widestGap = -1.0
+        var start = ordered.first()
+        for (index in ordered.indices) {
+            val next = if (index == ordered.lastIndex) ordered.first() + circumference else ordered[index + 1]
+            val gap = next - ordered[index]
+            if (gap > widestGap) { widestGap = gap; start = next % circumference }
+        }
+        return start to (circumference - widestGap)
+    }
+
+    /** Longitude midpoint of the smallest arc containing the fixes, including across ±180°. */
+    fun centerLongitude(points: List<Pair<Double, Double>>): Double {
+        if (points.isEmpty()) return 0.0
+        val values = points.map { ((it.second + 180.0) % 360.0 + 360.0) % 360.0 }
+        val (start, length) = minimalCircularArc(values, 360.0)
+        return (start + length / 2.0) % 360.0 - 180.0
+    }
+
+    /** Viewport pixel relative to the centre, using the nearest wrapped copy of the world. */
+    fun toViewport(lat: Double, lon: Double, centerLat: Double, centerLon: Double, zoom: Int, width: Double, height: Double): Pair<Double, Double> {
+        val circumference = worldSize(zoom)
+        var dx = worldX(lon, zoom) - worldX(centerLon, zoom)
+        if (dx > circumference / 2.0) dx -= circumference
+        if (dx < -circumference / 2.0) dx += circumference
+        return (dx + width / 2.0) to (worldY(lat, zoom) - worldY(centerLat, zoom) + height / 2.0)
+    }
 
     /** The largest zoom at which all points (plus [paddingPx]) fit the viewport; a single point uses [singlePointZoom]. */
     fun fitZoom(points: List<Pair<Double, Double>>, width: Double, height: Double, paddingPx: Double = 48.0, singlePointZoom: Int = 16): Int {
         if (points.isEmpty()) return MIN_ZOOM
         if (points.size == 1) return singlePointZoom.coerceIn(MIN_ZOOM, MAX_ZOOM)
         for (zoom in MAX_ZOOM downTo MIN_ZOOM) {
-            val xs = points.map { worldX(it.second, zoom) }; val ys = points.map { worldY(it.first, zoom) }
-            if (xs.max() - xs.min() <= width - 2 * paddingPx && ys.max() - ys.min() <= height - 2 * paddingPx) return min(zoom, singlePointZoom + 1)
+            val circumference = worldSize(zoom)
+            val xs = points.map { (worldX(it.second, zoom) % circumference + circumference) % circumference }
+            val ys = points.map { worldY(it.first, zoom) }
+            val wrappedSpan = minimalCircularArc(xs, circumference).second
+            if (wrappedSpan <= width - 2 * paddingPx && ys.max() - ys.min() <= height - 2 * paddingPx) return min(zoom, singlePointZoom + 1)
         }
         return MIN_ZOOM
     }
