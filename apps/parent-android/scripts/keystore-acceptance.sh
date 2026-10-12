@@ -134,7 +134,7 @@ for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdc
 
 # Location UI smoke checks run on API 29 and API 36 without network or live location data.
 location_ui_status=0
-for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim; do
+for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately recentStatusWithOldFixShowsActualLocationAge neverReportedHasNoMapAndNoFalseSharingClaim; do
   run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
 done
 [[ "$location_ui_status" == 0 ]]

@@ -50,6 +50,16 @@ class LocationUiTest {
         compose.onNodeWithContentDescription("Last known place", substring = true).assertDoesNotExist()
     }
 
+    @Test fun recentStatusWithOldFixShowsActualLocationAge() {
+        val now = System.currentTimeMillis()
+        val view = LocationViewState(LocationViewStatus.AVAILABLE, LocationStatus.SHARING,
+            listOf(LocationFix(locationInstantString(now - 2L * 60 * 60_000), 0.0, 0.0, 15, LocationProvider.GPS)),
+            receivedAtMs = now)
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentLocationScreen(view) } } }
+        compose.onNodeWithText("Last location update was 2 h ago.", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Nothing new has arrived from this phone for just now", substring = true).assertDoesNotExist()
+    }
+
     @Test fun neverReportedHasNoMapAndNoFalseSharingClaim() {
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
             ParentLocationScreen(LocationViewState(LocationViewStatus.NONE))
