@@ -44,7 +44,7 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
             Text("Revoke ${model.targetName() ?: "selected device"}?", style = MaterialTheme.typography.titleMedium)
             Text("This ends the child device's access. The backend must accept the request before Harbor confirms revocation.")
         }
-        state.message?.let { Text(it) }
+        state.message?.let { HarborNote(it, HarborTone.INFO) }
         if (state.phase == SecurityPhase.CONFIRMATION) HarborButton({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Confirm revocation") }
         if (state.phase == SecurityPhase.READY_TO_RETRY) HarborButton({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Retry revocation") }
         Text("Authenticator", style = MaterialTheme.typography.titleMedium)
@@ -59,6 +59,7 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
         }
         OutlinedTextField(code, { code = it.filter { char -> char in '0'..'9' }.take(6) },
             label = { Text("Authenticator code") }, singleLine = true, enabled = enabled && factor != null,
+            shape = MaterialTheme.shapes.medium, colors = harborFieldColors(),
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }))

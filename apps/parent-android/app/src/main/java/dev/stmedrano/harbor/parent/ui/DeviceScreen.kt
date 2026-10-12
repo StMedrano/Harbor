@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.family.DevicePublicV1
 import dev.stmedrano.harbor.parent.location.LocationViewState
@@ -11,10 +12,10 @@ import dev.stmedrano.harbor.parent.usage.UsageViewState
 
 @Composable
 fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedAt: Long? = null, usage: UsageViewState? = null,
-    onRefreshUsage: (() -> Unit)? = null, location: LocationViewState? = null, onRefreshLocation: (() -> Unit)? = null, onBack: () -> Unit) {
+    onRefreshUsage: (() -> Unit)? = null, location: LocationViewState? = null, onRefreshLocation: (() -> Unit)? = null, accent: Color = Color.Unspecified, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(device.displayName, style = MaterialTheme.typography.headlineSmall)
-        cachedAt?.let { Text("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(it)}. Connect to make changes.", style = MaterialTheme.typography.bodySmall) }
+        cachedAt?.let { HarborNote("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(it)}. Connect to make changes.", HarborTone.WARN) }
         HarborPanel("Connected device") {
             Text("Status: ${device.status}")
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -22,10 +23,9 @@ fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedA
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Text("Last seen: ${device.lastSeenAt?.let(::formatTimestamp) ?: "not reported"}")
         }
-        if (location != null) ParentLocationScreen(location, onRefreshLocation)
+        if (location != null) ParentLocationScreen(location, onRefreshLocation, accent)
         if (usage != null) UsageReportScreen(usage, onRefreshUsage)
-        if (onRevoke != null && device.status == "active") OutlinedButton(onRevoke, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            shape = MaterialTheme.shapes.medium, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Revoke device") }
+        if (onRevoke != null && device.status == "active") HarborDestructiveButton(onRevoke, Modifier.fillMaxWidth()) { Text("Revoke device") }
         TextButton(onBack) { Text("Back to family") }
     }
 }

@@ -20,7 +20,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
     /** When set, the caller owns tab selection and shows the tabs as a pinned bottom bar (see [childNavItems]). */
     tab: String? = null) {
     if (state is ChildSyncState.Blocked) {
-        Text("This phone needs a parent to check its setup.")
+        HarborNote("This phone needs a parent to check its setup.", HarborTone.WARN, emphasis = true)
         return
     }
     var localTab by remember(binding.deviceId) { mutableStateOf("Today") }
@@ -38,7 +38,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                             Text("Last sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}")
                         }
                         is ChildSyncState.Stale -> {
-                            Text("Showing saved setup. Current status has not been confirmed.")
+                            HarborNote("Showing saved setup. Current status has not been confirmed.", HarborTone.WARN)
                             state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}") }
                         }
                         is ChildSyncState.Blocked -> Unit
