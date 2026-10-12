@@ -37,3 +37,11 @@ Child removal or re-pairing requires an active parent of that family, fresh MFA 
 Use trusted exact-run discovery and guarded cleanup, then independently verify disposable operational and Auth rows are zero with audits retained. Never delete active or unrelated fixtures to manufacture completion. Preserve unknown outcomes for authorized reconciliation. Verify immediate signed child denial after revocation.
 
 Publish only sanitized stage outcomes, revision and CI in PR/Issue status. Keep endpoints, inboxes, credentials and fixture identifiers in protected evidence. No merge is authorized. Unified development acceptance and the full application are separate milestones; Issue #1 remains incomplete until its approved roadmap is actually complete.
+
+## Cloud v0.16-to-v0.17 replacement evidence
+
+PR #29's API29/API36 upgrade jobs run `scripts/cloud-upgrade-acceptance.sh` on separate fresh emulators. It refuses non-GitHub execution, an absent explicit emulator serial, a non-emulator, or an existing installed application. It builds product sources from pinned v0.16 revision `4ef2c4a` and the candidate using the same temporary CI debug key. Only the synthetic seed instrumentation test is added to the baseline. Both APKs retain the offline CI manifest with no INTERNET permission.
+
+The runner verifies package, increasing version, matching certificates and the existing read-only upgrade guard, then uses APK replacement (`install -r`) without uninstalling or clearing app data. Separate processes verify encrypted parent Auth/PKCE, the default profile namespace, Room snapshot and stable pending operation after actual v0.17 launch and another force-stop. `parent-upgrade-api-29/36` artifacts retain APKs, hashes, signatures, metadata, build and instrumentation logs. These APKs are offline test fixtures, not connected development APKs or phone updates.
+
+Remaining distribution prerequisite: securely provision the original installed v0.16 signing keystore, alias and credentials to an authorized managed cloud build; also provision development public client configuration. Do not paste private keys/passwords into chat or commit them. A fixture-key upgrade proves data preservation in the cloud but does not establish a matching certificate for the user's installed v0.16. Do not substitute a new signing key or uninstall the installed app.
