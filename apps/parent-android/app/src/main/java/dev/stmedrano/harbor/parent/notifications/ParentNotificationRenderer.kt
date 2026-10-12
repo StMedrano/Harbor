@@ -19,7 +19,7 @@ class ParentNotificationRenderer(private val context: Context) {
             .putExtra("route", Json.encodeToString(hint.route)).putExtra("parentRegistrationId", hint.registrationId)
         val tap = PendingIntent.getActivity(context, hint.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Harbor update").setContentText("Open Harbor to check your family.")
+            .setContentTitle("Harbor update").setContentText(parentPushText(hint.route.kind))
             .setContentIntent(tap).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build()
     }
     fun show(hint: ParentHint) { if (allowed()) manager.notify(hint.hashCode(), build(hint)) }

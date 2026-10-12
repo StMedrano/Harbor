@@ -10,6 +10,16 @@ import dev.stmedrano.harbor.parent.family.FamilyState
     val childId: String? = null, val deviceId: String? = null, val resourceId: String? = null)
 data class ParentHint(val registrationId: String, val route: ParentRoute)
 
+/**
+ * The only user-facing text for a parent push, keyed solely by the non-sensitive route kind. It never carries a
+ * child name, a device, a category or any message content, so a lock screen shows a generic line. A message alert
+ * deliberately says only that something was flagged and to open the app to review it.
+ */
+fun parentPushText(kind: String): String = when (kind) {
+    "device.alert.created" -> "Harbor flagged a possible concern. Open to review."
+    else -> "Open Harbor to check your family."
+}
+
 fun ParentHint.matchesFamily(identity: ParentIdentity, state: FamilyState): Boolean {
     val snapshot = state.snapshot ?: return false
     return !state.cached && !state.loading && state.failure == null &&
@@ -35,7 +45,7 @@ object ParentMessageParser {
         val version = route.getValue("version").jsonPrimitive
         require(!version.isString && version.intOrNull == 1)
         val kind = route.getValue("kind").jsonPrimitive
-        require(kind.isString && kind.content in setOf("device.state.changed", "device.command.created"))
+        require(kind.isString && kind.content in setOf("device.state.changed", "device.command.created", "device.alert.created"))
         for (field in fields - setOf("version", "kind")) route.getValue(field).let {
             require(it.jsonPrimitive.isString && uuid(it.jsonPrimitive.content))
         }
