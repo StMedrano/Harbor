@@ -54,3 +54,9 @@ Remove only exact disposable fixtures, verify zero owned rows by count, keep aud
 - Cadence and background resumption are at the mercy of Android battery/background policy; "background missing" is reported honestly rather than hidden.
 - Standard OpenStreetMap tiles are for development only; a hosted tile provider replaces them before any wider release. A tile request reveals the viewed area to the tile server.
 - Positions come from the phone and are not attested; places the platform marks as mock locations are ignored.
+
+## Location freshness regression
+
+A status-only report can arrive while the latest location fix remains old. Parent maps must label the last known place stale when either its recorded fix or the report receipt is more than 30 minutes old. A recent status must not make the old place look current. The warning gives the actual location age when the fix is stale; report-age wording applies when the report itself is stale. Access loss still removes the previous map immediately.
+
+Cloud regression coverage: two JVM tests cover the recent-status/old-fix case and the 30-minute boundary; API29/API36 Compose checks require the actual fix-age warning. These use synthetic locations and offline fixtures, not live tracking acceptance.
