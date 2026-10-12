@@ -39,6 +39,14 @@ GitHub Actions `Harbor Foundation CI` uploads `harbor-family-ui-only-offline-ci-
 
 For a usable development build, provide the **public Firebase Android client** `google-services.json` from the development Firebase project that has an Android app registered for `dev.stmedrano.harbor.parent`, plus the already approved public Supabase publishable key in local development configuration. Never use a Firebase service-account JSON, Supabase secret/service key, or a child's mismatched Firebase client config. Keep real client config outside GitHub and configure `apps/parent-android/parent.properties` as required by the Gradle validation. Build locally with Android SDK 37/JDK 17 and verify the real, authorized backend with owned devices; do not upload the live-config APK to public GitHub artifacts.
 
+## In-place development upgrade: v0.16 to v0.17
+
+The unified native Harbor Family Android package stays `dev.stmedrano.harbor.parent`. Version code advances from **16** to **17** and the version name to `0.17-development`; the increment is asserted in `EnvironmentConfigTest.nativeUpgradeRequiresMonotonicVersionAndSamePackage`. Android does not permit a normal in-place update from an APK signed by a different certificate, regardless of version. The user already has v0.16 installed; do **not** uninstall it as an automatic workaround, wipe its storage, or assume the previous developer/CI signer matches another build machine.
+
+Once a **development-configured** v0.17 APK is available, use `scripts/check-in-place-upgrade.sh /path/to/Harbor-Family-0.17-development-debug.apk` on the computer connected by `adb` to the **same, owned** Android device. The script reads the installed app's base APK, verifies both packages, their signing SHA-256 digests, and increasing Android version codes; it **does not** install, uninstall, or touch user data. It exits nonzero on an incompatible signer or absent installed package. Only after `SAFE_TO_UPGRADE` appears may the operator deliberately run `adb install -r /path/to/Harbor-Family-0.17-development-debug.apk` and perform an actual data-preservation acceptance test.
+
+The local debug signing material must be stable, private, outside the repository and retained securely for future local upgrades. GitHub Actions CI's offline artifact, an ephemeral Docker debug signing key, or a new local debug keystore is **not** presumed to be the signing identity of v0.16 on the phone. On mismatch, stop and rebuild/sign v0.17 with the **original signing key** (for example on the Android Studio workstation that produced the installed v0.16) before any update. Do not upload private keystores or live-config APKs to public GitHub artifacts.
+
 ## Real native checklist
 
 Use Pixel 9a and an owned disposable development inbox. Keep passwords, tokens, TOTP setup/code and worker keys out of chat, GitHub, screenshots and the public artifact. Auth/MFA screens intentionally prevent capture.
