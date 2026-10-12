@@ -40,7 +40,9 @@ private val controlChars = Regex("[\\u0000-\\u001f\\u007f-\\u009f]")
 
 fun alertInstantMs(value: String): Long {
     require(alertInstant.matches(value))
-    val parsed = java.time.Instant.parse(value)
+    // The regex admits impossible calendar dates (e.g. month 13, Feb 30); Instant.parse rejects those with a
+    // DateTimeException, which is converted here so every bad instant surfaces as the same IllegalArgumentException.
+    val parsed = try { java.time.Instant.parse(value) } catch (_: java.time.DateTimeException) { throw IllegalArgumentException("Invalid instant") }
     require(parsed.toString().replace(".000Z", "Z") == value.replace(".000Z", "Z"))
     return parsed.toEpochMilli()
 }

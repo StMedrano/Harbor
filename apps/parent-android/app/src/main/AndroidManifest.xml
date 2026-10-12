@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Message alerts from the paired child phone. SMS and Notification Access are granted by the child in Android's own UI; none is automatic. READ_SMS/RECEIVE_SMS are Play-restricted and acceptable on the current Firebase App Distribution route. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <queries>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
     </queries>
@@ -22,6 +26,17 @@
         <service android:name=".notifications.ParentNotificationJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
         <service android:name=".usage.UsageJobService" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
         <service android:name=".location.LocationForegroundService" android:exported="false" android:foregroundServiceType="location" />
+        <!-- Message-alert capture. The listener can only be bound by the system (it requires the system bind permission); only allowlisted packages are inspected and no message text is logged or stored. -->
+        <service android:name=".alerts.HarborNotificationListener" android:label="Harbor Family" android:exported="false" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <receiver android:name=".alerts.SmsReceiver" android:exported="true" android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".location.LocationBootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
