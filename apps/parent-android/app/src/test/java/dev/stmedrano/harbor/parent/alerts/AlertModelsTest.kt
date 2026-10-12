@@ -28,7 +28,7 @@ class AlertModelsTest {
         val wire = mapOf(AlertCategory.BULLYING to "bullying", AlertCategory.SELF_HARM to "self_harm", AlertCategory.ADULT_CONTENT to "adult_content",
             AlertCategory.DRUGS_ALCOHOL to "drugs_alcohol", AlertCategory.VIOLENCE_THREAT to "violence_threat",
             AlertCategory.UNKNOWN_ADULT_CONTACT to "unknown_adult_contact")
-        assertEquals(AlertCategory.entries.toSet(), wire.keys)
+        assertEquals(AlertCategory.values().toSet(), wire.keys)
         wire.forEach { (category, name) -> assertEquals("\"$name\"", Json.encodeToString(AlertCategory.serializer(), category)) }
     }
     @Test fun fieldsAreBounded() {
