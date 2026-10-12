@@ -43,11 +43,21 @@ class LocationUiTest {
             receivedAtMs = System.currentTimeMillis() - 31L * 60_000L,
         ))
         compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentLocationScreen(view.value) } } }
-        compose.onNodeWithText("Nothing new has arrived from this phone", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("The map shows its last known place, not where it is now.", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Last known place", substring = true).assertExists()
         compose.runOnIdle { view.value = LocationViewState(LocationViewStatus.ACCESS_LOST) }
         compose.onNodeWithText("You no longer have access to this device's location.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Last known place", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun recentStatusWithOldFixShowsActualLocationAge() {
+        val now = System.currentTimeMillis()
+        val view = LocationViewState(LocationViewStatus.AVAILABLE, LocationStatus.SHARING,
+            listOf(LocationFix(locationInstantString(now - 2L * 60 * 60_000), 0.0, 0.0, 15, LocationProvider.GPS)),
+            receivedAtMs = now)
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentLocationScreen(view) } } }
+        compose.onNodeWithText("Last location update was 2 h ago.", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Nothing new has arrived from this phone for just now", substring = true).assertDoesNotExist()
     }
 
     @Test fun neverReportedHasNoMapAndNoFalseSharingClaim() {

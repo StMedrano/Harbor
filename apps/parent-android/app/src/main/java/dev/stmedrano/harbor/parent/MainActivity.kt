@@ -30,6 +30,9 @@ import dev.stmedrano.harbor.parent.ui.HarborBottomBar
 import dev.stmedrano.harbor.parent.ui.HarborGlyph
 import dev.stmedrano.harbor.parent.ui.HarborNavItem
 import dev.stmedrano.harbor.parent.ui.childNavItems
+import dev.stmedrano.harbor.parent.ui.parentWebNavItems
+import dev.stmedrano.harbor.parent.ui.ParentWebPage
+import dev.stmedrano.harbor.parent.ui.HarborOutlinedButton
 import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
@@ -37,6 +40,7 @@ import dev.stmedrano.harbor.parent.ui.SettingsScreen
 import dev.stmedrano.harbor.parent.ui.DeviceScreen
 import dev.stmedrano.harbor.parent.ui.SecurityScreen
 import dev.stmedrano.harbor.parent.family.DevicePublicV1
+import dev.stmedrano.harbor.parent.family.FamilyFailure
 import dev.stmedrano.harbor.parent.notifications.*
 import dev.stmedrano.harbor.parent.profile.ProfileState
 import dev.stmedrano.harbor.parent.profile.ProfileRole
@@ -54,12 +58,16 @@ import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
     private val callback = mutableStateOf<String?>(null)
     private val authenticationPage = mutableStateOf(true)
     private val settingsPage = mutableStateOf(false)
     private val securityPage = mutableStateOf(false)
+    private val parentTab = mutableStateOf("Family")
     private var requestedHint: ParentHint? = null
     private var requestedChildHint: ParentRoute? = null
     private val logoutRequested = mutableStateOf(false)
@@ -208,14 +216,13 @@ class MainActivity : ComponentActivity() {
             val authenticationOpen = authenticationPage.value || callback.value != null
             val parentHome = identity != null && profile is ProfileState.Parent && profile.lease.ownerId == identity.userId && !authenticationOpen
             val parentBar: (@Composable () -> Unit)? = if (parentHome && runtime?.signingOut != true) {
-                @Composable { HarborBottomBar(listOf(
-                    HarborNavItem("Family", HarborGlyph.FAMILY, !settingsPage.value && !securityPage.value) {
-                        authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
-                    HarborNavItem("Settings", HarborGlyph.SETTINGS, settingsPage.value) {
-                        settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
-                    HarborNavItem("Security", HarborGlyph.SECURITY, securityPage.value) {
-                        securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
-                )) }
+                @Composable { HarborBottomBar(parentWebNavItems(parentTab.value) { destination ->
+                    parentTab.value = destination
+                    authenticationPage.value = false
+                    settingsPage.value = false
+                    securityPage.value = false
+                    graph.closeNotification()
+                }) }
             } else null
             HarborTheme {
                 ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar) {
@@ -230,7 +237,7 @@ class MainActivity : ComponentActivity() {
                                         graph.profiles.activateParent()
                                         if (graph.profiles.state.value is ProfileState.Parent) withContext(Dispatchers.Main) {
                                         authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
-                                        logoutRequested.value = false; graph.closeNotification()
+                                        parentTab.value = "Family"; logoutRequested.value = false; graph.closeNotification()
                                         }
                                         }
                                     }, onCallbackConsumed = { callback.value = null })
@@ -267,7 +274,29 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation) }
+                                else if (identity != null && parentTab.value != "Family") {
+                                    ParentWebPage(
+                                        tab = parentTab.value,
+                                        snapshot = snapshot?.takeIf { family?.failure != FamilyFailure.ACCESS_DENIED && it.membership.userId == identity.userId },
+                                        identity = identity,
+                                        locationModel = graph.parentLocation,
+                                        usageModel = graph.parentUsage,
+                                        resumeTick = resumeTick.intValue,
+                                    )
+                                }
+                                else key(identity) {
+                                    androidx.compose.foundation.layout.Row(
+                                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                                    ) {
+                                        HarborOutlinedButton({ settingsPage.value = true; graph.closeNotification() },
+                                            androidx.compose.ui.Modifier.weight(1f)) { Text("Settings") }
+                                        HarborOutlinedButton({ securityPage.value = true; graph.closeNotification() },
+                                            androidx.compose.ui.Modifier.weight(1f)) { Text("Security") }
+                                    }
+                                    FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation,
+                                        graph.parentUsage, graph.parentLocation)
+                                }
                             })
                     }
                 }
@@ -289,6 +318,7 @@ class MainActivity : ComponentActivity() {
         authenticationPage.value = hint == null
         settingsPage.value = false
         securityPage.value = false
+        parentTab.value = "Family"
         hint?.let { (application as ParentApplication).openNotification(it) }
         childHint?.let { (application as ParentApplication).openChildNotification(it) }
     }

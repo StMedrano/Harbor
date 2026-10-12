@@ -152,9 +152,9 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                     Text(if (page == AccountPage.SIGN_IN) "Sign in" else "Create account")
                 }
                 if (page == AccountPage.SIGN_IN) {
-                    TextButton(onClick = { navigate(AccountPage.RECOVERY) }, enabled = navigationEnabled) { Text("Forgot password?") }
+                    TextButton(onClick = { navigate(AccountPage.RECOVERY) }, enabled = navigationEnabled, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.secondary)) { Text("Forgot password?") }
                     Text("New to Harbor?", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = { navigate(AccountPage.SIGN_UP) }, enabled = navigationEnabled) { Text("Create account") }
+                    TextButton(onClick = { navigate(AccountPage.SIGN_UP) }, enabled = navigationEnabled, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.secondary)) { Text("Create account") }
                 }
             } else if (page == AccountPage.RECOVERY) {
                 Text("Open the email link on this device. Keep Harbor installed until recovery is complete.", style = MaterialTheme.typography.bodySmall)
@@ -170,7 +170,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Update password") }
             }
             if (page != AccountPage.SIGN_IN) {
-                TextButton(onClick = { backToSignIn() }, enabled = navigationEnabled) { Text("Back to sign in") }
+                TextButton(onClick = { backToSignIn() }, enabled = navigationEnabled, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.secondary)) { Text("Back to sign in") }
             }
             if (busy) CircularProgressIndicator()
         }
@@ -178,7 +178,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
 }
 
 @Composable
-private fun harborFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun harborFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     focusedContainerColor = MaterialTheme.colorScheme.surface,
     disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,

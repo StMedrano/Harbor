@@ -31,6 +31,22 @@ FCM callbacks enqueue reference-only work through the existing platform JobSched
 
 Stop at any exact missing configuration, credential, permission, deployment or decision gate. Do not create live fixtures until the required environment and recipient are available.
 
+## UI-only Android fixture artifact
+
+GitHub Actions `Harbor Foundation CI` uploads `harbor-family-ui-only-offline-ci-fixture-apk` from the `parent-android` job **only after** its Android unit tests, strict dependency verification, lint, assemble, fixture manifest checks and absent-real-config guard pass. This is the single combined Harbor Family Android package (`dev.stmedrano.harbor.parent`), at the version declared in the branch. Download the artifact ZIP from that exact PR run, extract `app-debug.apk`, and install on an **owned test device** with `adb install -r app-debug.apk`; it is a debug/fixture build, not a signed public release or a verified upgrade from a differently signed installation.
+
+**Important limitations:** this offline CI fixture intentionally has no `android.permission.INTERNET`, uses invalid fixture Supabase and Firebase client values, and cannot authenticate, pair real phones, deliver notifications, report location/usage to the service, or establish live family state. The APK is useful for basic installed-device layout and role-chooser inspection, not for checking real Parent/Child functionality, network behavior, or a live backend. It is never offered as the missing development APK. CI emulator screenshots use synthetic fixture state and are similarly visual/test evidence, not live integration proof.
+
+For a usable development build, provide the **public Firebase Android client** `google-services.json` from the development Firebase project that has an Android app registered for `dev.stmedrano.harbor.parent`, plus the already approved public Supabase publishable key in local development configuration. Never use a Firebase service-account JSON, Supabase secret/service key, or a child's mismatched Firebase client config. Keep real client config outside GitHub and configure `apps/parent-android/parent.properties` as required by the Gradle validation. Build locally with Android SDK 37/JDK 17 and verify the real, authorized backend with owned devices; do not upload the live-config APK to public GitHub artifacts.
+
+## In-place development upgrade: v0.16 to v0.17
+
+The unified native Harbor Family Android package stays `dev.stmedrano.harbor.parent`. Version code advances from **16** to **17** and the version name to `0.17-development`; the increment is asserted in `EnvironmentConfigTest.nativeUpgradeRequiresMonotonicVersionAndSamePackage`. Android does not permit a normal in-place update from an APK signed by a different certificate, regardless of version. The user already has v0.16 installed; do **not** uninstall it as an automatic workaround, wipe its storage, or assume the previous developer/CI signer matches another build machine.
+
+Once a **development-configured** v0.17 APK is available, use `scripts/check-in-place-upgrade.sh /path/to/Harbor-Family-0.17-development-debug.apk` on the computer connected by `adb` to the **same, owned** Android device. The script reads the installed app's base APK, verifies both packages, their signing SHA-256 digests, and increasing Android version codes; it **does not** install, uninstall, or touch user data. It exits nonzero on an incompatible signer or absent installed package. Only after `SAFE_TO_UPGRADE` appears may the operator deliberately run `adb install -r /path/to/Harbor-Family-0.17-development-debug.apk` and perform an actual data-preservation acceptance test.
+
+The local debug signing material must be stable, private, outside the repository and retained securely for future local upgrades. GitHub Actions CI's offline artifact, an ephemeral Docker debug signing key, or a new local debug keystore is **not** presumed to be the signing identity of v0.16 on the phone. On mismatch, stop and rebuild/sign v0.17 with the **original signing key** (for example on the Android Studio workstation that produced the installed v0.16) before any update. Do not upload private keystores or live-config APKs to public GitHub artifacts.
+
 ## Real native checklist
 
 Use Pixel 9a and an owned disposable development inbox. Keep passwords, tokens, TOTP setup/code and worker keys out of chat, GitHub, screenshots and the public artifact. Auth/MFA screens intentionally prevent capture.

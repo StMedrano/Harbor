@@ -27,6 +27,19 @@ class ParentLocationModelTest {
         assertTrue(view.isStale(nowMs + LOCATION_STALE_AFTER_MS + 31_000))
     }
 
+    @Test fun freshStatusReportCannotMakeAnOldLocationFixLookCurrent() {
+        val view = LocationViewState.fromReply(reply("2026-10-10T17:29:59Z", received = "2026-10-10T18:00:00Z"), nowMs)
+        assertTrue("Status-only reports must not refresh the map's location age", view.isStale(nowMs))
+    }
+
+    @Test fun locationFreshnessUsesBothFixAndReportAndKeepsThirtyMinuteBoundary() {
+        val atBoundary = LocationViewState.fromReply(reply("2026-10-10T17:30:00Z", received = "2026-10-10T18:00:00Z"), nowMs)
+        assertFalse(atBoundary.isStale(nowMs))
+        assertTrue(atBoundary.isStale(nowMs + 1))
+        val oldReport = LocationViewState.fromReply(reply("2026-10-10T17:59:00Z", received = "2026-10-10T17:29:59Z"), nowMs)
+        assertTrue("A fresh fix must not hide an old report", oldReport.isStale(nowMs))
+    }
+
     @Test fun failureKeepsPreviousPlaceMarkedOfflineAndAccessLossDropsIt() = runTest {
         var mode = 0
         val model = ParentLocationModel({ when (mode) { 0 -> reply("2026-10-10T17:59:00Z"); 1 -> throw java.io.IOException("offline"); else -> throw FamilyAccessDenied() } }, { parentA }, { nowMs })

@@ -134,7 +134,25 @@ for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdc
 
 # Location UI smoke checks run on API 29 and API 36 without network or live location data.
 location_ui_status=0
-for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim; do
+for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately recentStatusWithOldFixShowsActualLocationAge neverReportedHasNoMapAndNoFalseSharingClaim; do
   run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
 done
 [[ "$location_ui_status" == 0 ]]
+
+# Native parent shell must match the five web destinations without advertising unshipped monitoring features.
+web_parity_status=0
+for method in parentBottomNavigationMatchesTheFiveWebDestinations unsupportedTabsDoNotPretendToMonitorOrBlock childHomeUsesFriendlyWebGreetingAndTruthfulPairingStatus; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || web_parity_status=1
+done
+[[ "$web_parity_status" == 0 ]]
+# Exercise the web-matching navigation and child status disclosure at Android accessibility font scale.
+adb shell settings put system font_scale 1.8
+large_web_parity_status=0
+for method in largeTextDarkParentShellRetainsAllFiveWebDestinations largeTextDarkChildTodayMakesUnconfirmedStatusVisible; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.NativeWebParityTest || large_web_parity_status=1
+done
+adb shell settings put system font_scale 1.0
+[[ "$large_web_parity_status" == 0 ]]
+for shot in native-web-parent-shell native-web-child-today native-web-parent-shell-dark-large-text native-web-child-today-dark-large-text; do
+  adb pull "/sdcard/Android/data/dev.stmedrano.harbor.parent/files/${shot}.png" keystore-evidence/
+done

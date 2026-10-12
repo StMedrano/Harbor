@@ -23,6 +23,10 @@ private fun roundRect(x: Double, y: Double, w: Double, h: Double, r: Double) =
 
 /** Line icons on the same 24-unit grid and 1.8 stroke as the web app's tab icons (web/harbor-family/js). */
 enum class HarborGlyph(val paths: List<String>) {
+    MAP(listOf("M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z", circle(12.0, 9.5, 2.5))),
+    ALERTS(listOf("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0")),
+    CONTROLS(listOf(roundRect(6.0, 3.0, 12.0, 18.0, 2.5), "M12 8v4l2.5 1.5")),
+    ACTIVITY(listOf("M3 12h4l2.5-6 5 12 2.5-6h4")),
     FAMILY(listOf(circle(9.0, 8.0, 3.0), "M3.5 19v-1a5.5 5.5 0 0 1 11 0v1", circle(17.0, 9.0, 2.4), "M16 14.2a4.6 4.6 0 0 1 5 4.3V19")),
     SETTINGS(listOf("M4 7h10M18 7h2M4 17h2M10 17h10", circle(16.0, 7.0, 2.0), circle(8.0, 17.0, 2.0))),
     SECURITY(listOf("M12 21s-7-4.4-7-10V6l7-3 7 3v5c0 5.6-7 10-7 10z", "m9 12 2 2 4-4")),

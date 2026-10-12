@@ -25,10 +25,10 @@ fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
         FamilyDestination.BLOCKED -> {
             val network = (state.profile as? ProfileState.Blocked)?.reason == ProfileBlock.NETWORK_UNAVAILABLE
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if (network) "Connection unavailable. Connect and retry your saved setup." else "This phone needs a parent to check its setup.")
+                HarborNote(if (network) "Connection unavailable. Connect and retry your saved setup." else "This phone needs a parent to check its setup.", HarborTone.WARN, emphasis = true)
                 if ((state.childState as? ChildSyncState.Blocked)?.reason == ChildFailure.REVOKED) {
-                    Text("A parent removed this phone from the family, so it no longer shares anything. To use it again, clear Harbor's storage " +
-                        "(Android Settings > Apps > Harbor > Storage > Clear storage), open Harbor, and choose Child with a new pairing code.")
+                    HarborNote("A parent removed this phone from the family, so it no longer shares anything. To use it again, clear Harbor's storage " +
+                        "(Android Settings > Apps > Harbor > Storage > Clear storage), open Harbor, and choose Child with a new pairing code.", HarborTone.INFO)
                 }
                 if (!detail.isNullOrBlank()) Text("Technical detail: $detail", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
                 if (network && onRetry != null) HarborButton(onClick = onRetry) { Text("Retry saved setup") }

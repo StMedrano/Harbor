@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
+import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.ParentRuntime
 import dev.stmedrano.harbor.parent.usage.ParentUsageModel
@@ -50,7 +51,9 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
                 cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }, usage = usage,
                 onRefreshUsage = usageModel?.let { m -> { scope.launch { m.load(identity, device.id) } } },
-                location = location, onRefreshLocation = locationModel?.let { m -> { scope.launch { m.load(identity, device.id) } } }) { deviceId = null }
+                location = location, onRefreshLocation = locationModel?.let { m -> { scope.launch { m.load(identity, device.id) } } },
+                accent = family.snapshot?.children?.indexOfFirst { it.id == device.childId }?.takeIf { it >= 0 }?.let { HarborKid.color(it) }
+                    ?: androidx.compose.ui.graphics.Color.Unspecified) { deviceId = null }
         } else Column {
             Text("This device is unavailable. Refresh your family.")
             TextButton({ deviceId = null }) { Text("Back to family") }
@@ -67,8 +70,10 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
         if (control.message != null && sheet == null) Text(control.message!!)
     }
     when (sheet) {
-        "family" -> AlertDialog(onDismissRequest = { if (!control.busy) sheet = null }, title = { Text("Create family") },
-            text = { Column { OutlinedTextField(name, { name = it }, label = { Text("Family name") }, enabled = !control.busy); error?.let { Text(it) } } },
+        "family" -> AlertDialog(onDismissRequest = { if (!control.busy) sheet = null }, title = { Text("Create family", style = MaterialTheme.typography.titleMedium) },
+            text = { Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Family name") }, enabled = !control.busy, shape = MaterialTheme.shapes.medium, colors = harborFieldColors())
+                error?.let { HarborNote(it, HarborTone.DANGER, emphasis = true) } } },
             confirmButton = { TextButton({ scope.launch { if (request { model.createFamily(identity, name) }) { sheet = null; name = "" } } }, enabled = !control.busy && name.isNotBlank()) { Text("Create / retry") } },
             dismissButton = { TextButton({ scope.launch { if (request { model.cancelFamily(identity) }) { sheet = null; name = "" } } }, enabled = !control.busy) { Text("Cancel request") } })
         "child" -> ChildSetupSheet(name, control.busy, error,
