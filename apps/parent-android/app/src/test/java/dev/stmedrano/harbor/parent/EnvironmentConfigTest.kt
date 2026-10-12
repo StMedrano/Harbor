@@ -13,6 +13,14 @@ class EnvironmentConfigTest {
         "firebasePackage" to "dev.stmedrano.harbor.parent",
         "environment" to "ci",
     )
+    @Test fun nativeUpgradeRequiresMonotonicVersionAndSamePackage() {
+        // v0.16 is already installed on real devices. Android will reject a
+        // same-version or downgraded APK even if the signature matches.
+        assertEquals("dev.stmedrano.harbor.parent", BuildConfig.APPLICATION_ID)
+        assertEquals(17, BuildConfig.VERSION_CODE)
+        assertEquals("0.17-development", BuildConfig.VERSION_NAME)
+    }
+
     @Test fun privateKeyCannotConfigureParentApp() {
         assertThrows(IllegalArgumentException::class.java) {
             EnvironmentConfig.read(fixture + ("publishableKey" to "sb_secret_test_only"), true)
