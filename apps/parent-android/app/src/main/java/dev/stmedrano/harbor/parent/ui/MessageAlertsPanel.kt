@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import dev.stmedrano.harbor.parent.ParentApplication
 import dev.stmedrano.harbor.parent.alerts.AlertAccess
 import dev.stmedrano.harbor.parent.alerts.AlertHostState
 import dev.stmedrano.harbor.parent.alerts.MonitoredApps
+import dev.stmedrano.harbor.parent.profile.ProfileLease
+import kotlinx.coroutines.delay
 
 /** What the child dashboard needs to explain message-alert watching and fix its permissions. */
 data class ChildAlertsUi(
@@ -16,6 +19,22 @@ data class ChildAlertsUi(
     val onAllowSms: () -> Unit,
     val onOpenAppSettings: () -> Unit,
 )
+
+/** Re-reads the phone's real notification-access and SMS state on resume and every few seconds while visible; it never trusts a cached answer. */
+@Composable
+fun rememberChildAlertsUi(graph: ParentApplication, lease: ProfileLease, resumeTick: Int, onOpenNotificationAccess: () -> Unit,
+    onAllowSms: () -> Unit, onOpenAppSettings: () -> Unit): ChildAlertsUi {
+    var access by remember(lease) { mutableStateOf(graph.alertAccess()) }
+    val host = graph.childAlertHost?.state?.collectAsState()?.value ?: AlertHostState()
+    LaunchedEffect(lease, resumeTick) {
+        while (true) {
+            access = graph.alertAccess()
+            delay(3000)
+        }
+    }
+    LaunchedEffect(lease, resumeTick) { graph.refreshChildAlerts(lease) }
+    return ChildAlertsUi(access, host, onOpenNotificationAccess, onAllowSms, onOpenAppSettings)
+}
 
 /**
  * "What Harbor watches": a plain disclosure of which apps are watched, which categories can be flagged, exactly what

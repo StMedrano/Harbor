@@ -48,8 +48,10 @@ import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
 import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
+import dev.stmedrano.harbor.parent.ui.rememberChildAlertsUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
 import dev.stmedrano.harbor.parent.ui.rememberParentLocationView
+import dev.stmedrano.harbor.parent.ui.rememberParentAlertsView
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
@@ -142,6 +144,11 @@ class MainActivity : ComponentActivity() {
                                 onAllowAllTheTime = { locationBackground.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) },
                                 onOpenLocationSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
                                 onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
+                            val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { graph.refreshChildAlerts(lease) }
+                            val alertsUi = if (BuildConfig.CI_FIXTURE) null else rememberChildAlertsUi(graph, lease, resumeTick.intValue,
+                                onOpenNotificationAccess = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
+                                onAllowSms = { smsPermission.launch(Manifest.permission.RECEIVE_SMS) },
+                                onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -152,7 +159,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, location = locationUi, tab = childTab.value,
+                                usage = usageUi, location = locationUi, alerts = alertsUi, tab = childTab.value,
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -247,11 +254,13 @@ class MainActivity : ComponentActivity() {
                                 else if (identity != null && visibleDevice != null) {
                                     val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
                                     val location = rememberParentLocationView(graph.parentLocation, identity, visibleDevice.id, resumeTick.intValue)
+                                    val alerts = rememberParentAlertsView(graph.parentAlerts, identity, visibleDevice.id, resumeTick.intValue)
                                     DeviceScreen(visibleDevice,
                                         onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
                                         cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
                                         onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
-                                        location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                        location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
                                 }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
@@ -267,7 +276,7 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts) }
                             })
                     }
                 }

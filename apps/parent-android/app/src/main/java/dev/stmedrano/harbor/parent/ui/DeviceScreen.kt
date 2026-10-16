@@ -6,13 +6,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.stmedrano.harbor.parent.alerts.AlertsViewState
 import dev.stmedrano.harbor.parent.family.DevicePublicV1
 import dev.stmedrano.harbor.parent.location.LocationViewState
 import dev.stmedrano.harbor.parent.usage.UsageViewState
 
 @Composable
 fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedAt: Long? = null, usage: UsageViewState? = null,
-    onRefreshUsage: (() -> Unit)? = null, location: LocationViewState? = null, onRefreshLocation: (() -> Unit)? = null, accent: Color = Color.Unspecified, onBack: () -> Unit) {
+    onRefreshUsage: (() -> Unit)? = null, location: LocationViewState? = null, onRefreshLocation: (() -> Unit)? = null,
+    alerts: AlertsViewState? = null, onRefreshAlerts: (() -> Unit)? = null, accent: Color = Color.Unspecified, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(device.displayName, style = MaterialTheme.typography.headlineSmall)
         cachedAt?.let { HarborNote("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(it)}. Connect to make changes.", HarborTone.WARN) }
@@ -24,6 +26,7 @@ fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedA
             Text("Last seen: ${device.lastSeenAt?.let(::formatTimestamp) ?: "not reported"}")
         }
         if (location != null) ParentLocationScreen(location, onRefreshLocation, accent)
+        if (alerts != null) ParentAlertsScreen(alerts, onRefreshAlerts)
         if (usage != null) UsageReportScreen(usage, onRefreshUsage)
         if (onRevoke != null && device.status == "active") HarborDestructiveButton(onRevoke, Modifier.fillMaxWidth()) { Text("Revoke device") }
         TextButton(onBack) { Text("Back to family") }
