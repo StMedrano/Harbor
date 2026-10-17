@@ -14,6 +14,7 @@ import dev.stmedrano.harbor.parent.profile.*
 import dev.stmedrano.harbor.parent.child.*
 import dev.stmedrano.harbor.parent.usage.*
 import dev.stmedrano.harbor.parent.location.*
+import dev.stmedrano.harbor.parent.alerts.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -60,6 +61,7 @@ class ParentApplication : Application() {
                 childNotificationStore.setOpted(expected, false)
                 usageStore.eraseBinding(expected.deviceId)
                 locationStore.eraseBinding(expected.deviceId)
+                alertStore.eraseBinding(expected.deviceId)
                 childRepository.clearAfterConfirmedRevocation()
                 childRepository.restore()
             })
@@ -113,7 +115,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease) }
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease) }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -267,6 +269,49 @@ class ParentApplication : Application() {
     /** After a restart or an update: re-evaluate permissions and try to start the service. */
     suspend fun superviseLocationFromBoot() { superviseLocationFromService() }
 
+    // ---- Child message alerts. Follows the phone's notification-access and SMS grants; there is no child-side stop control. ----
+    private val alertStore by lazy { EncryptedAlertStore.open(this) }
+    private val alertPermission by lazy { AlertPermission(this) }
+    private var childAlerts: ChildAlertHost? = null
+    val childAlertHost: ChildAlertHost?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childAlerts }
+    fun alertAccess(): AlertAccess = alertPermission.access()
+    private suspend fun startChildAlerts(lease: ProfileLease) {
+        val scope = checkNotNull(profileScope)
+        val reporter = AlertReporter(alertStore, ::currentUsageLease, AlertTransport { captured, operation, body ->
+            check(currentUsageLease(captured))
+            val binding = checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                val response = usageApi.signedUsage(operation, body, binding, session)
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                response
+            }
+        }, System::currentTimeMillis)
+        val host = ChildAlertHost(scope, reporter, alertPermission::access, ::currentUsageLease, System::currentTimeMillis)
+        childAlerts = host
+        host.start(lease)
+        scope.launch {
+            childRepository.state.collectLatest { value ->
+                if (value is ChildSyncState.Blocked) {
+                    host.stop()
+                    // Only a confirmed revocation discards queued alerts; a network or storage problem keeps them for later.
+                    if (value.reason == ChildFailure.REVOKED) try { alertStore.eraseBinding(lease.ownerId) } catch (_: Exception) { /* Nothing more can be sent anyway. */ }
+                }
+            }
+        }
+        scope.launch {
+            while (true) {
+                try { host.supervise(lease) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
+                delay(5 * 60_000L)
+            }
+        }
+    }
+    fun refreshChildAlerts(lease: ProfileLease) { accountScope.launch {
+        if (!currentUsageLease(lease)) return@launch
+        profileWork(lease) { childAlerts?.supervise(lease); true }
+    } }
+
     private val mutableTap = MutableStateFlow(ParentTapState())
     val tapState = mutableTap.asStateFlow()
     private val secureStore by lazy { SecureAuthStore.open(this) }
@@ -295,6 +340,8 @@ class ParentApplication : Application() {
     val parentUsage: ParentUsageModel? get() = if (parentConstructionAllowed) parentUsageModel else null
     private val parentLocationModel by lazy { parentAuth?.let { ParentLocationModel(SdkParentLocationApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentLocation: ParentLocationModel? get() = if (parentConstructionAllowed) parentLocationModel else null
+    private val parentAlertsModel by lazy { parentAuth?.let { ParentAlertsModel(SdkParentAlertsApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentAlerts: ParentAlertsModel? get() = if (parentConstructionAllowed) parentAlertsModel else null
     val familyViewModel: FamilyViewModel? by lazy {
         authRepository?.let { auth ->
             val api = checkNotNull(parentApi)
@@ -364,12 +411,12 @@ class ParentApplication : Application() {
             ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
-            { parentUsageModel?.clear(); parentLocationModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {
-                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); familyViewModel?.clear() }
+                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
                         finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
@@ -393,12 +440,14 @@ class ParentApplication : Application() {
         val scope = profileScope
         val usage = childUsage
         val location = childLocation
-        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null
+        val alerts = childAlerts
+        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.
         runShutdownSteps(
             { UsageJobService.cancel(this) },
             { usage?.stop() },
             { location?.stop() },
+            { alerts?.stop() },
             { LocationForegroundService.stop(this) },
             { getSystemService(JobScheduler::class.java).cancel(ParentNotificationJob.JOB_ID) },
             { if (old != null) profileNotifications.stop(old) },
@@ -416,7 +465,7 @@ class ParentApplication : Application() {
         parentCollectors = null
         if (parentConstructionAllowed) {
             realtime?.disconnect()
-            parentUsageModel?.clear(); parentLocationModel?.clear()
+            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear()
             familyViewModel?.hideVisible()
             securityViewModel?.clear()
             mutableTap.value = ParentTapState()
@@ -478,7 +527,7 @@ class ParentApplication : Application() {
                 }
             } else {
                 childRepository.binding.value?.let { childRepository.sync(it) }
-                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease);childLocation?.supervise(lease)}
+                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease);childLocation?.supervise(lease);childAlerts?.supervise(lease)}
             }
             if (!BuildConfig.CI_FIXTURE) profileNotifications.syncToken(lease)
             true

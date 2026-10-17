@@ -60,4 +60,14 @@ class ParentMessageParserTest {
             assertNull(ParentMessageParser.parse(envelope(route)))
         }
     }
+
+    @Test fun messageAlertKindIsAcceptedAndRendersGenericReviewTextWithoutContent() {
+        val route = envelope().getValue("route")
+        assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.alert.created"))))
+        val text = parentPushText("device.alert.created")
+        assertEquals("Harbor flagged a possible concern. Open to review.", text)
+        // The generic text never carries an identifier, a category or any message content.
+        for (secret in listOf(FAMILY, CHILD, DEVICE, EVENT, "bullying", "self_harm")) assertFalse(text.contains(secret))
+        assertEquals("Open Harbor to check your family.", parentPushText("device.state.changed"))
+    }
 }

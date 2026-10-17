@@ -23,3 +23,4 @@ export type { NotificationRouteRefV1 } from "./v1/notifications.ts";
 export type { RegisterParentFcmRequestV1, RegisterParentFcmReplyV1, RemoveParentFcmRequestV1 } from "./v1/parent-notifications.ts";
 export * from "./v1/usage.ts";
 export * from "./v1/location.ts";
+export * from "./v1/alerts.ts";
