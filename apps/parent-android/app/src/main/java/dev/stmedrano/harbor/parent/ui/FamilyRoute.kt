@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.ParentRuntime
+import dev.stmedrano.harbor.parent.usage.ParentUsageModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -14,7 +15,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
 @Composable
-fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null, onRevoke: ((DevicePublicV1) -> Unit)? = null) {
+fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null, onRevoke: ((DevicePublicV1) -> Unit)? = null,
+    usageModel: ParentUsageModel? = null) {
     val family by model.repository.state.collectAsState()
     val control by model.state.collectAsState()
     val pairing by model.pairing.state.collectAsState()
@@ -42,9 +44,12 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     val device = family.snapshot?.takeIf { it.membership.userId == identity.userId && it.membership.status == "active" }
         ?.devices?.firstOrNull { it.id == deviceId }
     if (deviceId != null) {
-        if (device != null) DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
-            cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }) { deviceId = null }
-        else Column {
+        if (device != null) {
+            val usage = rememberParentUsageView(usageModel, identity, device.id)
+            DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
+                cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }, usage = usage,
+                onRefreshUsage = usageModel?.let { m -> { scope.launch { m.load(identity, device.id) } } }) { deviceId = null }
+        } else Column {
             Text("This device is unavailable. Refresh your family.")
             TextButton({ deviceId = null }) { Text("Back to family") }
         }

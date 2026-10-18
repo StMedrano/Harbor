@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select ok(to_regclass('private.device_usage_snapshots') is not null,'usage snapshots private');
+select ok(to_regclass('private.device_usage_checkpoints') is not null,'checkpoints retained privately');
+select ok(not has_table_privilege('anon','private.device_usage_snapshots','select'),'anonymous cannot read snapshots');
+select ok(not has_table_privilege('authenticated','private.device_usage_snapshots','select'),'parent cannot directly read snapshots');
+select ok(not has_table_privilege('authenticated','private.device_usage_checkpoints','select'),'checkpoints server only');
+select ok(not has_function_privilege('authenticated','private.harbor_get_device_usage(uuid,uuid,uuid)','execute'),'parent read helper server only');
+select ok(not has_function_privilege('anon','private.harbor_purge_device_usage()','execute'),'janitor server only');
+select ok((select relrowsecurity from pg_class where oid='private.device_usage_snapshots'::regclass),'snapshots RLS enabled');
+select is((select count(*)::int from cron.job where jobname='harbor-usage-retention' and schedule='17 3 * * *'),1,'one daily named retention job');
+select ok(exists(select 1 from pg_trigger where tgname='device_usage_revoke_cleanup' and not tgisinternal),'additive revoke cleanup');
+select * from finish();
+rollback;

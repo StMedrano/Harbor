@@ -21,3 +21,4 @@ export type { HarborErrorCode } from "./v1/errors.ts";
 export type { NotificationRouteRefV1 } from "./v1/notifications.ts";
 
 export type { RegisterParentFcmRequestV1, RegisterParentFcmReplyV1, RemoveParentFcmRequestV1 } from "./v1/parent-notifications.ts";
+export * from "./v1/usage.ts";

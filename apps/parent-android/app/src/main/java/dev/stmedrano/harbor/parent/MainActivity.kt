@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -24,6 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
 import dev.stmedrano.harbor.parent.ui.ParentApp
+import dev.stmedrano.harbor.parent.ui.HarborBottomBar
+import dev.stmedrano.harbor.parent.ui.HarborGlyph
+import dev.stmedrano.harbor.parent.ui.HarborNavItem
+import dev.stmedrano.harbor.parent.ui.childNavItems
 import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
@@ -40,6 +46,8 @@ import dev.stmedrano.harbor.parent.ui.FamilyDestination
 import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
+import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
@@ -56,6 +64,7 @@ class MainActivity : ComponentActivity() {
     private val setupRole = mutableStateOf<ProfileRole?>(null)
     private val roleChangeParentLease = mutableStateOf<ProfileLease?>(null)
     private val transitionMessage = mutableStateOf<String?>(null)
+    private val resumeTick = mutableIntStateOf(0)
     override fun onCreate(savedInstanceState: Bundle?) {
         val requested = scrubCallback(intent)
         requestedChildHint = if (intent.action == ChildNotificationRenderer.TAP_ACTION) ChildNotificationRenderer.consumeTap(intent) else null
@@ -95,12 +104,22 @@ class MainActivity : ComponentActivity() {
                     childPermissionRequest.value = null
                     if (expected != null && graph.profiles.isCurrent(expected)) graph.enableChildNotifications(expected)
                 }
-                HarborTheme { ParentApp(showBrand = false) {
-                    transitionMessage.value?.let { Text(it) }
+                val childTab = remember { mutableStateOf("Today") }
+                val destination = entryState.destination()
+                val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME) {
+                    @Composable { HarborBottomBar(childNavItems(childTab.value) { childTab.value = it }) }
+                } else null
+                HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
+                    transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     FamilyRoleContent(entryState,
                         entry = { FamilyEntryScreen(
                             onParent = { if (graph.openParentSetup()) setupRole.value = ProfileRole.PARENT },
-                            onChild = { if (graph.childForSetup() != null) setupRole.value = ProfileRole.CHILD }) },
+                            onChild = {
+                                // Never ignore the tap: say why child setup is unavailable instead of doing nothing.
+                                if (graph.childForSetup() != null) { transitionMessage.value = null; setupRole.value = ProfileRole.CHILD }
+                                else transitionMessage.value = "Child setup is unavailable while a parent sign-in is open or saved on this phone. " +
+                                    "Finish signing in as a parent, then use Settings > Change this phone's role, or use another phone for the child."
+                            }) },
                         parentAuth = {}, parentMenu = {}, parentContent = {},
                         childPairing = {
                             Text("Enter pairing code")
@@ -111,6 +130,9 @@ class MainActivity : ComponentActivity() {
                         childContent = {
                             val lease = (profile as ProfileState.Child).lease
                             val registration = graph.profileNotifications.state.collectAsState().value
+                            val usageUi = if (BuildConfig.CI_FIXTURE) null else rememberChildUsageUi(graph, lease, resumeTick.intValue) {
+                                try { startActivity(graph.usageSettingsIntent()) } catch (_: Exception) { startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+                            }
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -121,6 +143,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
+                                usage = usageUi, tab = childTab.value,
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -128,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                         childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     } else graph.enableChildNotifications(lease)
                                 })
-                        }, onRetry = graph::retrySetupValidation)
+                        }, onRetry = graph::retrySetupValidation, detail = child?.failureDetail?.collectAsState()?.value)
                 } }
                 return@setContent
             }
@@ -174,8 +197,19 @@ class MainActivity : ComponentActivity() {
                 enableNotifications(expected)
             }
             val authenticationOpen = authenticationPage.value || callback.value != null
+            val parentHome = identity != null && profile is ProfileState.Parent && profile.lease.ownerId == identity.userId && !authenticationOpen
+            val parentBar: (@Composable () -> Unit)? = if (parentHome && runtime?.signingOut != true) {
+                @Composable { HarborBottomBar(listOf(
+                    HarborNavItem("Family", HarborGlyph.FAMILY, !settingsPage.value && !securityPage.value) {
+                        authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
+                    HarborNavItem("Settings", HarborGlyph.SETTINGS, settingsPage.value) {
+                        settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
+                    HarborNavItem("Security", HarborGlyph.SECURITY, securityPage.value) {
+                        securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
+                )) }
+            } else null
             HarborTheme {
-                ParentApp(showBrand = identity != null && !authenticationOpen) {
+                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
@@ -192,11 +226,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }, onCallbackConsumed = { callback.value = null })
                             },
-                            parentMenu = {
-                                TextButton({ authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() }) { Text("Family") }
-                                TextButton({ settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() }) { Text("Settings") }
-                                TextButton({ securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() }) { Text("Security") }
-                            },
+                            parentMenu = {},
                             parentContent = {
                                 tap.message?.let { Text(it) }
                                 val family = graph.familyViewModel?.repository?.state?.collectAsState()?.value
@@ -205,9 +235,13 @@ class MainActivity : ComponentActivity() {
                                     identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
                                 }?.devices?.firstOrNull { it.id == reference.id } }
                                 if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
-                                else if (identity != null && visibleDevice != null) DeviceScreen(visibleDevice,
-                                    onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
-                                    cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }) { graph.closeNotification() }
+                                else if (identity != null && visibleDevice != null) {
+                                    val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
+                                    DeviceScreen(visibleDevice,
+                                        onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
+                                        cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
+                                        onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
                                         val expected = graph.profiles.currentLease()
@@ -222,7 +256,7 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage) }
                             })
                     }
                 }
@@ -248,6 +282,7 @@ class MainActivity : ComponentActivity() {
         childHint?.let { (application as ParentApplication).openChildNotification(it) }
     }
     override fun onStart() { super.onStart(); (application as ParentApplication).foreground() }
+    override fun onResume() { super.onResume(); resumeTick.intValue++ }
 
     private fun scrubCallback(intent: Intent): String? {
         val requested = intent.dataString

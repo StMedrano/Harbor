@@ -45,11 +45,11 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
             Text("This ends the child device's access. The backend must accept the request before Harbor confirms revocation.")
         }
         state.message?.let { Text(it) }
-        if (state.phase == SecurityPhase.CONFIRMATION) Button({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Confirm revocation") }
-        if (state.phase == SecurityPhase.READY_TO_RETRY) Button({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Retry revocation") }
+        if (state.phase == SecurityPhase.CONFIRMATION) HarborButton({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Confirm revocation") }
+        if (state.phase == SecurityPhase.READY_TO_RETRY) HarborButton({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Retry revocation") }
         Text("Authenticator", style = MaterialTheme.typography.titleMedium)
         Text("Verification does not revoke a device. You must confirm the revocation separately.")
-        OutlinedButton({ scope.launch { request { model.enrollTotp() } } }, enabled = enabled) { Text("Set up authenticator") }
+        HarborOutlinedButton({ scope.launch { request { model.enrollTotp() } } }, enabled = enabled) { Text("Set up authenticator") }
         state.enrollment?.let { enrollment ->
             Text("Add an account in your authenticator using this setup key. Keep it private.")
             Text("Setup key: ${enrollment.secret}")
@@ -62,7 +62,7 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }))
-        Button({ val entered = code; val selected = factor; code = ""; if (selected != null) scope.launch { request { model.challenge(selected, entered) } } },
+        HarborButton({ val entered = code; val selected = factor; code = ""; if (selected != null) scope.launch { request { model.challenge(selected, entered) } } },
             enabled = enabled && factor != null && code.length == 6) { Text("Verify authenticator") }
         if (state.busy) CircularProgressIndicator()
     }
