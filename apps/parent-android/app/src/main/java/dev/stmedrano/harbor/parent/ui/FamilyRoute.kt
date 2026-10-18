@@ -17,7 +17,8 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null, onRevoke: ((DevicePublicV1) -> Unit)? = null,
-    usageModel: ParentUsageModel? = null, locationModel: dev.stmedrano.harbor.parent.location.ParentLocationModel? = null) {
+    usageModel: ParentUsageModel? = null, locationModel: dev.stmedrano.harbor.parent.location.ParentLocationModel? = null,
+    alertsModel: dev.stmedrano.harbor.parent.alerts.ParentAlertsModel? = null) {
     val family by model.repository.state.collectAsState()
     val control by model.state.collectAsState()
     val pairing by model.pairing.state.collectAsState()
@@ -48,10 +49,12 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
         if (device != null) {
             val usage = rememberParentUsageView(usageModel, identity, device.id)
             val location = rememberParentLocationView(locationModel, identity, device.id)
+            val alerts = rememberParentAlertsView(alertsModel, identity, device.id)
             DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
                 cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }, usage = usage,
                 onRefreshUsage = usageModel?.let { m -> { scope.launch { m.load(identity, device.id) } } },
                 location = location, onRefreshLocation = locationModel?.let { m -> { scope.launch { m.load(identity, device.id) } } },
+                alerts = alerts, onRefreshAlerts = alertsModel?.let { m -> { scope.launch { m.load(identity, device.id) } } },
                 accent = family.snapshot?.children?.indexOfFirst { it.id == device.childId }?.takeIf { it >= 0 }?.let { HarborKid.color(it) }
                     ?: androidx.compose.ui.graphics.Color.Unspecified) { deviceId = null }
         } else Column {
