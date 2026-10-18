@@ -9,7 +9,7 @@
  *          device-sync requests. A role is never trusted from metadata: anonymous identity = child device,
  *          verified account with an active family membership = parent.
  *
- * Not in the backend yet (screen time, apps, alerts, location, requests): those methods return empty
+ * Not in the backend yet (requests, controls, family alert settings): those methods return empty
  * data or throw ApiError('unavailable') so the UI can say so honestly instead of showing invented data.
  */
 import { createClient } from '@supabase/supabase-js';
@@ -154,6 +154,10 @@ export const supabaseApi = {
   },
   /** Read-only usage report for a paired device (UsageReadReplyV1). Access is enforced server-side; a lost membership surfaces as 'forbidden'. */
   async getDeviceUsage(deviceId) { return fn('get-device-usage', { deviceId }); },
+  /** Read-only last places for a paired device (LocationReadReplyV1). Same server-side access fence as usage. */
+  async getDeviceLocation(deviceId) { return fn('get-device-location', { deviceId }); },
+  /** Read-only message alerts, newest first (AlertReadReplyV1). `before` pages back through older alerts. */
+  async getDeviceAlerts(deviceId, before = null) { return fn('get-message-alerts', { deviceId, version: 1, before, limit: 50 }); },
   async setAlertReviewed() { throw unavailable(); },
   async respondToRequest() { throw unavailable(); },
   async grantTime() { throw unavailable(); },
