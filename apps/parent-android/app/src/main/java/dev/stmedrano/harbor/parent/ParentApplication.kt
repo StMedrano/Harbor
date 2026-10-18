@@ -13,6 +13,7 @@ import dev.stmedrano.harbor.parent.security.*
 import dev.stmedrano.harbor.parent.profile.*
 import dev.stmedrano.harbor.parent.child.*
 import dev.stmedrano.harbor.parent.usage.*
+import dev.stmedrano.harbor.parent.location.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -58,6 +59,7 @@ class ParentApplication : Application() {
                 childRepository.confirmRevocation(expected)
                 childNotificationStore.setOpted(expected, false)
                 usageStore.eraseBinding(expected.deviceId)
+                locationStore.eraseBinding(expected.deviceId)
                 childRepository.clearAfterConfirmedRevocation()
                 childRepository.restore()
             })
@@ -111,7 +113,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) startChildUsage(lease)
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease) }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -208,6 +210,63 @@ class ParentApplication : Application() {
             currentUsageLease(captured)
         }
     }
+    // ---- Child location sharing. Follows the phone's permission state; there is no child-side stop control. ----
+    private val locationStore by lazy { EncryptedLocationStore.open(this) }
+    private val locationSource by lazy { AndroidLocationSource(this) }
+    private var childLocation: ChildLocationHost? = null
+    val childLocationHost: ChildLocationHost?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childLocation }
+    fun locationAccess(): LocationAccess = locationSource.access()
+    private suspend fun startChildLocation(lease: ProfileLease) {
+        val scope = checkNotNull(profileScope)
+        val engine = LocationEngine(locationStore, ::currentUsageLease, { captured, operation, body ->
+            check(currentUsageLease(captured))
+            val binding = checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                val response = usageApi.signedUsage(operation, body, binding, session)
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                response
+            }
+        }, System::currentTimeMillis)
+        val host = ChildLocationHost(scope, engine, LocationPlatform(
+            access = locationSource::access, startUpdates = locationSource::start, stopUpdates = locationSource::stop,
+            lastKnown = locationSource::lastKnown,
+            setService = { on -> if (on) LocationForegroundService.start(this) else LocationForegroundService.stop(this) }),
+            ::currentUsageLease, System::currentTimeMillis)
+        childLocation = host
+        host.start(lease)
+        scope.launch {
+            childRepository.state.collectLatest { value ->
+                if (value is ChildSyncState.Blocked) {
+                    host.stop()
+                    // Only a confirmed revocation discards queued places; a network or storage problem keeps them for later.
+                    if (value.reason == ChildFailure.REVOKED) try { locationStore.eraseBinding(lease.ownerId) } catch (_: Exception) { /* Nothing more can be sent anyway. */ }
+                }
+            }
+        }
+        scope.launch {
+            while (true) {
+                try { host.supervise(lease) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
+                delay(LocationCadence.SUPERVISE_INTERVAL_MS)
+            }
+        }
+    }
+    fun refreshChildLocation(lease: ProfileLease) { accountScope.launch {
+        if (!currentUsageLease(lease)) return@launch
+        profileWork(lease) { childLocation?.supervise(lease); true }
+    } }
+    /** Called by the foreground service. Returns false when this phone is no longer a paired child, so the service stops. */
+    suspend fun superviseLocationFromService(): Boolean {
+        if (BuildConfig.CI_FIXTURE) return false
+        profiles.state.first { it != ProfileState.Transitioning }
+        val lease = profiles.currentLease()?.takeIf { it.role == ProfileRole.CHILD && currentUsageLease(it) } ?: return false
+        val host = childLocation ?: return false
+        return profileWork(lease) { host.supervise(lease); true }
+    }
+    /** After a restart or an update: re-evaluate permissions and try to start the service. */
+    suspend fun superviseLocationFromBoot() { superviseLocationFromService() }
+
     private val mutableTap = MutableStateFlow(ParentTapState())
     val tapState = mutableTap.asStateFlow()
     private val secureStore by lazy { SecureAuthStore.open(this) }
@@ -234,6 +293,8 @@ class ParentApplication : Application() {
     private val parentApi by lazy { authRepository?.let { SdkParentApi(checkNotNull(client), it) } }
     private val parentUsageModel by lazy { parentAuth?.let { ParentUsageModel(SdkParentUsageApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentUsage: ParentUsageModel? get() = if (parentConstructionAllowed) parentUsageModel else null
+    private val parentLocationModel by lazy { parentAuth?.let { ParentLocationModel(SdkParentLocationApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentLocation: ParentLocationModel? get() = if (parentConstructionAllowed) parentLocationModel else null
     val familyViewModel: FamilyViewModel? by lazy {
         authRepository?.let { auth ->
             val api = checkNotNull(parentApi)
@@ -303,12 +364,12 @@ class ParentApplication : Application() {
             ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
-            { parentUsageModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+            { parentUsageModel?.clear(); parentLocationModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {
-                    try { parentUsageModel?.clear(); familyViewModel?.clear() }
+                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
                         finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
@@ -331,11 +392,14 @@ class ParentApplication : Application() {
         val old = runtimeLease
         val scope = profileScope
         val usage = childUsage
-        runtimeLease = null; profileScope = null; childUsage = null
+        val location = childLocation
+        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.
         runShutdownSteps(
             { UsageJobService.cancel(this) },
             { usage?.stop() },
+            { location?.stop() },
+            { LocationForegroundService.stop(this) },
             { getSystemService(JobScheduler::class.java).cancel(ParentNotificationJob.JOB_ID) },
             { if (old != null) profileNotifications.stop(old) },
             { scope?.coroutineContext?.get(Job)?.cancelAndJoin() },
@@ -352,7 +416,7 @@ class ParentApplication : Application() {
         parentCollectors = null
         if (parentConstructionAllowed) {
             realtime?.disconnect()
-            parentUsageModel?.clear()
+            parentUsageModel?.clear(); parentLocationModel?.clear()
             familyViewModel?.hideVisible()
             securityViewModel?.clear()
             mutableTap.value = ParentTapState()
@@ -414,7 +478,7 @@ class ParentApplication : Application() {
                 }
             } else {
                 childRepository.binding.value?.let { childRepository.sync(it) }
-                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease)}
+                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease);childLocation?.supervise(lease)}
             }
             if (!BuildConfig.CI_FIXTURE) profileNotifications.syncToken(lease)
             true

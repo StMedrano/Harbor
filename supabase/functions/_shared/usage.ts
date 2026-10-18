@@ -3,8 +3,8 @@ import {
   validateClearUsage,
   validateUsageCheckpointRequest,
 } from "../../../packages/contracts/src/v1/usage.ts";
-import { databaseError, HarborAuthError } from "./errors.ts";
-import { jsonError } from "./responses.ts";
+import { HarborAuthError } from "./errors.ts";
+import { boundedRequest as bounded, postHandler } from "./endpoint.ts";
 import type {
   ClearUsageV1,
   UsageCheckpointReplyV1,
@@ -35,88 +35,10 @@ export type UsageEndpointDependencies = {
 const MAX_BYTES = 1_048_576;
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-async function boundedRequest(
-  req: Request,
-): Promise<{ request: Request; raw: string }> {
-  const declared = req.headers.get("content-length");
-  if (declared !== null && Number(declared) > MAX_BYTES) {
-    throw new HarborAuthError(
-      "VALIDATION_FAILED",
-      413,
-      "Usage report is too large",
-    );
-  }
-  const reader = req.body?.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  if (reader) {
-    try {
-      while (true) {
-        const next = await reader.read();
-        if (next.done) break;
-        size += next.value.byteLength;
-        if (size > MAX_BYTES) {
-          await reader.cancel().catch(() => {});
-          throw new HarborAuthError(
-            "VALIDATION_FAILED",
-            413,
-            "Usage report is too large",
-          );
-        }
-        chunks.push(next.value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
-  const bytes = new Uint8Array(size);
-  let cursor = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, cursor);
-    cursor += chunk.byteLength;
-  }
-  const raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  return {
-    raw,
-    request: new Request(req.url, {
-      method: req.method,
-      headers: req.headers,
-      body: raw,
-    }),
-  };
-}
-function handler(
-  action: (req: Request) => Promise<unknown>,
-): (req: Request) => Promise<Response> {
-  return async (req) => {
-    if (req.method !== "POST") {
-      return jsonError("VALIDATION_FAILED", 405, "Use POST");
-    }
-    try {
-      return Response.json(await action(req), {
-        headers: { "cache-control": "no-store" },
-      });
-    } catch (error) {
-      const known = databaseError(error) ?? error;
-      if (known instanceof HarborAuthError) {
-        return jsonError(known.code, known.status, known.message);
-      }
-      if (
-        known instanceof TypeError || known instanceof SyntaxError ||
-        known instanceof RangeError
-      ) {
-        return jsonError(
-          "VALIDATION_FAILED",
-          400,
-          "Usage request input is invalid",
-        );
-      }
-      return Response.json({ message: "Internal server error" }, {
-        status: 500,
-      });
-    }
-  };
-}
+const boundedRequest = (req: Request) =>
+  bounded(req, MAX_BYTES, "Usage report is too large");
+const handler = (action: (req: Request) => Promise<unknown>) =>
+  postHandler(action, "Usage request input is invalid");
 export function createReportUsageHandler(deps: UsageEndpointDependencies) {
   return handler(async (req) => {
     const { request, raw } = await boundedRequest(req);

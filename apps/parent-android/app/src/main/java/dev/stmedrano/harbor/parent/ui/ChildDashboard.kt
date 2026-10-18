@@ -16,6 +16,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
 
 @Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit,
     notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null, usage: ChildUsageUi? = null,
+    location: ChildLocationUi? = null,
     /** When set, the caller owns tab selection and shows the tabs as a pinned bottom bar (see [childNavItems]). */
     tab: String? = null) {
     if (state is ChildSyncState.Blocked) {
@@ -44,6 +45,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                     }
                 }
                 HarborButton(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Sync now") }
+                if (location != null) LocationSetupPanel(location)
                 if (usage != null) {
                     UsageSetupPanel(usage)
                     UsageTodayPanel(usage.view)
@@ -54,6 +56,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                 HarborCard {
                     Text("Harbor stores this phone’s pairing credentials securely and checks its family connection with signed requests.")
                     if (usage != null) Text("Harbor measures screen time only while sharing is on. It does not limit or block apps.")
+                    if (location != null) Text("Harbor shares this phone's location with your parents while location is allowed. A notification shows while it does.")
                     else Text("Screen time and app enforcement are not available in this build.")
                 }
                 if (onEnableNotifications != null) {

@@ -16,7 +16,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: ParentRuntime? = null, onRevoke: ((DevicePublicV1) -> Unit)? = null,
-    usageModel: ParentUsageModel? = null) {
+    usageModel: ParentUsageModel? = null, locationModel: dev.stmedrano.harbor.parent.location.ParentLocationModel? = null) {
     val family by model.repository.state.collectAsState()
     val control by model.state.collectAsState()
     val pairing by model.pairing.state.collectAsState()
@@ -46,9 +46,11 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     if (deviceId != null) {
         if (device != null) {
             val usage = rememberParentUsageView(usageModel, identity, device.id)
+            val location = rememberParentLocationView(locationModel, identity, device.id)
             DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
                 cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }, usage = usage,
-                onRefreshUsage = usageModel?.let { m -> { scope.launch { m.load(identity, device.id) } } }) { deviceId = null }
+                onRefreshUsage = usageModel?.let { m -> { scope.launch { m.load(identity, device.id) } } },
+                location = location, onRefreshLocation = locationModel?.let { m -> { scope.launch { m.load(identity, device.id) } } }) { deviceId = null }
         } else Column {
             Text("This device is unavailable. Refresh your family.")
             TextButton({ deviceId = null }) { Text("Back to family") }
