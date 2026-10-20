@@ -18,6 +18,7 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
 @Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit,
     notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null, usage: ChildUsageUi? = null,
     location: ChildLocationUi? = null, alerts: ChildAlertsUi? = null, checkIn: ChildCheckInUi? = null, familyMap: ChildFamilyMapUi? = null,
+    controls: ChildControlsUi? = null,
     /** When set, the caller owns tab selection and shows the tabs as a pinned bottom bar (see [childNavItems]). */
     tab: String? = null, onSelectTab: ((String) -> Unit)? = null) {
     if (state is ChildSyncState.Blocked) {
@@ -62,6 +63,7 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
                         TextButton({ selectTab("About") }) { Text("What Harbor shares and why") }
                     }
                 }
+                if (controls != null) ControlsPanel(controls)
                 if (usage != null) UsageTodayPanel(usage.view)
                 HarborOutlinedButton(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Sync now") }
             }

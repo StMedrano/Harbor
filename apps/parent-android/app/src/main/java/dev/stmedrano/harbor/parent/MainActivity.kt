@@ -67,6 +67,7 @@ import dev.stmedrano.harbor.parent.ui.rememberChildFamilyMapUi
 import dev.stmedrano.harbor.parent.ui.rememberParentCheckInView
 import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
 import dev.stmedrano.harbor.parent.ui.rememberChildAlertsUi
+import dev.stmedrano.harbor.parent.ui.rememberChildControlsUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
 import dev.stmedrano.harbor.parent.ui.rememberParentLocationView
 import dev.stmedrano.harbor.parent.ui.rememberParentAlertsView
@@ -179,6 +180,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             val checkInUi = if (BuildConfig.CI_FIXTURE) null else rememberChildCheckInUi(graph, lease, resumeTick.intValue)
+                            val controlsUi = if (BuildConfig.CI_FIXTURE) null else rememberChildControlsUi(graph, lease, resumeTick.intValue,
+                                onTurnOn = { try { startActivity(dev.stmedrano.harbor.parent.controls.ControlsAccess.settingsIntent()) } catch (_: Exception) { /* No settings screen to open. */ } })
                             val familyMapUi = if (BuildConfig.CI_FIXTURE) null else rememberChildFamilyMapUi(graph, lease, resumeTick.intValue)
                             val gateLocation = locationUi
                             val gateUsage = usageUi
@@ -219,7 +222,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, familyMap = familyMapUi, tab = childTab.value, onSelectTab = { childTab.value = it },
+                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, familyMap = familyMapUi, controls = controlsUi, tab = childTab.value, onSelectTab = { childTab.value = it },
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
