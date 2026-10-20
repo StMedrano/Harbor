@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "people": [
+    { "id": "5b8d2c40-7e19-4a63-9f05-1c3e6a8b2d74", "kind": "child", "name": "Maya", "self": true,
+      "fix": { "at": "2026-10-20T15:58:00Z", "latitude": 41.5, "longitude": -87.6, "accuracyM": 12 } },
+    { "id": "6c9e3d51-8f2a-4b74-8a16-2d4f7b9c3e85", "kind": "child", "name": "Jo", "self": false, "fix": null },
+    { "id": "7d0f4e62-9a3b-4c85-9b27-3e5a8c0d4f96", "kind": "parent", "name": "Alex", "self": false,
+      "fix": { "at": "2026-10-20T15:55:00Z", "latitude": 41.51, "longitude": -87.61, "accuracyM": 30 } }
+  ]
+}
