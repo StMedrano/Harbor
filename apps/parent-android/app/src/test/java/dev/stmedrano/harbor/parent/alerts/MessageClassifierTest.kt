@@ -165,9 +165,9 @@ class MessageClassifierTest {
             val payload = (result.categories.map { it.name } + result.ruleSetVersion.toString()).joinToString("|").lowercase()
             assertFalse("leaked raw text for <${case.text}>", payload.contains(case.text.lowercase()))
             val vocabulary = AlertCategory.values().flatMap { it.name.lowercase().split("_") }.toSet()
-            // A word that is itself part of the fixed category vocabulary (e.g. "drugs") is not a leak.
+            // Whole words only: "now" inside "unknown" is not a leak, and a word that is itself part of the fixed category vocabulary is not either.
             for (word in case.text.lowercase().split(Regex("\\s+")).filter { it.length >= 3 && it !in vocabulary }) {
-                assertFalse("leaked word <$word> for <${case.text}>", payload.contains(word))
+                assertFalse("leaked word <$word> for <${case.text}>", payload.split(Regex("[^a-z0-9]+")).contains(word))
             }
         }
     }
