@@ -26,3 +26,5 @@ export * from "./v1/location.ts";
 export * from "./v1/alerts.ts";
 export * from "./v1/checkin.ts";
 export * from "./v1/familymap.ts";
+export * from "./v1/controls.ts";
+export * from "./v1/activity.ts";
