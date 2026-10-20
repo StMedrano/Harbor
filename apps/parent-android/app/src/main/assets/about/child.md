@@ -33,5 +33,8 @@ Harbor shows a notification while location is shared. A parent's check-in reques
 ## This phone's connection
 Harbor stores this phone's pairing credentials securely and checks its family connection with signed requests.
 
+## Contact
+Questions or requests about Harbor and the information it handles: Stalin Medrano, stalinmedrano@mytechtactics.com.
+
 ## More
 The full Privacy policy and Terms of service are linked below.

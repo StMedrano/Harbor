@@ -33,3 +33,6 @@ Requests from a child's phone are signed with a key stored in the phone's secure
 
 ## Changes
 If this policy changes, the new version is shown in the app.
+
+## Contact
+Questions or requests about Harbor and the information it handles: Stalin Medrano, stalinmedrano@mytechtactics.com.

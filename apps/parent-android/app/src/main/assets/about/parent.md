@@ -23,5 +23,8 @@ Alerts can miss things and can be wrong in both directions. Updates can be delay
 ## Keeping data
 Locations, reports, alerts and check-ins are kept for up to 30 days, then removed. Removing a device removes its data.
 
+## Contact
+Questions or requests about Harbor and the information it handles: Stalin Medrano, stalinmedrano@mytechtactics.com.
+
 ## More
 The full Privacy policy and Terms of service are linked below.

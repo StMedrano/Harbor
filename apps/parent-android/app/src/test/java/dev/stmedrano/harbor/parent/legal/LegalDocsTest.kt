@@ -30,6 +30,12 @@ class LegalDocsTest {
         MonitoredApps.labels().forEach { assertTrue(it, filled.contains(it)) }
         assertTrue(fillLegalPlaceholders(asset(LegalDoc.PRIVACY)).contains(MonitoredApps.labels().first()))
     }
+    @Test fun everyDocumentNamesWhoToContact() {
+        LegalDoc.values().forEach { doc ->
+            val text = asset(doc)
+            assertTrue(doc.name, text.contains("Stalin Medrano") && text.contains("stalinmedrano@mytechtactics.com"))
+        }
+    }
     @Test fun theDocumentsNeverPromiseWhatHarborDoesNotDo() {
         val child = asset(LegalDoc.CHILD_ABOUT)
         assertTrue(child.contains("Only your parents"))

@@ -30,3 +30,6 @@ Harbor is provided as is. To the extent the law allows, it is not responsible fo
 
 ## Changes
 If these terms change, the new version is shown in the app.
+
+## Contact
+Questions or requests about Harbor and the information it handles: Stalin Medrano, stalinmedrano@mytechtactics.com.
