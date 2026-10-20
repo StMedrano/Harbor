@@ -95,6 +95,14 @@ object MapMath {
         return MIN_ZOOM
     }
 
+    /** The map centre after dragging the map by [dxPx]/[dyPx] viewport pixels: dragging right moves the centre west. */
+    fun panCenter(lat: Double, lon: Double, zoom: Int, dxPx: Double, dyPx: Double): Pair<Double, Double> {
+        val x = worldX(lon, zoom) - dxPx
+        val y = (worldY(lat, zoom) - dyPx).coerceIn(0.0, worldSize(zoom))
+        val wrappedLon = ((lonAt(x, zoom) + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
+        return latAt(y, zoom) to wrappedLon
+    }
+
     fun tileUrl(tile: Tile): String = "https://tile.openstreetmap.org/${tile.zoom}/${tile.x}/${tile.y}.png"
     fun accuracyRadiusPx(accuracyM: Int, lat: Double, zoom: Int): Double = max(6.0, abs(accuracyM) / metersPerPixel(lat, zoom))
 }

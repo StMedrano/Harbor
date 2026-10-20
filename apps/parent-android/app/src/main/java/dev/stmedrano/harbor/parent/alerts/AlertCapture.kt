@@ -60,6 +60,13 @@ class AlertCaptureCore(
         }
     }
 
+    /**
+     * One notification can carry the same message in several fields (summary text, expanded text, the newest chat
+     * message). Each is classified and a category is reported once per notification.
+     */
+    fun captureAny(packageName: String, texts: List<String?>, isGroupSummary: Boolean, fromSavedContact: Boolean): List<MessageAlert> =
+        texts.flatMap { capture(packageName, it, isGroupSummary, fromSavedContact) }.distinctBy { it.category }
+
     /** SMS goes through the same classifier but is always labelled as the phone's Messages app. */
     fun captureSms(text: String?, fromSavedContact: Boolean): List<MessageAlert> {
         val body = text?.trim().orEmpty()

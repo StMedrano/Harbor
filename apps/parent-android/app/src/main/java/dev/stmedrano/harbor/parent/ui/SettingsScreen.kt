@@ -18,7 +18,6 @@ fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntim
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
         HarborPanel("Notifications") {
             Text(if (notifications.confirmed) "Registration confirmed" else "Registration unconfirmed", style = MaterialTheme.typography.titleMedium)
-            Text("Notifications contain a generic hint. Harbor checks current access before showing family details.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             notifications.message?.let { HarborNote(it, HarborTone.INFO) }
             HarborButton(onEnable, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Enable notifications") }
             HarborOutlinedButton(onRemove, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Remove notification registration") }

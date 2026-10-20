@@ -27,8 +27,8 @@ fun ParentLocationScreen(view: LocationViewState, onRefresh: (() -> Unit)? = nul
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = System.currentTimeMillis() } }
     HarborPanel("Location") {
         when (view.status) {
-            LocationViewStatus.NONE -> Text("This phone has not shared a place yet. It starts after the child allows location in Harbor on their phone.")
-            LocationViewStatus.EXPIRED -> Text("The last places this phone shared are older than 30 days and were removed.")
+            LocationViewStatus.NONE -> Text("No place shared yet.")
+            LocationViewStatus.EXPIRED -> Text("No places in the last 30 days.")
             LocationViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this device's location.", HarborTone.DANGER, emphasis = true)
             LocationViewStatus.LOAD_FAILED -> HarborNote("Location could not be loaded. Check your connection and try again.", HarborTone.DANGER, emphasis = true)
             LocationViewStatus.AVAILABLE -> AvailableLocation(view, now, accent.takeIf { it != Color.Unspecified } ?: MaterialTheme.colorScheme.primary)
@@ -50,7 +50,9 @@ private fun AvailableLocation(view: LocationViewState, now: Long, accent: Color)
     val seen = locationInstantMs(latest.at)
     val label = "Last known place, ${locationAgeLabel(now - seen)}, accurate to about ${latest.accuracyM} metres"
     if (stale) {
-        HarborNote("Nothing new has arrived from this phone for ${locationAgeLabel(now - (view.receivedAtMs ?: seen)).removeSuffix(" ago")}. The map shows its last known place, not where it is now.", HarborTone.WARN, emphasis = true)
+        val reason = if (now - seen > LOCATION_STALE_AFTER_MS) "The last place arrived ${locationAgeLabel(now - seen)}."
+            else "Nothing new has arrived from this phone for ${locationAgeLabel(now - (view.receivedAtMs ?: seen)).removeSuffix(" ago")}."
+        HarborNote("$reason The map shows its last known place, not where it is now.", HarborTone.WARN, emphasis = true)
     }
     LocationMap(view.fixes, stale, label, accent = accent)
     Text("Seen ${locationAgeLabel(now - seen)} · ${formatTimestamp(latest.at)}", style = MaterialTheme.typography.titleMedium)

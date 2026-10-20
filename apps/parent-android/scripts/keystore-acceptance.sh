@@ -134,7 +134,7 @@ for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdc
 
 # Location UI smoke checks run on API 29 and API 36 without network or live location data.
 location_ui_status=0
-for method in childStatusIsShortAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim; do
+for method in childStatusIsShortAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim mapHasLabelledZoomControlsAndAResetOnceMoved; do
   run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
 done
 [[ "$location_ui_status" == 0 ]]
@@ -145,6 +145,18 @@ for method in incompleteSetupListsEveryReasonAndCannotBeFinished finishingNeedsE
   run_test "$method" dev.stmedrano.harbor.parent.ui.ChildSetupGateUiTest || child_setup_status=1
 done
 [[ "$child_setup_status" == 0 ]]
+
+# Family map screen (people list, zoom controls, off and offline states) runs on API 29 and API 36 without network.
+family_map_status=0
+for method in mapListsEveryoneWithZoomControls aTurnedOffMapSaysSoAndShowsNobody nobodyWithAPlaceSaysNoOneHasSharedYet loadingAndOfflineAreHonest failureBeforeAnyAnswerNeverClaimsAnEmptyFamily staleAnswerKeepsTheMapWithANote; do
+  run_test "$method" dev.stmedrano.harbor.parent.familymap.FamilyMapUiTest || family_map_status=1
+done
+[[ "$family_map_status" == 0 ]]
+parent_sharing_status=0
+for method in bothSwitchesAreLabelledAndReportTheirNewValue whileSharingTheNameIsShownAndTheSwitchTurnsItOff anInvalidNameCannotStartSharing switchesAreLockedWhileASaveIsInFlight loadingAndFailureAreHonest problemsAndPlaceHintsAreSaidPlainly; do
+  run_test "$method" dev.stmedrano.harbor.parent.familymap.ParentSharingUiTest || parent_sharing_status=1
+done
+[[ "$parent_sharing_status" == 0 ]]
 
 # Check-in screens (child answer, Today banner, parent ask and read) run on API 29 and API 36 without network.
 checkin_ui_status=0
@@ -159,3 +171,10 @@ for method in childAboutShowsHeadingsAndFilledAppList policyLinksOpenBothDocumen
   run_test "$method" dev.stmedrano.harbor.parent.ui.ChildAboutUiTest || about_ui_status=1
 done
 [[ "$about_ui_status" == 0 ]]
+
+# Parent pages (tab bar, child chips, per-page content, Family links) run on API 29 and API 36 without network.
+parent_tabs_status=0
+for method in bottomBarHasTheFourPagesAndSwitchingMarksOne childChipsSelectAndAddFromEveryPage pageWithoutAPhoneSaysSoAndOffersPairing mapPageShowsOnlyLocationAndAlertsPageDoesNot familyPageLinksToSettingsSecurityAboutAndPolicies; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.ParentTabsUiTest || parent_tabs_status=1
+done
+[[ "$parent_tabs_status" == 0 ]]

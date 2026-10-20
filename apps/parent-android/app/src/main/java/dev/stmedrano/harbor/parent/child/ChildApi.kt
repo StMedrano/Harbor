@@ -112,7 +112,7 @@ class ChildApi(private val url: String, private val publishableKey: String,
     suspend fun signedUsage(operation:String,body:String,binding:ChildBinding,session:ChildAuthSession):String {
         require(operation in setOf("report-device-usage","clear-device-usage","get-device-usage-checkpoint",
         "report-device-location","clear-device-location","get-device-location-checkpoint",
-        "get-checkin-state","reply-checkin"))
+        "get-checkin-state","reply-checkin","get-family-map"))
         val bytes=body.toByteArray(Charsets.UTF_8)
         require(bytes.size<=1_048_576)
         val reply=requestBytes("/functions/v1/$operation",bytes,session,binding)

@@ -36,6 +36,18 @@ class LegalDocsTest {
             assertTrue(doc.name, text.contains("Stalin Medrano") && text.contains("stalinmedrano@mytechtactics.com"))
         }
     }
+    @Test fun theFamilyMapIsDisclosedToChildrenAndParentsInEveryDocument() {
+        val child = asset(LegalDoc.CHILD_ABOUT)
+        assertTrue(child.contains("The other children in your family can see your latest place"))
+        assertTrue(child.contains("A parent can turn the family map off for children"))
+        val parent = asset(LegalDoc.PARENT_ABOUT)
+        assertTrue(parent.contains("Share my location is off by default"))
+        assertTrue(parent.contains("Children can see the family map is on by default"))
+        assertTrue(parent.contains("removed after 24 hours"))
+        assertTrue(asset(LegalDoc.PRIVACY).contains("including the other children"))
+        assertTrue(asset(LegalDoc.PRIVACY).contains("after 24 hours"))
+        assertTrue(asset(LegalDoc.TERMS).contains("family map"))
+    }
     @Test fun theDocumentsNeverPromiseWhatHarborDoesNotDo() {
         val child = asset(LegalDoc.CHILD_ABOUT)
         assertTrue(child.contains("Only your parents"))

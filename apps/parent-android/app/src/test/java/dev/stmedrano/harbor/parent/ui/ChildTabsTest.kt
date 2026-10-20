@@ -10,6 +10,11 @@ class ChildTabsTest {
         assertEquals(listOf("Today", "Check in", "Apps", "About"), childTabs(true))
         assertEquals(listOf("Today", "Apps", "About"), childTabs(false))
     }
+    @Test fun familyTabSitsBetweenCheckInAndApps() {
+        assertEquals(listOf("Today", "Check in", "Family", "Apps", "About"), childTabs(true, true))
+        assertEquals(listOf("Today", "Family", "Apps", "About"), childTabs(false, true))
+        assertEquals(listOf("Today", "Check in", "Family", "Apps", "About"), childNavItems("Family", withCheckIn = true, withFamily = true) {}.map { it.label })
+    }
     @Test fun selectionAndTapsFollowTheLabel() {
         val taps = mutableListOf<String>()
         val items = childNavItems("Check in", withCheckIn = true) { taps += it }

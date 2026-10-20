@@ -57,4 +57,20 @@ class MapMathTest {
     @Test fun urlsUseTheStandardTileHost() {
         assertEquals("https://tile.openstreetmap.org/10/301/385.png", MapMath.tileUrl(MapMath.Tile(10, 301, 385, 0.0, 0.0)))
     }
+
+    @Test fun panningByZeroKeepsTheCentreAndDraggingRightMovesItWest() {
+        val (lat0, lon0) = MapMath.panCenter(41.0, -87.0, 14, 0.0, 0.0)
+        assertEquals(41.0, lat0, 1e-9); assertEquals(-87.0, lon0, 1e-9)
+        val (lat1, lon1) = MapMath.panCenter(41.0, -87.0, 14, 100.0, 0.0)
+        assertTrue(lon1 < -87.0); assertEquals(41.0, lat1, 1e-9)
+        val (lat2, _) = MapMath.panCenter(41.0, -87.0, 14, 0.0, 100.0)
+        assertTrue(lat2 > 41.0)
+    }
+
+    @Test fun panningAcrossTheDateLineWrapsAndPolesStayInRange() {
+        val (_, lon) = MapMath.panCenter(0.0, 179.99, 10, -5000.0, 0.0)
+        assertTrue(lon in -180.0..180.0 && lon < 0.0)
+        val (lat, _) = MapMath.panCenter(84.0, 0.0, 3, 0.0, 1_000_000.0)
+        assertTrue(lat in -90.0..90.0)
+    }
 }

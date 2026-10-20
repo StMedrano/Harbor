@@ -31,8 +31,8 @@ fun rememberParentAlertsView(model: ParentAlertsModel?, identity: ParentIdentity
 fun ParentAlertsScreen(view: AlertsViewState, onRefresh: (() -> Unit)? = null) {
     HarborPanel("Message alerts") {
         when (view.status) {
-            AlertsViewStatus.NONE -> Text("No concerns have been flagged on this phone. Harbor starts watching after the child allows notification access and SMS in Harbor on their phone.")
-            AlertsViewStatus.EXPIRED -> Text("Any alerts this phone sent are older than 30 days and were removed.")
+            AlertsViewStatus.NONE -> Text("No alerts yet.")
+            AlertsViewStatus.EXPIRED -> Text("No alerts in the last 30 days.")
             AlertsViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this device's alerts.", HarborTone.DANGER, emphasis = true)
             AlertsViewStatus.LOAD_FAILED -> HarborNote("Alerts could not be loaded. Check your connection and try again.", HarborTone.DANGER, emphasis = true)
             AlertsViewStatus.AVAILABLE -> AvailableAlerts(view)
@@ -48,7 +48,7 @@ private fun AvailableAlerts(view: AlertsViewState) {
     if (view.notificationAccess == false) HarborNote("Notification access is off on this phone, so chat-app alerts are not arriving.", HarborTone.WARN)
     if (view.smsPermission == false) HarborNote("SMS permission is off on this phone, so text-message alerts are not arriving.", HarborTone.WARN)
     if (view.alerts.isEmpty()) {
-        Text("No concerns have been flagged yet.")
+        Text("No alerts yet.")
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {

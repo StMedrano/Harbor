@@ -9,6 +9,13 @@ Harbor Family shows you what your child's phone shares with you. This page expla
 - Check in: you can ask your child to check in. They answer "I'm okay" or "Running late", with the last place their phone already had if it is under an hour old.
 - Family: your children, their devices, and the other parents in the family.
 
+## The family map
+Children see a Family tab with a map of every child in the family and any parent who chose to share. Each child's latest place appears there for the other children too, with the time it was updated. There is no trail and no history, and nobody can message anyone from it.
+
+- Children can see the family map is on by default. Turn it off any time in the Family tab and children see no one on it.
+- Share my location is off by default. When you turn it on, you choose the name shown on the map, and Harbor sends this phone's latest place only while Harbor is open on the screen. Nothing runs in the background. Turn it off and your place is deleted.
+- Your place is kept as the latest one only, replaced with each update, and removed after 24 hours or when you leave the family. Children see it. The app does not show it to other parents.
+
 ## What your child sees
 Your child's phone shows a notification while location is shared, lists everything Harbor does in its About page, and cannot turn sharing off. Only you can stop it, by removing the device in the Family tab. Being open about it builds trust.
 

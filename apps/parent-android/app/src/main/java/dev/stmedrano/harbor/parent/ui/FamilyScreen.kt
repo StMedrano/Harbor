@@ -17,17 +17,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.family.*
+import dev.stmedrano.harbor.parent.legal.LegalDoc
 import java.time.Instant
 
 @Composable
 fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: String?,
     onRefresh: () -> Unit, onSelectFamily: (String) -> Unit, onSelectChild: (String) -> Unit,
-    onCreateFamily: () -> Unit, onAddChild: () -> Unit, onPair: () -> Unit, onDevice: (DevicePublicV1) -> Unit) {
+    onCreateFamily: () -> Unit, onAddChild: () -> Unit, onPair: () -> Unit, onDevice: (DevicePublicV1) -> Unit,
+    onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null,
+    sharing: ParentSharingUi? = null) {
     val snapshot = state.snapshot
     val online = !state.cached && state.failure == null && !state.loading
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(snapshot?.family?.name ?: "Your family", style = MaterialTheme.typography.headlineSmall)
-        Text("Your family and connected devices.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (state.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp); Text("Refreshing family…")
         }
@@ -46,31 +48,17 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                 HarborButton(onCreateFamily, enabled = online) { Text("Create family") }
             }
         } else {
+            ChildChips(snapshot.children, selectedChildId, onSelectChild, onAddChild, addEnabled = online)
             Text("Children", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (snapshot.children.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    snapshot.children.forEachIndexed { index, child ->
-                        FilterChip(selected = selectedChildId == child.id, onClick = { onSelectChild(child.id) },
-                            label = { Text(child.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium) }, shape = CircleShape,
-                            border = BorderStroke(1.5.dp, if (selectedChildId == child.id) MaterialTheme.colorScheme.primary else Color.Transparent),
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                selectedContainerColor = MaterialTheme.colorScheme.surface,
-                                selectedLabelColor = MaterialTheme.colorScheme.primary),
-                            leadingIcon = { HarborAvatar(child.displayName, 30.dp, HarborKid.color(index)) })
-                    }
-                }
-            }
-            if (snapshot.children.isEmpty()) HarborPanel("Add your first child") { Text("Add a child, then pair their Android device.") }
+            if (snapshot.children.isEmpty()) HarborPanel("No children yet") { Text("Add a child, then pair their phone.") }
             snapshot.children.forEachIndexed { index, child ->
                 Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     border = if (selectedChildId == child.id) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { onSelectChild(child.id) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             HarborAvatar(child.displayName, 46.dp, HarborKid.color(index))
                             Text(child.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            TextButton({ onSelectChild(child.id) }) { Text(if (selectedChildId == child.id) "Selected child" else "View child") }
                         }
                         snapshot.devices.filter { it.childId == child.id && it.status != "revoked" }.forEach { device ->
                             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(MaterialTheme.shapes.small)
@@ -81,7 +69,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                                 Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
                             }
                         }
-                        if (snapshot.devices.none { it.childId == child.id && it.status != "revoked" }) Text("No enrolled device reported.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (snapshot.devices.none { it.childId == child.id && it.status != "revoked" }) Text("No phone connected.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -89,5 +77,19 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
             HarborOutlinedButton(onPair, enabled = online && selectedChildId != null, modifier = Modifier.fillMaxWidth()) { Text("Pair device") }
             TextButton(onCreateFamily, enabled = online) { Text("Create family") }
         }
+        if (snapshot != null && sharing != null) ParentSharingPanel(sharing)
+        if (onSettings != null || onSecurity != null || onOpenDoc != null) HarborCard {
+            if (onSettings != null) HarborRow("Settings", onClick = onSettings, trailing = { Chevron() })
+            if (onSecurity != null) HarborRow("Security", divider = onSettings != null, onClick = onSecurity, trailing = { Chevron() })
+            if (onOpenDoc != null) {
+                val lead = onSettings != null || onSecurity != null
+                HarborRow("About Harbor", divider = lead, onClick = { onOpenDoc(LegalDoc.PARENT_ABOUT) }, trailing = { Chevron() })
+                HarborRow("Privacy policy", divider = true, onClick = { onOpenDoc(LegalDoc.PRIVACY) }, trailing = { Chevron() })
+                HarborRow("Terms of service", divider = true, onClick = { onOpenDoc(LegalDoc.TERMS) }, trailing = { Chevron() })
+            }
+        }
     }
 }
+
+@Composable
+private fun Chevron() = Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)

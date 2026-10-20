@@ -48,7 +48,7 @@ class LocationUiTest {
             receivedAtMs = System.currentTimeMillis() - 31L * 60_000L,
         ))
         compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentLocationScreen(view.value) } } }
-        compose.onNodeWithText("Nothing new has arrived from this phone", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("The map shows its last known place, not where it is now", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Last known place", substring = true).assertExists()
         compose.runOnIdle { view.value = LocationViewState(LocationViewStatus.ACCESS_LOST) }
         compose.onNodeWithText("You no longer have access to this device's location.").performScrollTo().assertIsDisplayed()
@@ -59,8 +59,21 @@ class LocationUiTest {
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
             ParentLocationScreen(LocationViewState(LocationViewStatus.NONE))
         } } }
-        compose.onNodeWithText("This phone has not shared a place yet", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("No place shared yet.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Last known place", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Sharing location").assertDoesNotExist()
+    }
+
+    @Test fun mapHasLabelledZoomControlsAndAResetOnceMoved() {
+        val view = LocationViewState(LocationViewStatus.AVAILABLE, LocationStatus.SHARING,
+            listOf(LocationFix("2026-10-10T17:59:00Z", 41.0, -87.0, 15, LocationProvider.GPS)), System.currentTimeMillis())
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentLocationScreen(view) } } }
+        compose.onNodeWithContentDescription("Reset map view").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Zoom in").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Reset map view").assertExists()
+        compose.onNodeWithContentDescription("Zoom out").performClick()
+        compose.onNodeWithContentDescription("Zoom out").performClick()
+        compose.onNodeWithContentDescription("Reset map view").performClick()
+        compose.onNodeWithContentDescription("Reset map view").assertDoesNotExist()
     }
 }
