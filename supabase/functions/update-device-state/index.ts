@@ -11,6 +11,7 @@ import {
 } from "../_shared/auth.ts";
 import { HarborAuthError, databaseError } from "../_shared/errors.ts";
 import { jsonError } from "../_shared/responses.ts";
+import { validateControls } from "../../../packages/contracts/src/v1/controls.ts";
 
 export type UpdateDeviceStateDeps = {
   requireParent(request: Request): Promise<ParentContext>;
@@ -38,6 +39,14 @@ function parseBody(value: unknown) {
   }
   if (!Number.isSafeInteger(expectedVersion) || Number(expectedVersion) < 0) {
     validation("expectedVersion must be a non-negative integer");
+  }
+  // desiredState.controls is what the child phone enforces; it must match the contract exactly or nothing is written.
+  if (Object.hasOwn(desiredState as Record<string, unknown>, "controls")) {
+    try {
+      validateControls((desiredState as Record<string, unknown>).controls);
+    } catch {
+      validation("desiredState.controls is invalid");
+    }
   }
 
   return {

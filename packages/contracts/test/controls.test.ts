@@ -58,3 +58,14 @@ Deno.test("one rule per app", () => {
   rejected(tweak((c) => c.blockedApps.push(c.appLimits[0].packageName)));
   rejected(tweak((c) => c.alwaysAllowed.push(c.appLimits[0].packageName)));
 });
+
+Deno.test("device controls read request and reply", async () => {
+  const { validateDeviceControlsReply, validateDeviceControlsRequest } = await import("../src/v1/controls.ts");
+  const deviceId = "22222222-2222-4222-8222-222222222222";
+  assert.ok(validateDeviceControlsRequest({ version: 1, deviceId }));
+  assert.throws(() => validateDeviceControlsRequest({ version: 1, deviceId, familyId: deviceId }));
+  assert.ok(validateDeviceControlsReply({ controls: null, desiredStateVersion: 0, acknowledgedVersion: 0 }));
+  assert.ok(validateDeviceControlsReply({ controls: controls(), desiredStateVersion: 5, acknowledgedVersion: 4 }));
+  assert.throws(() => validateDeviceControlsReply({ controls: controls(), desiredStateVersion: 4, acknowledgedVersion: 5 }));
+  assert.throws(() => validateDeviceControlsReply({ controls: { ...controls(), extra: 1 }, desiredStateVersion: 1, acknowledgedVersion: 0 }));
+});

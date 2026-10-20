@@ -102,3 +102,22 @@ function instant(value: unknown): number {
   demand(new Date(ms).toISOString().replace(".000Z", "Z") === (value as string).replace(".000Z", "Z"));
   return ms;
 }
+
+/** Parent read of one device's controls. `controls` is null until a parent has set any. */
+export type DeviceControlsRequestV1 = { version: 1; deviceId: string };
+export type DeviceControlsReplyV1 = { controls: ControlsV1 | null; desiredStateVersion: number; acknowledgedVersion: number };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function validateDeviceControlsRequest(value: unknown): DeviceControlsRequestV1 {
+  const r = record(value, ["version", "deviceId"]);
+  demand(r.version === 1 && typeof r.deviceId === "string" && UUID.test(r.deviceId));
+  return { version: 1, deviceId: r.deviceId as string };
+}
+export function validateDeviceControlsReply(value: unknown): DeviceControlsReplyV1 {
+  const r = record(value, ["controls", "desiredStateVersion", "acknowledgedVersion"]);
+  if (r.controls !== null) validateControls(r.controls);
+  for (const v of [r.desiredStateVersion, r.acknowledgedVersion]) {
+    demand(typeof v === "number" && Number.isSafeInteger(v) && v >= 0);
+  }
+  demand((r.acknowledgedVersion as number) <= (r.desiredStateVersion as number));
+  return structuredClone(value) as DeviceControlsReplyV1;
+}

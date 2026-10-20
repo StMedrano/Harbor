@@ -1,0 +1,21 @@
+begin;
+select plan(16);
+select ok(to_regclass('private.device_activity_events') is not null,'activity private');
+select ok(to_regclass('private.device_activity_status') is not null,'activity status private');
+select ok(to_regclass('private.device_activity_checkpoints') is not null,'activity checkpoints retained privately');
+select ok(not has_table_privilege('anon','private.device_activity_events','select'),'anonymous cannot read activity');
+select ok(not has_table_privilege('authenticated','private.device_activity_events','select'),'parent cannot directly read activity');
+select ok(not has_table_privilege('authenticated','private.device_activity_checkpoints','select'),'checkpoints server only');
+select ok(not has_function_privilege('authenticated','private.harbor_get_device_activity(uuid,uuid,uuid,timestamptz,timestamptz)','execute'),'parent activity read helper server only');
+select ok(not has_function_privilege('authenticated','private.harbor_get_device_controls(uuid,uuid,uuid)','execute'),'parent controls read helper server only');
+select ok(not has_function_privilege('anon','private.harbor_purge_device_activity()','execute'),'janitor server only');
+select ok(not has_function_privilege('authenticated','private.harbor_enqueue_controls_off_push(uuid,uuid,bigint)','execute'),'push enqueue server only');
+select ok((select relrowsecurity from pg_class where oid='private.device_activity_events'::regclass),'activity RLS enabled');
+select ok((select relrowsecurity from pg_class where oid='private.device_activity_status'::regclass),'status RLS enabled');
+select is((select count(*)::int from cron.job where jobname='harbor-activity-retention' and schedule='47 3 * * *'),1,'one daily named retention job');
+select ok(exists(select 1 from pg_trigger where tgname='device_activity_revoke_cleanup' and not tgisinternal),'revoke deletes activity data');
+select is((select array_agg(column_name::text order by column_name) from information_schema.columns where table_schema='private' and table_name='device_activity_events'),
+ array['app_label','at','device_id','end_at','event_id','expires_at','kind','package_name','reason','received_at'],'activity rows have no content column');
+select is((select count(*)::int from information_schema.columns where table_schema='private' and table_name in ('device_activity_events','device_activity_status','device_activity_checkpoints') and column_name ~* '(text|body|title|url|content|message|window|screen)'),0,'no content-bearing column names in any activity table');
+select * from finish();
+rollback;
