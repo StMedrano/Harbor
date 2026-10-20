@@ -38,8 +38,13 @@ interface ChildBackend {
     suspend fun refresh(session: ChildAuthSession): ChildAuthSession
     suspend fun claim(code: String, publicKeySpki: String, session: ChildAuthSession): ChildBinding
     suspend fun sync(binding: ChildBinding, session: ChildAuthSession): Long
+    /** Sync that also returns the raw `desiredState.controls` and acknowledges the last version the phone applied. */
+    suspend fun syncDesired(binding: ChildBinding, session: ChildAuthSession, acknowledgedVersion: Long?): DesiredSync =
+        DesiredSync(sync(binding, session), null)
     suspend fun registerFcm(binding: ChildBinding, token: String, session: ChildAuthSession)
 }
+/** What the phone needs from its desired state: the version and the raw controls object (null when none is set). */
+data class DesiredSync(val version: Long, val controlsJson: String?)
 class ChildRequestDenied(val status: Int, val code: String) : IllegalStateException("Child request denied")
 /** An application-level rejection (validation, stale sequence, conflict). It is not an authentication failure and never blocks the child profile. */
 class UsageRequestRejected(val status: Int, val code: String) : IllegalStateException("Usage request rejected")

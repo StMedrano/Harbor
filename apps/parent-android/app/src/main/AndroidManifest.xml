@@ -55,6 +55,14 @@
                 <data android:scheme="harbor-parent" android:host="auth" android:path="/callback" />
             </intent-filter>
         </activity>
+        <!-- App controls. Only the system can bind this service (it requires the system bind permission). It is configured to see which app is in front and nothing else: it cannot read window content (res/xml/harbor_control_service.xml). -->
+        <service android:name=".controls.HarborControlService" android:label="Harbor app controls" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/harbor_control_service" />
+        </service>
+        <activity android:name=".controls.BlockActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleTask" android:taskAffinity="dev.stmedrano.harbor.parent.block" android:noHistory="true" />
     </application>
 </manifest>
 

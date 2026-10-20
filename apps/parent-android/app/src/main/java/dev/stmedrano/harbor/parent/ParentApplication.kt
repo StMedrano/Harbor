@@ -1,5 +1,8 @@
 package dev.stmedrano.harbor.parent
 
+import dev.stmedrano.harbor.parent.controls.ChildControlsHost
+import dev.stmedrano.harbor.parent.controls.EncryptedControlsStore
+
 import android.app.Application
 import io.github.jan.supabase.exceptions.RestException
 import dev.stmedrano.harbor.parent.auth.ParentAuthRepository
@@ -118,7 +121,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildCheckIn(lease); startChildFamilyMap() }
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildControls(lease); startChildCheckIn(lease); startChildFamilyMap() }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -345,6 +348,26 @@ class ParentApplication : Application() {
             }
         }
     }
+    // ---- Child app controls. Enforced by the accessibility service; the policy rides the desired-state sync. ----
+    private val controlsStore by lazy { EncryptedControlsStore.open(this) }
+    private var childControls: ChildControlsHost? = null
+    val childControlsHost: ChildControlsHost?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childControls }
+    private suspend fun startChildControls(lease: ProfileLease) {
+        val scope = checkNotNull(profileScope)
+        val host = ChildControlsHost(controlsStore, ::currentUsageLease, childRepository::acknowledge,
+            { childRepository.binding.value?.let { childRepository.sync(it) } })
+        childControls = host
+        host.start(lease)
+        scope.launch { childRepository.desired.collectLatest { desired -> if (desired != null) host.apply(lease, desired) } }
+        scope.launch {
+            childRepository.state.collectLatest { value ->
+                // Keep enforcing the last policy through network or sign-in trouble; only a confirmed revocation ends it.
+                if (value is ChildSyncState.Blocked && value.reason == ChildFailure.REVOKED) host.stop(eraseBindingId = lease.ownerId)
+            }
+        }
+    }
+
     fun refreshChildAlerts(lease: ProfileLease) { accountScope.launch {
         if (!currentUsageLease(lease)) return@launch
         profileWork(lease) { childAlerts?.supervise(lease); true }
@@ -483,14 +506,16 @@ class ParentApplication : Application() {
         val usage = childUsage
         val location = childLocation
         val alerts = childAlerts
+        val controls = childControls
         childCheckIn?.clear(); childFamilyMap?.clear()
-        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childCheckIn = null; childFamilyMap = null
+        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childControls = null; childCheckIn = null; childFamilyMap = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.
         runShutdownSteps(
             { UsageJobService.cancel(this) },
             { usage?.stop() },
             { location?.stop() },
             { alerts?.stop() },
+            { controls?.stop() },
             { LocationForegroundService.stop(this) },
             { getSystemService(JobScheduler::class.java).cancel(ParentNotificationJob.JOB_ID) },
             { if (old != null) profileNotifications.stop(old) },

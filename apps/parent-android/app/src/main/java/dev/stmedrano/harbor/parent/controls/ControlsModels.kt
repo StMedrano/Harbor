@@ -4,6 +4,9 @@ import dev.stmedrano.harbor.parent.alerts.alertInstantMs
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 
 /**
  * App controls as they travel in `desiredState.controls`; limits and rules mirror packages/contracts/src/v1/controls.ts.
@@ -66,6 +69,16 @@ private fun packageSet(values: List<String>, max: Int): Set<String> {
     return values.toSet().also { require(it.size == values.size) }
 }
 
-/** Strict decode of `desiredState.controls`; anything malformed is rejected rather than half-applied. */
-fun decodeControls(raw: String): ControlsV1 = validateControls(controlsJson.decodeFromString(ControlsV1.serializer(), raw))
+/**
+ * Strict decode of `desiredState.controls`; anything malformed is rejected rather than half-applied. The data classes
+ * have defaults for building policies in code, so the exact key set is checked here: a missing key is not "default".
+ */
+fun decodeControls(raw: String): ControlsV1 {
+    val root = controlsJson.parseToJsonElement(raw).jsonObject
+    require(root.keys == setOf("version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed"))
+    require(root.getValue("pause").jsonObject.keys == setOf("active", "until"))
+    (root.getValue("bedtime") as? JsonObject)?.let { require(it.keys == setOf("enabled", "start", "end", "days")) }
+    root.getValue("appLimits").jsonArray.forEach { require(it.jsonObject.keys == setOf("packageName", "minutesPerDay")) }
+    return validateControls(controlsJson.decodeFromJsonElement(ControlsV1.serializer(), root))
+}
 fun encodeControls(value: ControlsV1): String = controlsJson.encodeToString(ControlsV1.serializer(), validateControls(value))

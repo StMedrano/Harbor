@@ -12,6 +12,12 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
     val binding = currentBinding.asStateFlow()
     private val mutableState = MutableStateFlow<ChildSyncState>(ChildSyncState.Stale(null))
     val state = mutableState.asStateFlow()
+    private val mutableDesired = MutableStateFlow<DesiredSync?>(null)
+    /** The desired state from the last successful sync; app controls apply it and then [acknowledge] its version. */
+    val desired = mutableDesired.asStateFlow()
+    @Volatile private var acknowledged: Long? = null
+    /** Sent on the next sync so the parent can see the phone is enforcing this version. Never moves backwards. */
+    fun acknowledge(version: Long) { require(version >= 0); acknowledged = maxOf(acknowledged ?: 0L, version) }
     private val mutableDetail = MutableStateFlow<String?>(null)
     /** Short, non-secret reason the last pairing step failed on this phone (exception type and a trimmed message), shown to help diagnose a blocked setup. */
     val failureDetail = mutableDetail.asStateFlow()
@@ -160,8 +166,10 @@ class ChildRepository(private val backend: ChildBackend, private val store: Chil
             if (!key.exists()) throw Invalid(ChildFailure.KEY_LOST)
             val active = sessionFor(checkNotNull(record))
             if (active.revoked) throw Invalid(ChildFailure.REVOKED)
-            val version = backend.sync(binding, active.session)
+            val result = backend.syncDesired(binding, active.session, acknowledged?.takeIf { it <= (record?.desiredVersion ?: Long.MAX_VALUE) })
+            val version = result.version
             require(version >= 0)
+            mutableDesired.value = result
             val confirmed = active.copy(lastSuccessAt = clock(), desiredVersion = version)
             store.save(confirmed); record = confirmed
             mutableState.value = ChildSyncState.Fresh(checkNotNull(confirmed.lastSuccessAt), version)

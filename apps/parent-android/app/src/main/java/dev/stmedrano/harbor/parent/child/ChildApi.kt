@@ -104,6 +104,16 @@ class ChildApi(private val url: String, private val publishableKey: String,
         val value = objectReply(reply)
         return checkNotNull(value["desiredStateVersion"]?.jsonPrimitive?.longOrNull).also { check(it >= 0) }
     }
+    override suspend fun syncDesired(binding: ChildBinding, session: ChildAuthSession, acknowledgedVersion: Long?): DesiredSync {
+        require(acknowledgedVersion == null || acknowledgedVersion >= 0)
+        val body = buildJsonObject { acknowledgedVersion?.let { put("acknowledgedDesiredStateVersion", it) } }
+        val reply = request("/functions/v1/device-sync", body, session, binding)
+        if (reply.status != 200) failure(reply)
+        val value = objectReply(reply)
+        val version = checkNotNull(value["desiredStateVersion"]?.jsonPrimitive?.longOrNull).also { check(it >= 0) }
+        val controls = (value["desiredState"] as? JsonObject)?.get("controls")?.takeUnless { it is JsonNull }
+        return DesiredSync(version, controls?.toString())
+    }
     override suspend fun registerFcm(binding: ChildBinding, token: String, session: ChildAuthSession) {
         require(token.isNotBlank())
         val reply = request("/functions/v1/register-fcm", buildJsonObject { put("token", token) }, session, binding)
