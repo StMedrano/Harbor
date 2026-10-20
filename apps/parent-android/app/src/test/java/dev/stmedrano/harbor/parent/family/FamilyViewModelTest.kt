@@ -70,6 +70,32 @@ class FamilyViewModelTest {
         assertEquals(listOf("Family" to "stable", "Family" to "stable"), requests)
     }
 
+    @Test fun savedViewShowsBeforeTheNetworkAnswerAndIsReadOnlyUntilItArrives() = runTest {
+        val release = CompletableDeferred<Unit>()
+        var slow = false
+        val api = object : TestParentApi() {
+            override suspend fun listFamilies(): List<FamilyV1> { if (slow) release.await(); return super.listFamilies() }
+        }
+        val dao = MemoryFamilyDao()
+        val repository = FamilyRepository(api, dao) { identity }
+        val controller = FamilyViewModel(api, repository, PendingChildCreation(api, dao, { identity }), PairingModel(api, { identity }), store(), { identity })
+        controller.load(identity)
+        controller.hideVisible()
+        assertNull(repository.state.value.snapshot)
+        slow = true
+        val loading = async { runCatching { controller.load(identity) } }
+        runCurrent()
+        val early = repository.state.value
+        assertNotNull(early.snapshot)
+        assertTrue(early.cached)
+        assertTrue(early.loading)
+        assertNull(early.failure)
+        release.complete(Unit)
+        assertTrue(loading.await().isSuccess)
+        assertFalse(repository.state.value.cached)
+        assertFalse(repository.state.value.loading)
+    }
+
     @Test fun emptyFamilyReadHasHonestEmptyState() = runTest {
         val api = object : TestParentApi() { override suspend fun listFamilies() = emptyList<FamilyV1>() }
         val dao = MemoryFamilyDao()

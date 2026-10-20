@@ -83,6 +83,18 @@ class FamilyRepository(private val api: ParentApi, private val cache: FamilyCach
         val snapshot = cached(identity, familyId)
         synchronized(frames) { requireTicket(identity, ticket); mutableState.value = FamilyState(snapshot, cached = true, failure = FamilyFailure.NETWORK) }
     }
+    /**
+     * Puts the saved view on screen straight away while the first network answer is on its way, so the app opens with
+     * something to read instead of a blank page. It is marked cached, so every change stays switched off until the live
+     * answer replaces it, and it never overwrites a view that is already showing.
+     */
+    suspend fun showCachedWhileLoading(identity: ParentIdentity, familyId: String) {
+        requireCurrent(identity)
+        if (mutableState.value.snapshot != null) return
+        val ticket = synchronized(frames) { generation.incrementAndGet() }
+        val snapshot = cached(identity, familyId) ?: return
+        synchronized(frames) { requireTicket(identity, ticket); mutableState.value = FamilyState(snapshot, loading = true, cached = true) }
+    }
     private fun current(identity: ParentIdentity, ticket: Long) = generation.get() == ticket && currentIdentity() == identity
     private fun requireTicket(identity: ParentIdentity, ticket: Long) { if (!current(identity, ticket)) throw AuthSessionRejected() }
     private fun requireCurrent(identity: ParentIdentity) { if (currentIdentity() != identity) throw AuthSessionRejected() }
