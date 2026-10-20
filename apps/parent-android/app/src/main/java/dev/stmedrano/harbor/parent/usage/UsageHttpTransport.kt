@@ -21,7 +21,8 @@ class UsageHttpTransport(private val client:HttpClient) {
   require(uri.scheme=="https"&&uri.host==assigned.host&&uri.port==assigned.port&&uri.userInfo==null&&uri.query==null&&uri.fragment==null)
   require(uri.path in setOf("/functions/v1/report-device-usage","/functions/v1/clear-device-usage","/functions/v1/get-device-usage-checkpoint",
   "/functions/v1/report-device-location","/functions/v1/clear-device-location","/functions/v1/get-device-location-checkpoint",
-  "/functions/v1/get-checkin-state","/functions/v1/reply-checkin","/functions/v1/get-family-map"))
+  "/functions/v1/get-checkin-state","/functions/v1/reply-checkin","/functions/v1/get-family-map",
+  "/functions/v1/report-message-alert","/functions/v1/clear-message-alerts","/functions/v1/get-message-alert-checkpoint"))
   require(request.method=="POST"&&request.body.size<=1048576)
   require(request.headers.keys==setOf("apikey","Content-Type","Authorization","X-Harbor-Device-Id","X-Harbor-Timestamp","X-Harbor-Nonce","X-Harbor-Signature"))
   return client.prepareRequest(request.url) {

@@ -15,6 +15,16 @@ class UsageHttpTransportTest {
   val client=HttpClient(MockEngine {req->calls++;assertEquals("Bearer child",req.headers[HttpHeaders.Authorization]);assertArrayEquals("{}".toByteArray(),(req.body as ByteArrayContent).bytes());respond("{\"confirmed\":true}",HttpStatusCode.OK)})
   try {val response=UsageHttpTransport(client).execute(request());assertEquals(200,response.status);assertEquals("{\"confirmed\":true}",response.body);assertEquals(1,calls)}finally{client.close()}
  }
+ @Test fun everySignedChildOperationReachesHttp()=runTest {
+  val paths=mutableListOf<String>();val client=HttpClient(MockEngine {req->paths+=req.url.encodedPath;respond("{}",HttpStatusCode.OK)})
+  val operations=listOf("report-device-usage","clear-device-usage","get-device-usage-checkpoint","report-device-location","clear-device-location",
+   "get-device-location-checkpoint","get-checkin-state","reply-checkin","get-family-map","report-message-alert","clear-message-alerts","get-message-alert-checkpoint")
+  try {
+   val transport=UsageHttpTransport(client)
+   for(operation in operations) transport.execute(request("https://parent-ci.invalid/functions/v1/$operation"))
+   assertEquals(operations.map{"/functions/v1/$it"},paths)
+  }finally{client.close()}
+ }
  @Test fun foreignHostOperationOversizeOrAdditionalHeadersNeverReachHttp()=runTest {
   var calls=0;val client=HttpClient(MockEngine {calls++;error("unexpected request")})
   try {

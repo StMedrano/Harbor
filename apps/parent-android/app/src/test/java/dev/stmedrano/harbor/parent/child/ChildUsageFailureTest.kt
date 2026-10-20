@@ -29,6 +29,12 @@ class ChildUsageFailureTest {
         }
     }
 
+    @Test fun messageAlertOperationsAreSignedChildOperations() = runTest {
+        for (operation in listOf("report-message-alert", "clear-message-alerts", "get-message-alert-checkpoint")) {
+            assertEquals("{}", api(200, "{}").signedUsage(operation, "{}", binding, session))
+        }
+    }
+
     @Test fun overloadAndServerErrorsStayConnectionProblems() = runTest {
         for (status in listOf(429, 500, 503)) {
             try { api(status, "").signedUsage("get-device-usage-checkpoint", "{\"version\":1}", binding, session); fail("$status accepted") }
