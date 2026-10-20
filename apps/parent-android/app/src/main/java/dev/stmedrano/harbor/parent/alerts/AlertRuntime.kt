@@ -81,5 +81,5 @@ class ChildAlertHost(
         catch (_: Exception) { if (valid(lease)) mutableState.value = mutableState.value.copy(uploadFailing = true) }
     }
 
-    companion object { const val FLUSH_INTERVAL_MS = 60_000L }
+    companion object { const val FLUSH_INTERVAL_MS = 5_000L }
 }
