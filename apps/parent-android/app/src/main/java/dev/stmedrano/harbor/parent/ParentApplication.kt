@@ -13,6 +13,9 @@ import dev.stmedrano.harbor.parent.security.*
 import dev.stmedrano.harbor.parent.profile.*
 import dev.stmedrano.harbor.parent.child.*
 import dev.stmedrano.harbor.parent.usage.*
+import dev.stmedrano.harbor.parent.checkin.ChildCheckInModel
+import dev.stmedrano.harbor.parent.checkin.ParentCheckInModel
+import dev.stmedrano.harbor.parent.checkin.SdkParentCheckInApi
 import dev.stmedrano.harbor.parent.location.*
 import dev.stmedrano.harbor.parent.alerts.*
 import kotlinx.serialization.json.*
@@ -115,7 +118,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease) }
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildCheckIn(lease) }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -254,6 +257,26 @@ class ParentApplication : Application() {
             }
         }
     }
+    // ---- Child check-ins. The child only answers a parent's request; nothing here starts one. ----
+    private var childCheckIn: ChildCheckInModel? = null
+    val childCheckInModel: ChildCheckInModel?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childCheckIn }
+    private fun startChildCheckIn(lease: ProfileLease) {
+        childCheckIn = ChildCheckInModel({ captured, operation, body ->
+            check(currentUsageLease(captured))
+            val binding = checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                val response = usageApi.signedUsage(operation, body, binding, session)
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                response
+            }
+        }, { childLocation?.latestFix() }, ::currentUsageLease, System::currentTimeMillis)
+    }
+    fun refreshChildCheckIn(lease: ProfileLease) { accountScope.launch {
+        if (!currentUsageLease(lease)) return@launch
+        profileWork(lease) { childCheckIn?.refresh(lease); true }
+    } }
     fun refreshChildLocation(lease: ProfileLease) { accountScope.launch {
         if (!currentUsageLease(lease)) return@launch
         profileWork(lease) { childLocation?.supervise(lease); true }
@@ -342,6 +365,8 @@ class ParentApplication : Application() {
     val parentLocation: ParentLocationModel? get() = if (parentConstructionAllowed) parentLocationModel else null
     private val parentAlertsModel by lazy { parentAuth?.let { ParentAlertsModel(SdkParentAlertsApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentAlerts: ParentAlertsModel? get() = if (parentConstructionAllowed) parentAlertsModel else null
+    private val parentCheckInModel by lazy { parentAuth?.let { ParentCheckInModel(SdkParentCheckInApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentCheckIn: ParentCheckInModel? get() = if (parentConstructionAllowed) parentCheckInModel else null
     val familyViewModel: FamilyViewModel? by lazy {
         authRepository?.let { auth ->
             val api = checkNotNull(parentApi)
@@ -411,12 +436,12 @@ class ParentApplication : Application() {
             ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
-            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentCheckInModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {
-                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); familyViewModel?.clear() }
+                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentCheckInModel?.clear(); familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
                         finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
@@ -441,7 +466,8 @@ class ParentApplication : Application() {
         val usage = childUsage
         val location = childLocation
         val alerts = childAlerts
-        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null
+        childCheckIn?.clear()
+        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childCheckIn = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.
         runShutdownSteps(
             { UsageJobService.cancel(this) },
@@ -465,7 +491,7 @@ class ParentApplication : Application() {
         parentCollectors = null
         if (parentConstructionAllowed) {
             realtime?.disconnect()
-            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear()
+            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentCheckInModel?.clear()
             familyViewModel?.hideVisible()
             securityViewModel?.clear()
             mutableTap.value = ParentTapState()
@@ -527,7 +553,7 @@ class ParentApplication : Application() {
                 }
             } else {
                 childRepository.binding.value?.let { childRepository.sync(it) }
-                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease);childLocation?.supervise(lease);childAlerts?.supervise(lease)}
+                if(currentUsageLease(lease)){childUsage?.refresh(lease);scheduleUsageIfOpted(lease);childLocation?.supervise(lease);childAlerts?.supervise(lease);childCheckIn?.refresh(lease)}
             }
             if (!BuildConfig.CI_FIXTURE) profileNotifications.syncToken(lease)
             true

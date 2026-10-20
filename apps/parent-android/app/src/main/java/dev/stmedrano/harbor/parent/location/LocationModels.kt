@@ -36,7 +36,7 @@ fun locationInstantMs(value: String): Long {
 }
 /** Seconds resolution, always `YYYY-MM-DDTHH:MM:SSZ`, which the contract accepts. */
 fun locationInstantString(ms: Long): String = java.time.Instant.ofEpochSecond(Math.floorDiv(ms, 1000L)).toString()
-private fun sixDecimals(value: Double): Boolean = value.isFinite() && java.math.BigDecimal.valueOf(value).stripTrailingZeros().scale() <= 6
+internal fun sixDecimals(value: Double): Boolean = value.isFinite() && java.math.BigDecimal.valueOf(value).stripTrailingZeros().scale() <= 6
 
 fun validateLocationFix(fix: LocationFix) {
     require(fix.latitude.isFinite() && kotlin.math.abs(fix.latitude) <= 90.0 && sixDecimals(fix.latitude))

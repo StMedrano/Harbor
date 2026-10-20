@@ -145,3 +145,10 @@ for method in incompleteSetupListsEveryReasonAndCannotBeFinished finishingNeedsE
   run_test "$method" dev.stmedrano.harbor.parent.ui.ChildSetupGateUiTest || child_setup_status=1
 done
 [[ "$child_setup_status" == 0 ]]
+
+# Check-in screens (child answer, Today banner, parent ask and read) run on API 29 and API 36 without network.
+checkin_ui_status=0
+for method in childAnswersAnOpenRequestWithOnlyAPreset nothingOpenOffersNoAnswerAndListsEarlierCheckIns answeringIsDisabledWhileSendingAndProblemsAreExplained failedAndEndedAnswersSaySoPlainly anOpenRequestShowsOnTodayAndOpensTheCheckInTab todayHasNoBannerWhenNothingIsOpen parentCanAskWhenNothingIsOpenAndReadsTheLatestAnswer parentSeesWaitingInsteadOfAskingTwice parentWithoutAccessSeesNoPreviousAnswer; do
+  run_test "$method" dev.stmedrano.harbor.parent.checkin.CheckInUiTest || checkin_ui_status=1
+done
+[[ "$checkin_ui_status" == 0 ]]

@@ -30,6 +30,7 @@ class ParentMessageParserTest {
     @Test fun onlySupportedKindsWithEveryReferenceAreAccepted() {
         val route = envelope().getValue("route")
         assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.command.created"))))
+        assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.checkin.requested"))))
         assertNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "future.unknown"))))
         for ((field, value) in listOf("familyId" to FAMILY, "childId" to CHILD, "deviceId" to DEVICE, "resourceId" to EVENT)) {
             assertNull("Missing $field", ParentMessageParser.parse(envelope(route.replace(",\"$field\":\"$value\"", ""))))

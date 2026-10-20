@@ -41,8 +41,11 @@ class ChildLocationHost(
     @Volatile private var active: ProfileLease? = null
     private var listening = false
     private var serviceOn = false
-    private var lastRecorded: LocationFix? = null
+    @Volatile private var lastRecorded: LocationFix? = null
     private var lastFlushMs = 0L
+
+    /** The newest place this phone already knows. Asking for it never starts location or takes a new reading. */
+    fun latestFix(): LocationFix? = if (active != null) lastRecorded ?: platform.lastKnown() else null
 
     private fun valid(lease: ProfileLease) = active == lease && lease.role == ProfileRole.CHILD && current(lease)
 

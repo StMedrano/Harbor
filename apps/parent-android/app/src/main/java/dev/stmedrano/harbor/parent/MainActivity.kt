@@ -59,6 +59,8 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
 import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.delay
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberChildCheckInUi
+import dev.stmedrano.harbor.parent.ui.rememberParentCheckInView
 import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
 import dev.stmedrano.harbor.parent.ui.rememberChildAlertsUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
@@ -125,7 +127,7 @@ class MainActivity : ComponentActivity() {
                 val childGateVisible = remember { mutableStateOf(!BuildConfig.CI_FIXTURE) }
                 val destination = entryState.destination()
                 val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME && !childGateVisible.value) {
-                    @Composable { HarborBottomBar(childNavItems(childTab.value) { childTab.value = it }) }
+                    @Composable { HarborBottomBar(childNavItems(childTab.value, withCheckIn = !BuildConfig.CI_FIXTURE) { childTab.value = it }) }
                 } else null
                 HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
                     transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -170,6 +172,7 @@ class MainActivity : ComponentActivity() {
                                     delay(3000)
                                 }
                             }
+                            val checkInUi = if (BuildConfig.CI_FIXTURE) null else rememberChildCheckInUi(graph, lease, resumeTick.intValue)
                             val gateLocation = locationUi
                             val gateUsage = usageUi
                             val gateSteps = if (gateLocation != null && gateUsage != null)
@@ -207,7 +210,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, location = locationUi, alerts = alertsUi, tab = childTab.value,
+                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, tab = childTab.value, onSelectTab = { childTab.value = it },
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -303,12 +306,17 @@ class MainActivity : ComponentActivity() {
                                     val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
                                     val location = rememberParentLocationView(graph.parentLocation, identity, visibleDevice.id, resumeTick.intValue)
                                     val alerts = rememberParentAlertsView(graph.parentAlerts, identity, visibleDevice.id, resumeTick.intValue)
+                                    val checkIn = rememberParentCheckInView(graph.parentCheckIn, identity, visibleDevice.id, resumeTick.intValue)
+                                    val childName = snapshot?.children?.firstOrNull { it.id == visibleDevice.childId }?.displayName ?: "your child"
                                     DeviceScreen(visibleDevice,
                                         onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
                                         cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
                                         onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
                                         location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
-                                        alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                        alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        checkIn = checkIn, childName = childName,
+                                        onAskCheckIn = graph.parentCheckIn?.takeIf { family != null && !family.cached && !family.loading && family.failure == null }
+                                            ?.let { m -> { graph.accountScope.launch { m.ask(identity, visibleDevice.id) } } }) { graph.closeNotification() }
                                 }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {

@@ -30,6 +30,8 @@ fun ParentHint.matchesFamily(identity: ParentIdentity, state: FamilyState): Bool
 }
 
 object ParentMessageParser {
+    /** `device.checkin.requested` is only ever sent to a child phone; the parent app treats it like any other hint. */
+    private val ALLOWED_KINDS = setOf("device.state.changed", "device.command.created", "device.alert.created", "device.checkin.requested")
     private val fields = setOf("version", "kind", "familyId", "childId", "deviceId", "resourceId")
     internal fun uuid(value: String) = runCatching { UUID.fromString(value).toString() == value.lowercase() }.getOrDefault(false)
     fun parse(data: Map<String, String>): ParentHint? = runCatching {
@@ -45,7 +47,7 @@ object ParentMessageParser {
         val version = route.getValue("version").jsonPrimitive
         require(!version.isString && version.intOrNull == 1)
         val kind = route.getValue("kind").jsonPrimitive
-        require(kind.isString && kind.content in setOf("device.state.changed", "device.command.created", "device.alert.created"))
+        require(kind.isString && kind.content in ALLOWED_KINDS)
         for (field in fields - setOf("version", "kind")) route.getValue(field).let {
             require(it.jsonPrimitive.isString && uuid(it.jsonPrimitive.content))
         }
