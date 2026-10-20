@@ -118,7 +118,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildCheckIn(lease) }
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildCheckIn(lease); startChildFamilyMap() }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -258,6 +258,21 @@ class ParentApplication : Application() {
         }
     }
     // ---- Child check-ins. The child only answers a parent's request; nothing here starts one. ----
+    private var childFamilyMap: dev.stmedrano.harbor.parent.familymap.ChildFamilyMapModel? = null
+    val childFamilyMapModel: dev.stmedrano.harbor.parent.familymap.ChildFamilyMapModel?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childFamilyMap }
+    private fun startChildFamilyMap() {
+        childFamilyMap = dev.stmedrano.harbor.parent.familymap.ChildFamilyMapModel({ captured, operation, body ->
+            check(currentUsageLease(captured))
+            val binding = checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                val response = usageApi.signedUsage(operation, body, binding, session)
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                response
+            }
+        }, ::currentUsageLease, System::currentTimeMillis)
+    }
     private var childCheckIn: ChildCheckInModel? = null
     val childCheckInModel: ChildCheckInModel?
         get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childCheckIn }
@@ -466,8 +481,8 @@ class ParentApplication : Application() {
         val usage = childUsage
         val location = childLocation
         val alerts = childAlerts
-        childCheckIn?.clear()
-        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childCheckIn = null
+        childCheckIn?.clear(); childFamilyMap?.clear()
+        runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childCheckIn = null; childFamilyMap = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.
         runShutdownSteps(
             { UsageJobService.cancel(this) },

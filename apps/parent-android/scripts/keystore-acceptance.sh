@@ -146,6 +146,13 @@ for method in incompleteSetupListsEveryReasonAndCannotBeFinished finishingNeedsE
 done
 [[ "$child_setup_status" == 0 ]]
 
+# Family map screen (people list, zoom controls, off and offline states) runs on API 29 and API 36 without network.
+family_map_status=0
+for method in mapListsEveryoneWithZoomControls aTurnedOffMapSaysSoAndShowsNobody nobodyWithAPlaceSaysNoOneHasSharedYet loadingAndOfflineAreHonest failureBeforeAnyAnswerNeverClaimsAnEmptyFamily staleAnswerKeepsTheMapWithANote; do
+  run_test "$method" dev.stmedrano.harbor.parent.familymap.FamilyMapUiTest || family_map_status=1
+done
+[[ "$family_map_status" == 0 ]]
+
 # Check-in screens (child answer, Today banner, parent ask and read) run on API 29 and API 36 without network.
 checkin_ui_status=0
 for method in childAnswersAnOpenRequestWithOnlyAPreset nothingOpenOffersNoAnswerAndListsEarlierCheckIns answeringIsDisabledWhileSendingAndProblemsAreExplained failedAndEndedAnswersSaySoPlainly anOpenRequestShowsOnTodayAndOpensTheCheckInTab todayHasNoBannerWhenNothingIsOpen parentCanAskWhenNothingIsOpenAndReadsTheLatestAnswer parentSeesWaitingInsteadOfAskingTwice parentWithoutAccessSeesNoPreviousAnswer; do
