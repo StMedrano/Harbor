@@ -40,7 +40,7 @@ class ChildAlertHost(
         if (active != null) halt()
         if (lease.role == ProfileRole.CHILD) {
             active = lease
-            AlertCaptureBridge.install { alerts -> scope.launch { onAlerts(lease, alerts) } }
+            AlertCaptureBridge.install(AlertSink { alerts -> scope.launch { onAlerts(lease, alerts) } })
         }
         lastFlushMs = 0L
         mutableState.value = AlertHostState()
