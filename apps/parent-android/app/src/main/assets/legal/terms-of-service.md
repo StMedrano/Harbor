@@ -8,6 +8,7 @@ Parents and guardians create accounts. A child uses Harbor only on a phone that 
 ## Your responsibilities
 - Use Harbor only for children you are responsible for.
 - Tell your child what Harbor shares. Harbor is built to be open with them and shows them this in the app.
+- Share your own location only when you choose to. The family map lets children see each other's latest places, so turn it off in the Family tab if that is not right for your family.
 - Keep your sign-in details safe, and do not share your account.
 - Do not use Harbor to harass, stalk or harm anyone, or to watch an adult who has not agreed.
 
@@ -17,7 +18,7 @@ Parents and guardians create accounts. A child uses Harbor only on a phone that 
 - Locations and reports can be delayed or out of date. Harbor labels information that may be old.
 
 ## What Harbor does
-Harbor shares a child's location, screen time, possible-concern alerts and check-in answers with the parents in the family, as described in the Privacy policy. It does not record the screen, camera or microphone, and it does not block or limit apps.
+Harbor shares a child's location, screen time, possible-concern alerts and check-in answers with the parents in the family, as described in the Privacy policy. It also shows children a family map of the latest places of the children and of parents who chose to share, which a parent can turn off. It does not record the screen, camera or microphone, and it does not block or limit apps.
 
 ## Ending use
 A parent can remove a device at any time in the Family tab, which stops sharing from it. You can stop using Harbor at any time.

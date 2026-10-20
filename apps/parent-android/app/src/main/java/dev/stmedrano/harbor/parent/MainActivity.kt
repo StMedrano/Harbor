@@ -63,6 +63,7 @@ import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.delay
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
 import dev.stmedrano.harbor.parent.ui.rememberChildCheckInUi
+import dev.stmedrano.harbor.parent.ui.rememberChildFamilyMapUi
 import dev.stmedrano.harbor.parent.ui.rememberParentCheckInView
 import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
 import dev.stmedrano.harbor.parent.ui.rememberChildAlertsUi
@@ -132,7 +133,7 @@ class MainActivity : ComponentActivity() {
                 val childGateVisible = remember { mutableStateOf(!BuildConfig.CI_FIXTURE) }
                 val destination = entryState.destination()
                 val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME && !childGateVisible.value) {
-                    @Composable { HarborBottomBar(childNavItems(childTab.value, withCheckIn = !BuildConfig.CI_FIXTURE) { childTab.value = it }) }
+                    @Composable { HarborBottomBar(childNavItems(childTab.value, withCheckIn = !BuildConfig.CI_FIXTURE, withFamily = !BuildConfig.CI_FIXTURE) { childTab.value = it }) }
                 } else null
                 HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
                     transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -178,6 +179,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             val checkInUi = if (BuildConfig.CI_FIXTURE) null else rememberChildCheckInUi(graph, lease, resumeTick.intValue)
+                            val familyMapUi = if (BuildConfig.CI_FIXTURE) null else rememberChildFamilyMapUi(graph, lease, resumeTick.intValue)
                             val gateLocation = locationUi
                             val gateUsage = usageUi
                             val gateSteps = if (gateLocation != null && gateUsage != null)
@@ -217,7 +219,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, tab = childTab.value, onSelectTab = { childTab.value = it },
+                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, familyMap = familyMapUi, tab = childTab.value, onSelectTab = { childTab.value = it },
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -339,7 +341,7 @@ class MainActivity : ComponentActivity() {
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
                                 else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts,
-                                    checkInModel = graph.parentCheckIn, tab = effectiveTab, resumeTick = resumeTick.intValue,
+                                    checkInModel = graph.parentCheckIn, familyMapModel = graph.parentFamilyMap, tab = effectiveTab, resumeTick = resumeTick.intValue,
                                     onSettings = { settingsPage.value = true; securityPage.value = false; graph.closeNotification() },
                                     onSecurity = { securityPage.value = true; settingsPage.value = false; graph.closeNotification() }) }
                             })

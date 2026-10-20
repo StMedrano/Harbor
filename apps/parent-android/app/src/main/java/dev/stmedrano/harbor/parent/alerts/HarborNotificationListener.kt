@@ -1,6 +1,7 @@
 package dev.stmedrano.harbor.parent.alerts
 
 import android.app.Notification
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 
@@ -19,18 +20,33 @@ class HarborNotificationListener : NotificationListenerService() {
         if (!MonitoredApps.isMonitored(post.packageName)) return
         if ((post.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return
         val key = post.key ?: return
-        if (!AlertCaptureBridge.dedup.firstSighting(key)) return
+        // A chat keeps one notification and updates it for every new message, so the key alone would hide every
+        // message after the first. The post time changes with each update and repeats only on a re-delivery.
+        if (!AlertCaptureBridge.dedup.firstSighting("$key|${post.postTime}")) return
 
-        val extras = post.notification.extras
-        val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-        val text = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-        val saved = SavedContacts.byDisplayName(applicationContext, title)
-        val alerts = AlertCaptureBridge.core.capture(post.packageName, text, isGroupSummary = false, fromSavedContact = saved)
+        val extras = post.notification.extras ?: return
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        val newest = newestChatMessage(extras)
+        val texts = listOf(
+            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
+            newest?.first,
+        )
+        val saved = SavedContacts.byDisplayName(applicationContext, newest?.second ?: title)
+        val alerts = AlertCaptureBridge.core.captureAny(post.packageName, texts, isGroupSummary = false, fromSavedContact = saved)
         AlertCaptureBridge.submit(alerts)
-        // `title` and `text` go out of scope here; nothing about the message is retained.
+        // The texts go out of scope here; nothing about the message is retained.
+    }
+
+    /** The newest message of a chat-style notification as (text, sender name). Only the last one: older ones were already seen. */
+    @Suppress("DEPRECATION")
+    private fun newestChatMessage(extras: Bundle): Pair<String?, String?>? {
+        val last = try { extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.lastOrNull() as? Bundle } catch (_: Exception) { null } ?: return null
+        return last.getCharSequence("text")?.toString() to last.getCharSequence("sender")?.toString()
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        sbn?.key?.let { AlertCaptureBridge.dedup.forget(it) }
+        // Keys are remembered together with the post time, so there is nothing to forget by key alone.
+        Unit
     }
 }

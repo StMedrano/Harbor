@@ -50,7 +50,9 @@ private fun AvailableLocation(view: LocationViewState, now: Long, accent: Color)
     val seen = locationInstantMs(latest.at)
     val label = "Last known place, ${locationAgeLabel(now - seen)}, accurate to about ${latest.accuracyM} metres"
     if (stale) {
-        HarborNote("Nothing new has arrived from this phone for ${locationAgeLabel(now - (view.receivedAtMs ?: seen)).removeSuffix(" ago")}. The map shows its last known place, not where it is now.", HarborTone.WARN, emphasis = true)
+        val reason = if (now - seen > LOCATION_STALE_AFTER_MS) "The last place arrived ${locationAgeLabel(now - seen)}."
+            else "Nothing new has arrived from this phone for ${locationAgeLabel(now - (view.receivedAtMs ?: seen)).removeSuffix(" ago")}."
+        HarborNote("$reason The map shows its last known place, not where it is now.", HarborTone.WARN, emphasis = true)
     }
     LocationMap(view.fixes, stale, label, accent = accent)
     Text("Seen ${locationAgeLabel(now - seen)} · ${formatTimestamp(latest.at)}", style = MaterialTheme.typography.titleMedium)

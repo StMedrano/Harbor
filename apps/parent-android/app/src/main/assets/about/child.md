@@ -8,6 +8,11 @@ Harbor Family connects this phone to your parents' Harbor app. This page explain
 - Possible concerns in messages. Only the kind of concern, the app it came from, the time, and whether the sender is saved in your contacts.
 - Check-in answers. When a parent asks you to check in, they get your answer ("I'm okay" or "Running late"), the time, and the last place this phone already knew if it is less than an hour old.
 
+## What you see in the Family tab
+The Family tab shows a map of your family: the children in your family, including you, and any parent who chose to share their location. You see each person's latest place and when it was updated. There is no trail and no history, and nobody can message or call anyone from it. You can zoom in and out.
+
+The other children in your family can see your latest place there too. A parent can turn the family map off for children at any time, and then it shows nothing. A parent who shares can stop whenever they like.
+
 ## What Harbor checks on this phone
 Harbor watches new notifications from these apps, and your incoming text messages: {{monitored_apps}}.
 
