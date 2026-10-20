@@ -2,8 +2,10 @@ package dev.stmedrano.harbor.parent.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.family.*
