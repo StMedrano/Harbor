@@ -13,24 +13,29 @@ import org.junit.Test
 class LocationUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
-    @Test fun childPanelDisclosesSharingAndNeverOffersAStopButton() {
+    @Test fun childStatusIsShortAndNeverOffersAStopButton() {
         var permissionRequests = 0
         val ui = mutableStateOf(ChildLocationUi(LocationAccess(false, false, true), LocationHostState(),
             { permissionRequests++ }, {}, {}, {}))
-        compose.setContent { HarborTheme { ParentApp(showBrand = false) { LocationSetupPanel(ui.value) } } }
-        compose.onNodeWithText("Harbor sends this phone's location to your parents", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Only your parents can turn sharing off", substring = true).assertExists()
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) { HarborCard { LocationStatusSection(ui.value) } } } }
+        compose.onNodeWithText("Location off").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Allow location").performScrollTo().performClick()
         assertEquals(1, permissionRequests)
         compose.onNodeWithText("Stop sharing", substring = true).assertDoesNotExist()
 
         compose.runOnIdle { ui.value = ui.value.copy(access = LocationAccess(true, false, true)) }
         compose.onNodeWithText("Allow all the time").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Sharing your location.").assertDoesNotExist()
+        compose.onNodeWithText("Sharing only while Harbor is open").assertExists()
+        compose.onNodeWithText("Sharing location").assertDoesNotExist()
 
         compose.runOnIdle { ui.value = ui.value.copy(access = LocationAccess(true, true, false)) }
-        compose.onNodeWithText("Location is switched off on this phone", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Sharing your location.").assertDoesNotExist()
+        compose.onNodeWithText("Location is off in Android settings").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Sharing location").assertDoesNotExist()
+
+        compose.runOnIdle { ui.value = ui.value.copy(access = LocationAccess(true, true, true)) }
+        compose.onNodeWithText("Sharing location").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Stop", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Turn off", substring = true).assertDoesNotExist()
     }
 
     @Test fun lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately() {
@@ -56,6 +61,6 @@ class LocationUiTest {
         } } }
         compose.onNodeWithText("This phone has not shared a place yet", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Last known place", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Sharing your location.").assertDoesNotExist()
+        compose.onNodeWithText("Sharing location").assertDoesNotExist()
     }
 }

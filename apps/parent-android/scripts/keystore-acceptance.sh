@@ -125,7 +125,7 @@ run_test usageKeyLossRetainsCheckpointAndDoesNotEraseParent dev.stmedrano.harbor
 run_test protectedPeriodicJobContainsOnlyValidatedReferences dev.stmedrano.harbor.parent.usage.UsageJobTest
 usage_ui_status=0
 adb shell settings put system font_scale 1.8
-for method in noReportAndLostPermissionNeverShowZeroOrApps measuredPartialStaleOfflineAreDistinguishedAndAppsAreReadOnly revokedAccessHidesThePreviousReport largeTextTodayAndAppsRenderInLightAndDark consentIsExplicitAndStopIsAlwaysAvailable; do
+for method in noReportAndLostPermissionNeverShowZeroOrApps measuredPartialStaleOfflineAreDistinguishedAndAppsAreReadOnly revokedAccessHidesThePreviousReport largeTextTodayAndAppsRenderInLightAndDark consentIsExplicitAndThereIsNoStopControl; do
   run_test "$method" dev.stmedrano.harbor.parent.usage.UsageUiTest || usage_ui_status=1
 done
 adb shell settings put system font_scale 1.0
@@ -134,7 +134,7 @@ for shot in usage-today-light usage-apps-light usage-apps-dark; do adb pull /sdc
 
 # Location UI smoke checks run on API 29 and API 36 without network or live location data.
 location_ui_status=0
-for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim; do
+for method in childStatusIsShortAndNeverOffersAStopButton lastKnownMapIsMarkedStaleAndRevocationHidesItImmediately neverReportedHasNoMapAndNoFalseSharingClaim; do
   run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
 done
 [[ "$location_ui_status" == 0 ]]
@@ -152,3 +152,10 @@ for method in childAnswersAnOpenRequestWithOnlyAPreset nothingOpenOffersNoAnswer
   run_test "$method" dev.stmedrano.harbor.parent.checkin.CheckInUiTest || checkin_ui_status=1
 done
 [[ "$checkin_ui_status" == 0 ]]
+
+# About and policy pages render from the shipped files on API 29 and API 36 without network.
+about_ui_status=0
+for method in childAboutShowsHeadingsAndFilledAppList policyLinksOpenBothDocumentsAndBackReturns everyDocumentLoadsWithoutPlaceholders statusLineHasTextAndOptionalDetail; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.ChildAboutUiTest || about_ui_status=1
+done
+[[ "$about_ui_status" == 0 ]]

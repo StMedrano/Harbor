@@ -67,8 +67,7 @@ fun CheckInScreen(ui: ChildCheckInUi) {
             pending != null -> HarborCard {
                 Text("A parent asked you to check in", style = MaterialTheme.typography.titleMedium)
                 Text("Asked ${formatTimestamp(pending.requestedAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Checking in sends your parents the time and your answer. If this phone has a place from the last hour, that is sent too. " +
-                    "Harbor does not take a new reading to answer.")
+                Text("Your parents get your answer, the time and your last known place.", style = MaterialTheme.typography.bodyMedium)
                 HarborButton({ ui.onAnswer(CheckInPreset.OK) }, Modifier.fillMaxWidth(), enabled = !state.sending) { Text("I’m okay") }
                 HarborOutlinedButton({ ui.onAnswer(CheckInPreset.LATE) }, Modifier.fillMaxWidth(), enabled = !state.sending) { Text("Running late") }
                 if (state.sending) Text("Sending…", style = MaterialTheme.typography.bodySmall)
@@ -78,7 +77,6 @@ fun CheckInScreen(ui: ChildCheckInUi) {
             }
             else -> HarborCard {
                 Text("Nothing to answer right now", style = MaterialTheme.typography.titleMedium)
-                Text("When a parent asks you to check in, it shows up here and on Today.")
             }
         }
         when (state.problem) {

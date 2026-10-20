@@ -46,7 +46,7 @@ class ChildSetupGateTest {
         val steps = childSetupSteps(allOn)
         assertEquals(6, steps.size)
         val reasons = steps.filter { it.id == SetupStepId.NOTIFICATION_ACCESS || it.id == SetupStepId.SMS }.map { it.why }
-        assertTrue(reasons.all { it.contains("never the words") || it.contains("never get the words") })
+        assertTrue(reasons.all { it.contains("this phone") })
     }
     @Test fun emptyListIsNeverComplete() = assertFalse(setupComplete(emptyList()))
     @Test fun everyStepExplainsItself() {

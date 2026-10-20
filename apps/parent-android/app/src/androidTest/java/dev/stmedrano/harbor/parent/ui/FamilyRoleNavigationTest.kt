@@ -86,7 +86,7 @@ class FamilyRoleNavigationTest {
         compose.onNodeWithText("Apps").performScrollTo().performClick()
         compose.onNodeWithText("App information is not available yet.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("About").performScrollTo().performClick()
-        compose.onNodeWithText("Screen time and app enforcement are not available in this build.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("What Harbor shares with your parents").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { dark.value = true }
         capture("family-child-dark.png")
         compose.onNodeWithText("Parent controls").assertDoesNotExist()

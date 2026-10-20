@@ -16,13 +16,13 @@ class AlertsUiTest {
     private fun alert(category: AlertCategory, at: String, saved: Boolean = false) =
         MessageAlert("00000000-0000-4000-8000-000000000001", "WhatsApp", category, 1, at, saved)
 
-    @Test fun childPanelDisclosesWhatIsWatchedAndNeverOffersADisableControl() {
+    @Test fun childStatusIsShortAndNeverOffersADisableControl() {
         var notificationTaps = 0
         val ui = mutableStateOf(ChildAlertsUi(AlertAccess(false, false), AlertHostState(), { notificationTaps++ }, {}, {}))
-        compose.setContent { HarborTheme { ParentApp(showBrand = false) { MessageAlertsPanel(ui.value) } } }
-        compose.onNodeWithText("What Harbor watches").assertExists()
-        compose.onNodeWithText("never sent the message text", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Only your parents can turn this off", substring = true).assertExists()
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) { HarborCard { MessageAlertsSection(ui.value) } } } }
+        compose.onNodeWithText("Notification access off").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Text message access off").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Message access enabled").assertDoesNotExist()
         compose.onNodeWithText("Turn on notification access").performScrollTo().performClick()
         assertEquals(1, notificationTaps)
         compose.onNodeWithText("Turn off", substring = true).assertDoesNotExist()
@@ -30,7 +30,8 @@ class AlertsUiTest {
         compose.onNodeWithText("Disable", substring = true).assertDoesNotExist()
 
         compose.runOnIdle { ui.value = ui.value.copy(access = AlertAccess(true, true)) }
-        compose.onNodeWithText("Harbor is watching.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Message access enabled").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Notification access off").assertDoesNotExist()
     }
 
     @Test fun parentListReadsAsPossibleConcernsAndSelfHarmShowsCrisisResources() {
