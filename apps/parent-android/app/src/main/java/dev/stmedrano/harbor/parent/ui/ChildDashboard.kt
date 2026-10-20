@@ -31,23 +31,16 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
     val current = tab ?: localTab
     val selectTab: (String) -> Unit = { name -> if (onSelectTab != null) { onSelectTab(name) } else { localTab = name } }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Your phone", style = MaterialTheme.typography.headlineSmall)
+        if (current == "Today") ChildGreeting(state, familyMap) else Text("Your phone", style = MaterialTheme.typography.headlineSmall)
         if (tab == null) HarborTabs(childTabs(checkIn != null, familyMap != null).map { title -> HarborTab(title, current == title) { localTab = title } })
         when (current) {
             "Today" -> {
-                HarborCard {
-                    Text("Connected to your family", style = MaterialTheme.typography.titleMedium)
-                    when (state) {
-                        is ChildSyncState.Fresh ->
-                            Text("Synced ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        is ChildSyncState.Stale -> {
-                            HarborNote("Showing saved setup. Current status has not been confirmed.", HarborTone.WARN)
-                            state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}", style = MaterialTheme.typography.bodySmall) }
-                        }
-                        is ChildSyncState.Blocked -> Unit
-                    }
+                if (state is ChildSyncState.Stale) {
+                    HarborNote("Showing saved setup. Current status has not been confirmed.", HarborTone.WARN)
+                    state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}", style = MaterialTheme.typography.bodySmall) }
                 }
                 checkIn?.state?.pending?.let { pending -> CheckInRequestBanner(pending) { selectTab(CHECK_IN_TAB) } }
+                if (familyMap != null) ChildPlaceRow(familyMap) { selectTab(FAMILY_MAP_TAB) }
                 if (location != null || alerts != null || usage != null) {
                     HarborPanel("On this phone") {
                         val sections = buildList<@Composable () -> Unit> {
