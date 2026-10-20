@@ -30,7 +30,6 @@ class HarborControlService : AccessibilityService() {
     override fun onServiceConnected() {
         exempt = ExemptApps.resolve(this)
         ControlsBridge.setConnected(true)
-        ControlsBridge.record(ControlEvent(ActivityKind.PROTECTION_ON, System.currentTimeMillis()))
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

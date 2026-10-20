@@ -18,7 +18,8 @@ class UsageHttpTransportTest {
  @Test fun everySignedChildOperationReachesHttp()=runTest {
   val paths=mutableListOf<String>();val client=HttpClient(MockEngine {req->paths+=req.url.encodedPath;respond("{}",HttpStatusCode.OK)})
   val operations=listOf("report-device-usage","clear-device-usage","get-device-usage-checkpoint","report-device-location","clear-device-location",
-   "get-device-location-checkpoint","get-checkin-state","reply-checkin","get-family-map","report-message-alert","clear-message-alerts","get-message-alert-checkpoint")
+   "get-device-location-checkpoint","get-checkin-state","reply-checkin","get-family-map","report-message-alert","clear-message-alerts","get-message-alert-checkpoint",
+   "report-device-activity","clear-device-activity","get-device-activity-checkpoint")
   try {
    val transport=UsageHttpTransport(client)
    for(operation in operations) transport.execute(request("https://parent-ci.invalid/functions/v1/$operation"))

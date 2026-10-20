@@ -2,6 +2,15 @@ package dev.stmedrano.harbor.parent
 
 import dev.stmedrano.harbor.parent.controls.ChildControlsHost
 import dev.stmedrano.harbor.parent.controls.EncryptedControlsStore
+import dev.stmedrano.harbor.parent.controls.ControlsAccess
+import dev.stmedrano.harbor.parent.controls.ControlsBridge
+import dev.stmedrano.harbor.parent.controls.appLabel
+import dev.stmedrano.harbor.parent.controls.usageTransitions
+import dev.stmedrano.harbor.parent.activity.ActivityReporter
+import dev.stmedrano.harbor.parent.activity.ActivityTransport
+import dev.stmedrano.harbor.parent.activity.ChildActivityHost
+import dev.stmedrano.harbor.parent.activity.EncryptedActivityStore
+import dev.stmedrano.harbor.parent.usage.resolvedHomePackages
 
 import android.app.Application
 import io.github.jan.supabase.exceptions.RestException
@@ -121,7 +130,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildControls(lease); startChildCheckIn(lease); startChildFamilyMap() }
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildControls(lease); startChildActivity(lease); startChildCheckIn(lease); startChildFamilyMap() }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -368,6 +377,48 @@ class ParentApplication : Application() {
         }
     }
 
+    // ---- Child activity timeline: finished app sessions from usage events plus what the controls did. ----
+    private val activityStore by lazy { EncryptedActivityStore.open(this) }
+    private var childActivity: ChildActivityHost? = null
+    private suspend fun startChildActivity(lease: ProfileLease) {
+        val scope = checkNotNull(profileScope)
+        val reporter = ActivityReporter(activityStore, ::currentUsageLease, ActivityTransport { captured, operation, body ->
+            check(currentUsageLease(captured))
+            val binding = checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                val response = usageApi.signedUsage(operation, body, binding, session)
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(captured))
+                response
+            }
+        }, System::currentTimeMillis)
+        val host = ChildActivityHost(reporter, ::currentUsageLease,
+            { from, to -> usageTransitions(this, from, to) },
+            { resolvedHomePackages(this) + packageName },
+            { appLabel(this, it) },
+            { ControlsBridge.policy },
+            { childControls?.state?.value?.appliedVersion ?: 0L },
+            { ControlsAccess.isEnabled(this) },
+            { java.time.ZonedDateTime.now() })
+        childActivity = host
+        host.start(lease)
+        ControlsBridge.recorder = { event -> scope.launch { host.onControlEvent(lease, event) } }
+        scope.launch {
+            childRepository.state.collectLatest { value ->
+                if (value is ChildSyncState.Blocked) {
+                    host.stop(); ControlsBridge.recorder = null
+                    if (value.reason == ChildFailure.REVOKED) try { activityStore.eraseBinding(lease.ownerId) } catch (_: Exception) {}
+                }
+            }
+        }
+        scope.launch {
+            while (true) {
+                try { host.supervise(lease) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
+                delay(5 * 60_000L)
+            }
+        }
+    }
+
     fun refreshChildAlerts(lease: ProfileLease) { accountScope.launch {
         if (!currentUsageLease(lease)) return@launch
         profileWork(lease) { childAlerts?.supervise(lease); true }
@@ -507,6 +558,7 @@ class ParentApplication : Application() {
         val location = childLocation
         val alerts = childAlerts
         val controls = childControls
+        childActivity?.stop(); childActivity = null; ControlsBridge.recorder = null
         childCheckIn?.clear(); childFamilyMap?.clear()
         runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childControls = null; childCheckIn = null; childFamilyMap = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.

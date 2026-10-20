@@ -68,6 +68,25 @@ object UsageToday {
     } catch (_: Exception) { 0L }
 }
 
+/** Every app's resume/pause transitions in a window, for the activity timeline. Names and times only. */
+fun usageTransitions(context: Context, fromMs: Long, toMs: Long): List<dev.stmedrano.harbor.parent.activity.AppTransition> = try {
+    val manager = context.getSystemService(UsageStatsManager::class.java)
+    val events = manager?.queryEvents(fromMs, toMs)
+    val out = ArrayList<dev.stmedrano.harbor.parent.activity.AppTransition>()
+    if (events != null) {
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED -> out += dev.stmedrano.harbor.parent.activity.AppTransition(event.timeStamp, pkg, true)
+                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> out += dev.stmedrano.harbor.parent.activity.AppTransition(event.timeStamp, pkg, false)
+            }
+        }
+    }
+    out
+} catch (_: Exception) { emptyList() }
+
 fun appLabel(context: Context, packageName: String): String = try {
     val pm = context.packageManager
     pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString().trim().take(64).ifEmpty { "This app" }
