@@ -67,6 +67,23 @@ class FamilyNotificationLifecycleTest {
         assertFalse((field.get(graph) as Lazy<*>).isInitialized())
         assertNull(graph.profiles.currentLease())
     }
+    @Test fun checkInRequestsUseTheirOwnLoudChannelAndOtherUpdatesStayQuiet() {
+        val renderer = ChildNotificationRenderer(compose.activity)
+        val checkIn = Json.decodeFromString<ParentRoute>(route.replace("device.state.changed", "device.checkin.requested"))
+        val plain = Json.decodeFromString<ParentRoute>(route)
+        val checkInNotification = renderer.build(checkIn)
+        val plainNotification = renderer.build(plain)
+        assertEquals("harbor-child-checkins", checkInNotification.channelId)
+        assertEquals("harbor-child-updates", plainNotification.channelId)
+        val manager = compose.activity.getSystemService(android.app.NotificationManager::class.java)
+        val loud = manager.getNotificationChannel("harbor-child-checkins")!!
+        assertEquals(android.app.NotificationManager.IMPORTANCE_HIGH, loud.importance)
+        assertNotNull(loud.sound)
+        assertEquals(android.app.NotificationManager.IMPORTANCE_DEFAULT, manager.getNotificationChannel("harbor-child-updates")!!.importance)
+        // Still private on the lock screen, and the text stays free of names and places.
+        assertEquals(Notification.VISIBILITY_PRIVATE, checkInNotification.visibility)
+        assertEquals("A parent asked you to check in. Open Harbor to answer.", checkInNotification.extras.getString(Notification.EXTRA_TEXT))
+    }
     @Test fun childTapIsGenericImmutableAndRejectsRoleOrTokenHints() {
         val parsed = Json.decodeFromString<ParentRoute>(route)
         val notification = ChildNotificationRenderer(compose.activity).build(parsed)

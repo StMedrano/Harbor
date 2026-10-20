@@ -31,6 +31,8 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
     suspend fun load(identity: ParentIdentity) = operation(identity) {
         if (owner != identity) { mutableState.value = FamilyControlState(busy = true); owner = identity; pairing.clear() }
         try {
+            store.read("selected-family:${identity.userId}")?.let { repository.showCachedWhileLoading(identity, it) }
+            requireCurrent(identity)
             val families = api.listFamilies()
             requireCurrent(identity)
             mutableState.value = state.value.copy(families = families)
