@@ -63,4 +63,17 @@ class LocationUiTest {
         compose.onNodeWithContentDescription("Last known place", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Sharing location").assertDoesNotExist()
     }
+
+    @Test fun mapHasLabelledZoomControlsAndAResetOnceMoved() {
+        val view = LocationViewState(LocationViewStatus.AVAILABLE, LocationStatus.SHARING,
+            listOf(LocationFix("2026-10-10T17:59:00Z", 41.0, -87.0, 15, LocationProvider.GPS)), System.currentTimeMillis())
+        compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentLocationScreen(view) } } }
+        compose.onNodeWithContentDescription("Reset map view").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Zoom in").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Reset map view").assertExists()
+        compose.onNodeWithContentDescription("Zoom out").performClick()
+        compose.onNodeWithContentDescription("Zoom out").performClick()
+        compose.onNodeWithContentDescription("Reset map view").performClick()
+        compose.onNodeWithContentDescription("Reset map view").assertDoesNotExist()
+    }
 }

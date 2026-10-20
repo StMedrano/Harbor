@@ -50,7 +50,10 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     BackHandler(sheet != null || deviceId != null || legalDoc != null) { sheet = null; deviceId = null; legalDoc = null }
     val canRevoke = !family.cached && !family.loading && family.failure == null && !control.busy
     val device = family.snapshot?.takeIf { it.membership.userId == identity.userId && it.membership.status == "active" }
-        ?.devices?.firstOrNull { it.id == deviceId }
+        ?.devices?.firstOrNull { it.id == deviceId && it.status != "revoked" }
+    // A revoked phone is gone from the parent's view: close its page instead of showing a dead device.
+    val openDeviceRevoked = deviceId != null && family.snapshot?.devices?.any { it.id == deviceId && it.status == "revoked" } == true
+    LaunchedEffect(openDeviceRevoked) { if (openDeviceRevoked) deviceId = null }
     if (deviceId != null) {
         if (device != null) {
             DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },

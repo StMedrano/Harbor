@@ -306,7 +306,7 @@ class MainActivity : ComponentActivity() {
                                 val snapshot = family?.snapshot
                                 val visibleDevice = tap.device?.let { reference -> snapshot?.takeIf {
                                     identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
-                                }?.devices?.firstOrNull { it.id == reference.id } }
+                                }?.devices?.firstOrNull { it.id == reference.id && it.status != "revoked" } }
                                 if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
                                 else if (identity != null && visibleDevice != null) {
                                     val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)

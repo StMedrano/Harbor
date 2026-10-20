@@ -619,7 +619,7 @@ class ParentApplication : Application() {
         if (currentIdentity() == null) authRepository?.restore()
         ensureContext()
         val accepted = notifications?.onTap(hint) == true
-        val device = if (accepted) familyViewModel?.repository?.state?.value?.snapshot?.devices?.firstOrNull { it.id == hint.route.deviceId } else null
+        val device = if (accepted) familyViewModel?.repository?.state?.value?.snapshot?.devices?.firstOrNull { it.id == hint.route.deviceId && it.status != "revoked" } else null
         if (profiles.isCurrent(lease)) mutableTap.value = ParentTapState(device, if (accepted) null else "This update is unavailable. Refresh your family or sign in again.")
         }; true }
     } }
