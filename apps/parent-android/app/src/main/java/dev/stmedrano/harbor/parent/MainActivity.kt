@@ -46,7 +46,21 @@ import dev.stmedrano.harbor.parent.ui.FamilyDestination
 import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
+import dev.stmedrano.harbor.parent.ui.ChildSetupGate
+import dev.stmedrano.harbor.parent.ui.PermissionSnapshot
+import dev.stmedrano.harbor.parent.ui.SetupGateMemory
+import dev.stmedrano.harbor.parent.ui.SetupStepId
+import dev.stmedrano.harbor.parent.ui.childSetupSteps
+import dev.stmedrano.harbor.parent.ui.finish
+import dev.stmedrano.harbor.parent.ui.observe
+import dev.stmedrano.harbor.parent.ui.setupComplete
+import dev.stmedrano.harbor.parent.ui.visible
+import dev.stmedrano.harbor.parent.child.ChildSyncState
+import androidx.compose.runtime.SideEffect
+import kotlinx.coroutines.delay
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberChildCheckInUi
+import dev.stmedrano.harbor.parent.ui.rememberParentCheckInView
 import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
 import dev.stmedrano.harbor.parent.ui.rememberChildAlertsUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
@@ -109,9 +123,11 @@ class MainActivity : ComponentActivity() {
                     if (expected != null && graph.profiles.isCurrent(expected)) graph.enableChildNotifications(expected)
                 }
                 val childTab = remember { mutableStateOf("Today") }
+                // The setup gate hides the bottom bar. Assume the gate until the child screen says otherwise, so the bar never flashes.
+                val childGateVisible = remember { mutableStateOf(!BuildConfig.CI_FIXTURE) }
                 val destination = entryState.destination()
-                val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME) {
-                    @Composable { HarborBottomBar(childNavItems(childTab.value) { childTab.value = it }) }
+                val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME && !childGateVisible.value) {
+                    @Composable { HarborBottomBar(childNavItems(childTab.value, withCheckIn = !BuildConfig.CI_FIXTURE) { childTab.value = it }) }
                 } else null
                 HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
                     transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -149,6 +165,43 @@ class MainActivity : ComponentActivity() {
                                 onOpenNotificationAccess = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
                                 onAllowSms = { smsPermission.launch(Manifest.permission.RECEIVE_SMS) },
                                 onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
+                            val notificationsOn = remember(lease) { mutableStateOf(areNotificationsOn()) }
+                            LaunchedEffect(lease, resumeTick.intValue) {
+                                while (true) {
+                                    notificationsOn.value = areNotificationsOn()
+                                    delay(3000)
+                                }
+                            }
+                            val checkInUi = if (BuildConfig.CI_FIXTURE) null else rememberChildCheckInUi(graph, lease, resumeTick.intValue)
+                            val gateLocation = locationUi
+                            val gateUsage = usageUi
+                            val gateSteps = if (gateLocation != null && gateUsage != null)
+                                childSetupSteps(PermissionSnapshot(gateLocation.access, notificationsOn.value, gateUsage.permissionGranted, alertsUi?.access)) else null
+                            val gateComplete = gateSteps?.let(::setupComplete) ?: true
+                            val gateMemory = remember(lease) { mutableStateOf(SetupGateMemory()) }
+                            if (gateSteps != null) LaunchedEffect(gateComplete) { gateMemory.value = gateMemory.value.observe(gateComplete) }
+                            val showGate = gateSteps != null && childState !is ChildSyncState.Blocked && gateMemory.value.visible(gateComplete)
+                            SideEffect { childGateVisible.value = showGate }
+                            if (showGate && gateSteps != null && gateLocation != null && gateUsage != null) {
+                                ChildSetupGate(gateSteps,
+                                    onTurnOn = { id ->
+                                        val access = gateLocation.access
+                                        when (id) {
+                                            SetupStepId.LOCATION -> if (!access.fineGranted) gateLocation.onAllowLocation() else gateLocation.onOpenLocationSettings()
+                                            SetupStepId.LOCATION_ALWAYS -> if (!access.fineGranted) gateLocation.onAllowLocation() else gateLocation.onAllowAllTheTime()
+                                            SetupStepId.NOTIFICATIONS ->
+                                                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                                    childPermissionRequest.value = lease
+                                                    childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                                } else openNotificationSettings()
+                                            SetupStepId.USAGE_ACCESS -> gateUsage.onOpenSettings()
+                                            SetupStepId.NOTIFICATION_ACCESS -> alertsUi?.onOpenNotificationAccess?.invoke()
+                                            SetupStepId.SMS -> alertsUi?.onAllowSms?.invoke()
+                                        }
+                                    },
+                                    onOpenAppSettings = gateLocation.onOpenAppSettings,
+                                    onFinish = { gateMemory.value = gateMemory.value.finish(gateComplete) })
+                            } else
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -159,7 +212,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, location = locationUi, alerts = alertsUi, tab = childTab.value,
+                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, tab = childTab.value, onSelectTab = { childTab.value = it },
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -255,12 +308,17 @@ class MainActivity : ComponentActivity() {
                                     val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
                                     val location = rememberParentLocationView(graph.parentLocation, identity, visibleDevice.id, resumeTick.intValue)
                                     val alerts = rememberParentAlertsView(graph.parentAlerts, identity, visibleDevice.id, resumeTick.intValue)
+                                    val checkIn = rememberParentCheckInView(graph.parentCheckIn, identity, visibleDevice.id, resumeTick.intValue)
+                                    val childName = snapshot?.children?.firstOrNull { it.id == visibleDevice.childId }?.displayName ?: "your child"
                                     DeviceScreen(visibleDevice,
                                         onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
                                         cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
                                         onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
                                         location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
-                                        alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                        alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        checkIn = checkIn, childName = childName,
+                                        onAskCheckIn = graph.parentCheckIn?.takeIf { family != null && !family.cached && !family.loading && family.failure == null }
+                                            ?.let { m -> { graph.accountScope.launch { m.ask(identity, visibleDevice.id) } } }) { graph.closeNotification() }
                                 }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
@@ -303,6 +361,12 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() { super.onStart(); (application as ParentApplication).foreground() }
     override fun onResume() { super.onResume(); resumeTick.intValue++ }
+    private fun areNotificationsOn(): Boolean = getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
+    private fun openNotificationSettings() {
+        try {
+            startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
+        } catch (_: Exception) { /* No settings screen to open. */ }
+    }
 
     private fun scrubCallback(intent: Intent): String? {
         val requested = intent.dataString

@@ -29,7 +29,8 @@ enum class HarborGlyph(val paths: List<String>) {
     TODAY(listOf(circle(12.0, 12.0, 8.5), "M12 7.5V12l3 2")),
     APPS(listOf(roundRect(4.0, 4.0, 7.0, 7.0, 2.0), roundRect(13.0, 4.0, 7.0, 7.0, 2.0),
         roundRect(4.0, 13.0, 7.0, 7.0, 2.0), roundRect(13.0, 13.0, 7.0, 7.0, 2.0))),
-    ABOUT(listOf("M12 21s-7-4.4-7-10V6l7-3 7 3v5c0 5.6-7 10-7 10z", "m9 12 2 2 4-4")),
+    CHECK_IN(listOf(circle(12.0, 12.0, 8.5), "M8.5 12.5l2.5 2.5 4.5-5")),
+    ABOUT(listOf(circle(12.0, 12.0, 8.5), "M12 11v5.5", "M12 7.6v.1")),
 }
 
 @Composable

@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select ok(to_regclass('private.device_checkins') is not null,'check-ins private');
+select ok(not has_table_privilege('anon','private.device_checkins','select'),'anonymous cannot read check-ins');
+select ok(not has_table_privilege('authenticated','private.device_checkins','select'),'parent cannot directly read check-ins');
+select ok(not has_function_privilege('authenticated','private.harbor_request_device_checkin(uuid,uuid,uuid)','execute'),'request helper server only');
+select ok(not has_function_privilege('authenticated','private.harbor_reply_device_checkin(uuid,uuid,uuid,uuid,jsonb,text)','execute'),'reply helper server only');
+select ok(not has_function_privilege('anon','private.harbor_purge_device_checkins()','execute'),'janitor server only');
+select ok((select relrowsecurity from pg_class where oid='private.device_checkins'::regclass),'RLS enabled');
+select is((select count(*)::int from cron.job where jobname='harbor-checkin-retention' and schedule='51 3 * * *'),1,'one daily named retention job');
+select ok(exists(select 1 from pg_trigger where tgname='device_checkin_revoke_cleanup' and not tgisinternal),'revoke deletes check-ins');
+select is((select count(*)::int from pg_indexes where schemaname='private' and tablename='device_checkins' and indexname='device_checkins_one_open'),1,'one open request per device is enforced');
+select * from finish();
+rollback;

@@ -18,13 +18,15 @@ class ChildNotificationRenderer(private val context: Context) {
         val intent = Intent(context, MainActivity::class.java).setAction(TAP_ACTION).putExtra("route", Json.encodeToString(route))
         val tap = PendingIntent.getActivity(context, route.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Harbor update").setContentText("Open Harbor to check your phone.")
+            .setContentTitle(if (route.kind == CHECKIN_KIND) "Check in" else "Harbor update")
+            .setContentText(if (route.kind == CHECKIN_KIND) "A parent asked you to check in. Open Harbor to answer." else "Open Harbor to check your phone.")
             .setContentIntent(tap).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build()
     }
     fun show(route: ParentRoute) { if (allowed()) manager.notify(route.hashCode(), build(route)) }
     fun clear() = manager.cancelAll()
     companion object {
         private const val CHANNEL = "harbor-child-updates"
+        private const val CHECKIN_KIND = "device.checkin.requested"
         const val TAP_ACTION = "dev.stmedrano.harbor.parent.CHILD_NOTIFICATION"
         fun consumeTap(intent: Intent): ParentRoute? {
             val extras = intent.extras

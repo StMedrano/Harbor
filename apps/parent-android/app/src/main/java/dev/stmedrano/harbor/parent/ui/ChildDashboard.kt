@@ -16,19 +16,19 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
 
 @Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit,
     notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null, usage: ChildUsageUi? = null,
-    location: ChildLocationUi? = null,
-    alerts: ChildAlertsUi? = null,
+    location: ChildLocationUi? = null, alerts: ChildAlertsUi? = null, checkIn: ChildCheckInUi? = null,
     /** When set, the caller owns tab selection and shows the tabs as a pinned bottom bar (see [childNavItems]). */
-    tab: String? = null) {
+    tab: String? = null, onSelectTab: ((String) -> Unit)? = null) {
     if (state is ChildSyncState.Blocked) {
         HarborNote("This phone needs a parent to check its setup.", HarborTone.WARN, emphasis = true)
         return
     }
     var localTab by remember(binding.deviceId) { mutableStateOf("Today") }
     val current = tab ?: localTab
+    val selectTab: (String) -> Unit = { name -> if (onSelectTab != null) { onSelectTab(name) } else { localTab = name } }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Your phone", style = MaterialTheme.typography.headlineSmall)
-        if (tab == null) HarborTabs(CHILD_TABS.map { title -> HarborTab(title, current == title) { localTab = title } })
+        if (tab == null) HarborTabs(childTabs(checkIn != null).map { title -> HarborTab(title, current == title) { localTab = title } })
         when (current) {
             "Today" -> {
                 HarborCard {
@@ -45,6 +45,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                         is ChildSyncState.Blocked -> Unit
                     }
                 }
+                checkIn?.state?.pending?.let { pending -> CheckInRequestBanner(pending) { selectTab(CHECK_IN_TAB) } }
                 HarborButton(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Sync now") }
                 if (location != null) LocationSetupPanel(location)
                 if (alerts != null) MessageAlertsPanel(alerts)
@@ -53,6 +54,7 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                     UsageTodayPanel(usage.view)
                 }
             }
+            CHECK_IN_TAB -> if (checkIn != null) CheckInScreen(checkIn) else Text("Check-ins are starting. Try again in a moment.")
             "Apps" -> if (usage != null) UsageAppsPanel(usage.view) else Text("App information is not available yet.")
             "About" -> {
                 HarborCard {
@@ -75,10 +77,14 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
     }
 }
 
+const val CHECK_IN_TAB = "Check in"
 val CHILD_TABS = listOf("Today", "Apps", "About")
+/** The Check in tab exists only where check-ins are available, so builds without them keep the original three. */
+fun childTabs(withCheckIn: Boolean) = if (withCheckIn) listOf("Today", CHECK_IN_TAB, "Apps", "About") else CHILD_TABS
 
-fun childNavItems(selected: String, onSelect: (String) -> Unit) = listOf(
-    HarborNavItem("Today", HarborGlyph.TODAY, selected == "Today") { onSelect("Today") },
-    HarborNavItem("Apps", HarborGlyph.APPS, selected == "Apps") { onSelect("Apps") },
-    HarborNavItem("About", HarborGlyph.ABOUT, selected == "About") { onSelect("About") },
-)
+fun childNavItems(selected: String, withCheckIn: Boolean = false, onSelect: (String) -> Unit) = buildList {
+    add(HarborNavItem("Today", HarborGlyph.TODAY, selected == "Today") { onSelect("Today") })
+    if (withCheckIn) add(HarborNavItem(CHECK_IN_TAB, HarborGlyph.CHECK_IN, selected == CHECK_IN_TAB) { onSelect(CHECK_IN_TAB) })
+    add(HarborNavItem("Apps", HarborGlyph.APPS, selected == "Apps") { onSelect("Apps") })
+    add(HarborNavItem("About", HarborGlyph.ABOUT, selected == "About") { onSelect("About") })
+}
