@@ -27,6 +27,12 @@ class ParentLocationModelTest {
         assertTrue(view.isStale(nowMs + LOCATION_STALE_AFTER_MS + 31_000))
     }
 
+    @Test fun aFreshStatusReportCannotMakeAnOldPlaceLookCurrent() = runTest {
+        val model = ParentLocationModel({ reply("2026-10-10T15:00:00Z", received = "2026-10-10T17:59:30Z") }, { parentA }, { nowMs })
+        model.load(parentA, device)
+        assertTrue(checkNotNull(model.state.value).view.isStale(nowMs))
+    }
+
     @Test fun failureKeepsPreviousPlaceMarkedOfflineAndAccessLossDropsIt() = runTest {
         var mode = 0
         val model = ParentLocationModel({ when (mode) { 0 -> reply("2026-10-10T17:59:00Z"); 1 -> throw java.io.IOException("offline"); else -> throw FamilyAccessDenied() } }, { parentA }, { nowMs })

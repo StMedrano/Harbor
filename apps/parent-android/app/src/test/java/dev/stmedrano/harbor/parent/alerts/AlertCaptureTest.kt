@@ -68,7 +68,7 @@ class AlertCaptureCoreTest {
         assertEquals(listOf(AlertCategory.SELF_HARM, AlertCategory.VIOLENCE_THREAT), alerts.map { it.category })
         for (a in alerts) {
             assertEquals("Instagram", a.appLabel)
-            assertEquals(1, a.ruleSetVersion)
+            assertEquals(2, a.ruleSetVersion)
             assertFalse(a.savedContact)
             validateMessageAlert(a) // passes the contract's per-alert checks
         }
@@ -99,5 +99,76 @@ class AlertCaptureCoreTest {
             assertFalse(rendered.contains(text.lowercase()))
             for (word in text.lowercase().split(Regex("\\s+")).filter { it.length >= 3 }) assertFalse(word, rendered.contains(word))
         }
+    }
+}
+
+class AlertCaptureAnyTest {
+    private val core = AlertCaptureCore(now = { 1_700_000_000_000L })
+    @Test fun sameConcernInSeveralFieldsIsOneAlert() {
+        val alerts = core.captureAny("com.google.android.apps.messaging", listOf("send nudes", "send nudes", null, "see you at five"), false, false)
+        assertEquals(listOf(AlertCategory.ADULT_CONTENT), alerts.map { it.category })
+    }
+    @Test fun aBenignSummaryDoesNotHideAConcerningNewestMessage() {
+        val alerts = core.captureAny("com.whatsapp", listOf("2 new messages", null, "you are stupid"), false, false)
+        assertEquals(listOf(AlertCategory.BULLYING), alerts.map { it.category })
+    }
+    @Test fun differentConcernsInDifferentFieldsAreAllReported() {
+        val alerts = core.captureAny("com.whatsapp", listOf("i want to die", "bring a gun tomorrow"), false, false)
+        assertEquals(setOf(AlertCategory.SELF_HARM, AlertCategory.VIOLENCE_THREAT), alerts.map { it.category }.toSet())
+    }
+}
+
+class AlertCaptureBridgeTest {
+    private fun alert(category: AlertCategory = AlertCategory.BULLYING, label: String = "Messages", id: String = java.util.UUID.randomUUID().toString()) =
+        MessageAlert(id, label, category, 2, "2026-10-20T16:00:00Z", false)
+    @org.junit.Before fun reset() = AlertCaptureBridge.resetForTest()
+    @org.junit.After fun after() = AlertCaptureBridge.resetForTest()
+
+    @Test fun alertsRaisedBeforeTheRuntimeStartsAreHandedOverOnInstall() {
+        val got = mutableListOf<MessageAlert>()
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 1_000)
+        AlertCaptureBridge.install({ got += it }, nowMs = 5_000)
+        assertEquals(1, got.size)
+    }
+    @Test fun heldAlertsExpire() {
+        val got = mutableListOf<MessageAlert>()
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 1_000)
+        AlertCaptureBridge.install({ got += it }, nowMs = 1_000 + AlertCaptureBridge.HOLD_MS + 1)
+        assertTrue(got.isEmpty())
+    }
+    @Test fun clearingDropsHeldAlertsSoANonChildPhoneKeepsNothing() {
+        val got = mutableListOf<MessageAlert>()
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 1_000)
+        AlertCaptureBridge.clear()
+        AlertCaptureBridge.install({ got += it }, nowMs = 2_000)
+        assertTrue(got.isEmpty())
+    }
+    @Test fun holdingIsBounded() {
+        val got = mutableListOf<MessageAlert>()
+        repeat(AlertCaptureBridge.HOLD_MAX + 10) { i ->
+            AlertCaptureBridge.submit(listOf(alert(label = "App$i")), nowMs = 1_000L + i)
+        }
+        AlertCaptureBridge.install({ got += it }, nowMs = 2_000)
+        assertEquals(AlertCaptureBridge.HOLD_MAX, got.size)
+    }
+    @Test fun theSmsAndItsNotificationAreOneAlert() {
+        val got = mutableListOf<MessageAlert>()
+        AlertCaptureBridge.install({ got += it }, nowMs = 0)
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 10_000)
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 11_500)
+        assertEquals(1, got.size)
+    }
+    @Test fun theSameConcernAgainLaterIsANewAlert() {
+        val got = mutableListOf<MessageAlert>()
+        AlertCaptureBridge.install({ got += it }, nowMs = 0)
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 10_000)
+        AlertCaptureBridge.submit(listOf(alert()), nowMs = 10_000 + AlertCaptureBridge.DUPLICATE_WINDOW_MS + 1)
+        assertEquals(2, got.size)
+    }
+    @Test fun otherCategoriesAndAppsAreNotDuplicates() {
+        val got = mutableListOf<MessageAlert>()
+        AlertCaptureBridge.install({ got += it }, nowMs = 0)
+        AlertCaptureBridge.submit(listOf(alert(AlertCategory.BULLYING), alert(AlertCategory.SELF_HARM), alert(AlertCategory.BULLYING, label = "WhatsApp")), nowMs = 10_000)
+        assertEquals(3, got.size)
     }
 }

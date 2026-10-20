@@ -74,8 +74,90 @@ object AlertRuleSets {
         ),
     )
 
-    private val byVersion = listOf(V1).associateBy { it.version }
+    /**
+     * Version 2 keeps every version 1 phrase and adds the everyday wordings a child or an adult stranger actually
+     * types: more insults aimed at "you", more first-person self-harm wording, threats with weapons, drug and
+     * alcohol asks, and the usual asks from an unknown adult. Phrases stay multi-word and directed ("you are
+     * stupid", not "stupid") so ordinary talk, school topics and jokes still do not alert.
+     */
+    val V2: AlertRuleSet = AlertRuleSet(
+        version = 2,
+        rules = V1.rules + listOf(
+            // Bullying / harassment.
+            rule(AlertCategory.BULLYING, "no", "one", "likes", "you"),
+            rule(AlertCategory.BULLYING, "you", "are", "stupid"),
+            rule(AlertCategory.BULLYING, "youre", "stupid"),
+            rule(AlertCategory.BULLYING, "you", "are", "a", "loser"),
+            rule(AlertCategory.BULLYING, "youre", "a", "loser"),
+            rule(AlertCategory.BULLYING, "you", "are", "pathetic"),
+            rule(AlertCategory.BULLYING, "youre", "pathetic"),
+            rule(AlertCategory.BULLYING, "you", "are", "fat"),
+            rule(AlertCategory.BULLYING, "youre", "fat"),
+            rule(AlertCategory.BULLYING, "you", "are", "a", "freak"),
+            rule(AlertCategory.BULLYING, "youre", "a", "freak"),
+            rule(AlertCategory.BULLYING, "hope", "you", "die"),
+            rule(AlertCategory.BULLYING, "i", "hate", "you"),
+            rule(AlertCategory.BULLYING, "you", "should", "just", "die"),
+            // Self-harm / wellbeing.
+            rule(AlertCategory.SELF_HARM, "i", "wanna", "die"),
+            rule(AlertCategory.SELF_HARM, "i", "want", "to", "be", "dead"),
+            rule(AlertCategory.SELF_HARM, "i", "wish", "i", "was", "dead"),
+            rule(AlertCategory.SELF_HARM, "i", "wish", "i", "were", "dead"),
+            rule(AlertCategory.SELF_HARM, "i", "dont", "want", "to", "live"),
+            rule(AlertCategory.SELF_HARM, "i", "dont", "want", "to", "be", "here"),
+            rule(AlertCategory.SELF_HARM, "i", "want", "to", "disappear"),
+            rule(AlertCategory.SELF_HARM, "i", "want", "to", "hurt", "myself"),
+            rule(AlertCategory.SELF_HARM, "cutting", "myself"),
+            rule(AlertCategory.SELF_HARM, "im", "suicidal"),
+            rule(AlertCategory.SELF_HARM, "i", "am", "suicidal"),
+            rule(AlertCategory.SELF_HARM, "thinking", "about", "suicide"),
+            rule(AlertCategory.SELF_HARM, "going", "to", "kill", "myself"),
+            rule(AlertCategory.SELF_HARM, "better", "off", "without", "me"),
+            rule(AlertCategory.SELF_HARM, "i", "hate", "myself"),
+            // Adult content.
+            rule(AlertCategory.ADULT_CONTENT, "nudes"),
+            rule(AlertCategory.ADULT_CONTENT, "send", "a", "nude"),
+            rule(AlertCategory.ADULT_CONTENT, "send", "me", "a", "nude"),
+            rule(AlertCategory.ADULT_CONTENT, "send", "me", "pics", "of", "your", "body"),
+            rule(AlertCategory.ADULT_CONTENT, "show", "me", "your", "body"),
+            rule(AlertCategory.ADULT_CONTENT, "dick", "pic"),
+            rule(AlertCategory.ADULT_CONTENT, "dick", "pics"),
+            rule(AlertCategory.ADULT_CONTENT, "sext", "me"),
+            // Drugs / alcohol.
+            rule(AlertCategory.DRUGS_ALCOHOL, "buy", "drugs"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "sell", "drugs"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "sell", "weed"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "got", "weed"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "get", "weed"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "get", "wasted"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "get", "stoned"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "do", "cocaine"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "take", "molly"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "buy", "alcohol"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "buy", "vodka"),
+            rule(AlertCategory.DRUGS_ALCOHOL, "steal", "alcohol"),
+            // Violence / threats.
+            rule(AlertCategory.VIOLENCE_THREAT, "shoot", "you"),
+            rule(AlertCategory.VIOLENCE_THREAT, "stab", "you"),
+            rule(AlertCategory.VIOLENCE_THREAT, "bring", "a", "gun"),
+            rule(AlertCategory.VIOLENCE_THREAT, "going", "to", "kill", "everyone"),
+            rule(AlertCategory.VIOLENCE_THREAT, "shoot", "up", "the", "school"),
+            rule(AlertCategory.VIOLENCE_THREAT, "bomb", "the", "school"),
+            // Contact from an unknown adult. Only fires for non-saved contacts.
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "dont", "tell", "anyone"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "are", "you", "alone"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "are", "your", "parents", "home"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "delete", "this", "message"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "delete", "these", "messages"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "meet", "me", "alone"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "whats", "your", "address"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "do", "you", "have", "a", "boyfriend"),
+            rule(AlertCategory.UNKNOWN_ADULT_CONTACT, "do", "you", "have", "a", "girlfriend"),
+        ),
+    )
 
-    fun latest(): AlertRuleSet = V1
+    private val byVersion = listOf(V1, V2).associateBy { it.version }
+
+    fun latest(): AlertRuleSet = V2
     fun forVersion(version: Int): AlertRuleSet? = byVersion[version]
 }

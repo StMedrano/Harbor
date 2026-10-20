@@ -102,7 +102,36 @@ class MessageClassifierTest {
         neg("great game today, proud of you"),
     )
 
-    private fun allCases() = bullying + selfHarm + adult + drugs + violence + unknownAdult + obfuscated + multi + benign
+    // Everyday wordings added in rule set 2, with look-alikes that must stay quiet.
+    private val v2 = listOf(
+        pos("you are stupid", BULLYING),
+        pos("youre a loser", BULLYING),
+        pos("i hope you die", BULLYING),
+        pos("i hate you", BULLYING),
+        pos("no one likes you", BULLYING),
+        pos("i wanna die", SELF_HARM),
+        pos("i dont want to live anymore", SELF_HARM),
+        pos("i hate myself", SELF_HARM),
+        pos("i have been cutting myself", SELF_HARM),
+        pos("got any nudes", ADULT_CONTENT),
+        pos("show me your body", ADULT_CONTENT),
+        pos("lets get wasted tonight", DRUGS_ALCOHOL),
+        pos("i can sell drugs", DRUGS_ALCOHOL),
+        pos("im going to shoot you", VIOLENCE_THREAT),
+        pos("bring a gun tomorrow", VIOLENCE_THREAT),
+        pos("are you alone right now", UNKNOWN_ADULT_CONTACT),
+        pos("delete this message ok", UNKNOWN_ADULT_CONTACT),
+        posSaved("are you alone right now"),
+        neg("that quiz was so stupid"),
+        neg("im so stupid for forgetting my charger"),
+        neg("we should go die hard marathon this weekend"),
+        neg("my uncle says dont do drugs"),
+        neg("i cut myself a slice of cake"),
+        neg("a freak accident closed the road"),
+        neg("we pulled weeds out of the garden"),
+    )
+
+    private fun allCases() = v2 + bullying + selfHarm + adult + drugs + violence + unknownAdult + obfuscated + multi + benign
 
     @Test fun everyFixtureMapsToExactlyItsExpectedCategories() {
         for (case in allCases()) {
@@ -121,7 +150,7 @@ class MessageClassifierTest {
 
     @Test fun reportsTheRuleSetVersionOnEveryClassification() {
         val expected = AlertRuleSets.latest().version
-        assertEquals(1, expected)
+        assertEquals(2, expected)
         for (case in allCases()) assertEquals(expected, classifier.classify(case.text, case.savedContact).ruleSetVersion)
     }
 
@@ -135,8 +164,10 @@ class MessageClassifierTest {
             val result = classifier.classify(case.text, case.savedContact)
             val payload = (result.categories.map { it.name } + result.ruleSetVersion.toString()).joinToString("|").lowercase()
             assertFalse("leaked raw text for <${case.text}>", payload.contains(case.text.lowercase()))
-            for (word in case.text.lowercase().split(Regex("\\s+")).filter { it.length >= 3 }) {
-                assertFalse("leaked word <$word> for <${case.text}>", payload.contains(word))
+            val vocabulary = AlertCategory.values().flatMap { it.name.lowercase().split("_") }.toSet()
+            // Whole words only: "now" inside "unknown" is not a leak, and a word that is itself part of the fixed category vocabulary is not either.
+            for (word in case.text.lowercase().split(Regex("\\s+")).filter { it.length >= 3 && it !in vocabulary }) {
+                assertFalse("leaked word <$word> for <${case.text}>", payload.split(Regex("[^a-z0-9]+")).contains(word))
             }
         }
     }
@@ -144,5 +175,21 @@ class MessageClassifierTest {
     @Test fun selfHarmAndBullyingAreNotConfusedAcrossFirstAndSecondPerson() {
         assertEquals(setOf(SELF_HARM), classifier.classify("i want to kill myself", false).categories.toSet())
         assertEquals(setOf(BULLYING), classifier.classify("you should kill yourself", false).categories.toSet())
+    }
+}
+
+class AlertRuleSetVersionsTest {
+    @Test fun versionOneStillResolvesAndVersionTwoOnlyAddsRules() {
+        val v1 = AlertRuleSets.forVersion(1)!!
+        val v2 = AlertRuleSets.forVersion(2)!!
+        assertTrue(v2.rules.containsAll(v1.rules))
+        assertTrue(v2.rules.size > v1.rules.size)
+        assertEquals(v2, AlertRuleSets.latest())
+    }
+    @Test fun anOlderRuleSetStillClassifiesWithItsOwnPhrases() {
+        val old = MessageClassifier(AlertRuleSets.forVersion(1)!!)
+        assertEquals(setOf(BULLYING), old.classify("just kill yourself already", false).categories.toSet())
+        assertTrue(old.classify("you are stupid", false).categories.isEmpty())
+        assertEquals(1, old.classify("kys", false).ruleSetVersion)
     }
 }

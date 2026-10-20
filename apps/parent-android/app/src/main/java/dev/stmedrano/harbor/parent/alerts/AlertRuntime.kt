@@ -40,7 +40,7 @@ class ChildAlertHost(
         if (active != null) halt()
         if (lease.role == ProfileRole.CHILD) {
             active = lease
-            AlertCaptureBridge.install { alerts -> scope.launch { onAlerts(lease, alerts) } }
+            AlertCaptureBridge.install(AlertSink { alerts -> scope.launch { onAlerts(lease, alerts) } })
         }
         lastFlushMs = 0L
         mutableState.value = AlertHostState()
@@ -81,5 +81,5 @@ class ChildAlertHost(
         catch (_: Exception) { if (valid(lease)) mutableState.value = mutableState.value.copy(uploadFailing = true) }
     }
 
-    companion object { const val FLUSH_INTERVAL_MS = 60_000L }
+    companion object { const val FLUSH_INTERVAL_MS = 5_000L }
 }
