@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 @Composable fun FamilyEntryScreen(onParent: () -> Unit, onChild: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         HarborBrand()
-        Text("Welcome to Harbor Family", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        Text("Welcome", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         Text("Who will use this phone?", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         HarborButton(onParent, Modifier.fillMaxWidth()) { Text("Parent") }
         Text("Sign in or create an account to manage your family.", style = MaterialTheme.typography.bodySmall,

@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,15 +33,15 @@ private const val TRAIL_MAX_POINTS = 60
  * A stale place is drawn grey so it never looks live.
  */
 @Composable
-fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, modifier: Modifier = Modifier) {
+fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, modifier: Modifier = Modifier, accent: Color = Color.Unspecified) {
     val latest = fixes.firstOrNull() ?: return
     val latestMs = locationInstantMs(latest.at)
     val trail = remember(fixes) { fixes.filter { latestMs - locationInstantMs(it.at) <= TRAIL_WINDOW_MS }.take(TRAIL_MAX_POINTS) }
     val loader = remember { OsmTileLoader() }
-    val primary = MaterialTheme.colorScheme.primary
-    val ink = if (stale) MaterialTheme.colorScheme.outline else primary
+    val primary = if (accent == Color.Unspecified) MaterialTheme.colorScheme.primary else accent
+    val ink = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else primary
     val land = MaterialTheme.colorScheme.surfaceVariant
-    BoxWithConstraints(modifier.fillMaxWidth().height(260.dp).semantics { contentDescription = description }) {
+    BoxWithConstraints(modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(16.dp)).semantics { contentDescription = description }) {
         val density = LocalDensity.current
         val width = with(density) { maxWidth.toPx() }.toDouble()
         val height = with(density) { maxHeight.toPx() }.toDouble()
@@ -71,12 +73,13 @@ fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, m
             }
             val here = at(latest)
             drawCircle(ink.copy(alpha = 0.16f), radius = MapMath.accuracyRadiusPx(latest.accuracyM, latest.latitude, zoom).toFloat(), center = here)
-            drawCircle(Color.White, radius = 9.dp.toPx(), center = here)
-            drawCircle(ink, radius = 6.dp.toPx(), center = here)
+            drawCircle(Color.White, radius = 14.dp.toPx(), center = here)
+            drawCircle(ink, radius = 11.dp.toPx(), center = here)
         }
         Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilledTonalIconButton({ zoom = (zoom + 1).coerceAtMost(MapMath.MAX_ZOOM) }, enabled = zoom < MapMath.MAX_ZOOM) { Text("+") }
-            FilledTonalIconButton({ zoom = (zoom - 1).coerceAtLeast(MapMath.MIN_ZOOM) }, enabled = zoom > MapMath.MIN_ZOOM) { Text("−") }
+            val zoomColors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)
+            FilledTonalIconButton({ zoom = (zoom + 1).coerceAtMost(MapMath.MAX_ZOOM) }, enabled = zoom < MapMath.MAX_ZOOM, colors = zoomColors) { Text("+") }
+            FilledTonalIconButton({ zoom = (zoom - 1).coerceAtLeast(MapMath.MIN_ZOOM) }, enabled = zoom > MapMath.MIN_ZOOM, colors = zoomColors) { Text("−") }
         }
         val uri = LocalUriHandler.current
         Surface(Modifier.align(Alignment.BottomEnd).padding(4.dp).clickable { runCatching { uri.openUri(OsmTileLoader.COPYRIGHT_URL) } },

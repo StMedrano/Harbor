@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "epochId": "4d7c1a52-93be-4f10-a6c8-2b5e7d9f0a31",
+  "sequence": 3,
+  "observedAt": "2026-10-10T18:00:00Z",
+  "notificationAccess": true,
+  "smsPermission": false,
+  "alerts": [
+    { "id": "0c5e8f12-7a34-4b6d-9e21-5f3a8c1d2b40", "appLabel": "Messenger", "category": "bullying", "ruleSetVersion": 1, "at": "2026-10-10T17:41:00Z", "savedContact": true },
+    { "id": "7e2b9d64-1c85-4f03-b7a9-6d4e0a3c5f18", "appLabel": "Messages", "category": "unknown_adult_contact", "ruleSetVersion": 1, "at": "2026-10-10T17:52:30Z", "savedContact": false }
+  ]
+}

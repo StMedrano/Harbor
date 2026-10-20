@@ -19,7 +19,7 @@ fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntim
         HarborPanel("Notifications") {
             Text(if (notifications.confirmed) "Registration confirmed" else "Registration unconfirmed", style = MaterialTheme.typography.titleMedium)
             Text("Notifications contain a generic hint. Harbor checks current access before showing family details.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            notifications.message?.let { Text(it) }
+            notifications.message?.let { HarborNote(it, HarborTone.INFO) }
             HarborButton(onEnable, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Enable notifications") }
             HarborOutlinedButton(onRemove, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Remove notification registration") }
         }
@@ -28,7 +28,7 @@ fun SettingsScreen(notifications: ParentNotificationState, runtime: ParentRuntim
                 modifier = Modifier.fillMaxWidth()) { Text("Sign out this device") }
             if (runtime.signingOut) Text("Signing out…")
             if (runtime.cleanupConfirmed) Text("Current-device cleanup confirmed.")
-            if (!available) Text("Sign in to manage this device. Live actions are disabled in the offline preview.")
+            if (!available) HarborNote("Sign in to manage this device. Live actions are disabled in the offline preview.", HarborTone.WARN)
             onChangeRole?.let { change ->
                 HarborOutlinedButton(change, enabled = available && !runtime.signingOut,
                     modifier = Modifier.fillMaxWidth()) { Text("Change this phone's role") }
