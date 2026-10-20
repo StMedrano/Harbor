@@ -1,27 +1,27 @@
 // PARENT experience: map, alerts, controls, activity, family. Mounted only for role === 'parent'.
 import { api, ApiError } from './api.js';
-import { mountMap } from './map.js';
 import { toUsageView, renderUsageView } from './usage-view.js';
+import { toLocationView, renderLocationView } from './location-view.js';
+import { toAlertsView, renderAlertsList, renderAlertDetail } from './alerts-view.js';
 import { $, e, fmt, clock, when, ago, LOGO, toast, open, shut, sw, fld, form, emptyCard } from './common.js';
 
-const SEV = { h: 'High', m: 'Medium', l: 'Low' };
 const ico = { map: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', alerts: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>', controls: '<rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M12 8v4l2.5 1.5"/>', activity: '<path d="M3 12h4l2.5-6 5 12 2.5-6h4"/>', family: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 19a4 4 0 0 1 6.5-3.1"/>' };
 const TABS = { map: 'Map', alerts: 'Alerts', controls: 'Controls', activity: 'Activity', family: 'Family' };
 
-const S = { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview', usage: null };
+const S = { user: null, children: [], settings: {}, k: null, tab: 'map', act: 'overview', usage: null, location: null, alerts: null };
 let cb = {};
 const kid = () => S.children.find(c => c.id === S.k) || null;
 
 /* ───────────── data loading ───────────── */
 function handle(x) { if (x && x.code === 'unauthenticated') { cb.onExpired && cb.onExpired(); return true; } return false; }
 async function loadApp() {
-  try { [S.children, S.alerts, S.settings] = await Promise.all([api.listChildren(), api.listAlerts(), api.getSettings()]); }
+  try { [S.children, S.settings] = await Promise.all([api.listChildren(), api.getSettings()]); }
   catch (x) { if (!handle(x)) toast('Couldn\u2019t load your family. Check your connection.'); return; }
   if (!S.children.some(c => c.id === S.k)) S.k = S.children[0] ? S.children[0].id : null;
   S.tab = S.children.length ? 'map' : 'family';
   $('#shell').hidden = false; render(1);
 }
-async function refresh() { try { S.children = await api.listChildren(); S.alerts = await api.listAlerts(); } catch (x) { handle(x); } }
+async function refresh() { try { S.children = await api.listChildren(); } catch (x) { handle(x); } }
 function patch(k, p) { Object.assign(k, p); api.updateChild(k.id, p).catch(async x => { if (!handle(x)) { toast('Couldn\u2019t save that change.'); await refresh(); render(); } }); }
 
 /* ───────────── views ───────────── */
@@ -29,20 +29,62 @@ function noKids() {
   return `<div class="empty"><h2>Add your first child</h2><p class="sm" style="margin:6px 0 16px">Pair a child\u2019s phone to see location, set limits and get safety alerts.</p><button class="btn p" data-a="addkid">Add a child</button></div>`;
 }
 
+/* ───────────── location and alerts (read-only, memory only, scoped to parent + child + device) ───────────── */
+const devKey = k => (k && k.device && S.user ? `${S.user.id}|${k.id}|${k.device.id || k.id}` : null);
+const seqs = { location: 0, alerts: 0 };
+const scoped = (kind, k) => (S[kind] && S[kind].key === devKey(k) ? S[kind] : null);
+/** Loads one read model for the selected device. A reply that lands after a child switch or sign-out is dropped. */
+async function loadDev(kind, k, { force = false, more = false } = {}) {
+  const key = devKey(k); if (!key) return;
+  const prev = scoped(kind, k);
+  if (!force && !more && prev) return;
+  const seq = ++seqs[kind];
+  S[kind] = { key, reply: prev ? prev.reply : null, loading: true, offline: false };
+  try {
+    let reply;
+    if (kind === 'location') reply = await api.getDeviceLocation(k.device.id || k.id);
+    else {
+      const before = more && prev && prev.reply ? toAlertsView(prev.reply).nextBefore : null;
+      const page = await api.getDeviceAlerts(k.device.id || k.id, before);
+      reply = more && prev && prev.reply ? [...prev.reply, page] : [page];
+    }
+    if (seq !== seqs[kind] || devKey(kid()) !== key) return;
+    S[kind] = { key, reply };
+  } catch (x) {
+    if (seq !== seqs[kind] || devKey(kid()) !== key) return;
+    if (handle(x)) { S[kind] = null; return; }
+    // Lost access replaces what was shown; it never keeps stale data on screen.
+    S[kind] = ['forbidden', 'not_found', 'device_revoked'].includes(x && x.code)
+      ? { key, reply: null, denied: true }
+      : { key, reply: prev ? prev.reply : null, offline: true };
+  }
+  render();
+}
+function devSection(kind, k, label, body) {
+  const u = scoped(kind, k), btn = `<button class="btn o" style="width:100%;margin-top:12px" data-a="devrefresh" data-v="${kind}">Refresh ${label}</button>`;
+  if (u && u.denied) return emptyCard('No access', `You no longer have access to this device’s ${label}.`);
+  if (!u || (u.loading && !u.reply)) return emptyCard(`Loading ${label}`, 'Checking the last report from the phone.');
+  if (!u.reply) return emptyCard(`Couldn’t load ${label}`, 'Check your connection and try again.') + btn;
+  return body(u.reply, !!u.offline) + btn;
+}
+
 function mapView() {
-  const k = kid(), L = k.location, D = k.device, low = D && D.battery != null && D.battery <= 20;
-  return `<div class="head"><h1>Location</h1></div><div class="mapbox" id="map" role="region" aria-label="Map"></div>
-<div class="lh"><span class="av" style="background:${e(k.color)}">${e(k.name[0])}</span><div><h2>${L ? `${e(k.name)} is at ${e(L.place || 'an unnamed place')}` : `No location for ${e(k.name)} yet`}</h2><div class="muted sm">${L ? `Updated ${ago(L.updatedAt)}` : D ? 'Waiting for the first location update' : 'Pair their device to get started'}</div></div></div>
-${D ? `<div class="stats">${D.battery != null ? `<span class="${low ? 'low' : ''}"><span class="batt"><i style="width:${+D.battery}%"></i></span>${+D.battery}%${low ? ' · low' : ''}</span>` : ''}<span>${e(D.model)}</span>${D.lastSeenAt ? `<span>Last seen ${ago(D.lastSeenAt)}</span>` : ''}</div>` : '<div class="stats"></div>'}
-<div class="two"><button class="btn p" data-a="cmd" data-v="checkin" ${D ? '' : 'disabled'}>Ask to check in</button><button class="btn o" data-a="cmd" data-v="ring" ${D ? '' : 'disabled'}>Ring phone</button></div>
-${k.timeline.length ? `<div class="lab">Today</div><ul class="tl">${k.timeline.map(x => `<li class="${x.driving ? 'dr' : ''}"><time>${clock(x.time)}</time><div>${e(x.text)}</div></li>`).join('')}</ul>` : ''}`;
+  const k = kid(), head = '<div class="head"><h1>Location</h1></div>';
+  if (!k.device) return head + `<div class="mapbox" id="map">Pair ${e(k.name)}’s phone to see places.</div>` + emptyCard(`No location for ${e(k.name)} yet`, 'Pair their device to get started.');
+  return head + devSection('location', k, 'location', (reply, offline) => renderLocationView(toLocationView(reply, Date.now(), { offline }), { name: k.name, color: k.color, initial: k.name[0] }));
 }
 
 function alertsView() {
-  const k = kid(), l = S.alerts.filter(a => a.childId === k.id && (S.af === 'all' || !a.reviewed)).sort((a, b) => a.reviewed - b.reviewed || 'hml'.indexOf(a.severity) - 'hml'.indexOf(b.severity) || new Date(b.time) - new Date(a.time));
-  return `<div class="head"><h1>Alerts</h1><div class="seg">${[['open', 'Needs review'], ['all', 'All']].map(([v, t]) => `<button data-a="af" data-v="${v}" aria-selected="${S.af === v}">${t}</button>`).join('')}</div></div>` +
-    (l.length ? l.map(a => `<button class="al ${a.reviewed ? 'done' : ''}" data-a="alert" data-id="${e(a.id)}"><span class="sev ${e(a.severity)}"></span><span><span class="at"><span>${e(a.app)} · ${when(a.time)}</span><span class="tag ${e(a.severity)}">${a.reviewed ? 'Reviewed' : SEV[a.severity] || ''}</span></span><b style="display:block;margin:2px 0">${e(a.category)}</b><span class="ab">${a.lines.map(x => e(x.text)).join(' · ')}</span></span></button>`).join('')
-      : emptyCard('All caught up', `No alerts need review for ${e(k.name)}. Harbor will tell you if something comes up.`));
+  const k = kid(), head = '<div class="head"><h1>Alerts</h1></div>';
+  if (!k.device) return head + emptyCard('No device paired', `Pair ${e(k.name)}’s phone to get message alerts.`);
+  return head + devSection('alerts', k, 'alerts', (reply, offline) => renderAlertsList(toAlertsView(reply, { offline }), { name: k.name }));
+}
+/** Possible concerns from the last 24 hours on the selected child's device, for the tab badge. */
+function recentAlerts() {
+  const k = kid(), u = scoped('alerts', k);
+  if (!u || !u.reply) return 0;
+  const v = toAlertsView(u.reply);
+  return v.status === 'available' ? v.alerts.filter(a => Date.now() - Date.parse(a.at) < 86400000).length : 0;
 }
 
 function controlsView() {
@@ -84,7 +126,12 @@ async function loadUsage(k, force) {
   }
   render();
 }
-const onVisible = () => { const k = kid(); if (document.visibilityState === 'visible' && S.tab === 'activity' && S.act === 'overview' && k && k.device) { loadUsage(k, true).then(() => 0); } };
+const onVisible = () => {
+  const k = kid(); if (document.visibilityState !== 'visible' || !k || !k.device) return;
+  if (S.tab === 'activity' && S.act === 'overview') loadUsage(k, true).then(() => 0);
+  if (S.tab === 'map') loadDev('location', k, { force: true });
+  if (S.tab === 'alerts') loadDev('alerts', k, { force: true });
+};
 
 function activityView() {
   const k = kid(), T = [['overview', 'Overview'], ['calls', 'Calls'], ['msgs', 'Messages'], ['web', 'Web']]; let b = '';
@@ -122,8 +169,9 @@ function render(en) {
   v.innerHTML = S.tab === 'family' ? familyView() : kid() ? VIEWS[S.tab]() : noKids();
   v.scrollTop = keep;
   if (S.tab === 'activity' && S.act === 'overview' && kid() && kid().device) loadUsage(kid());
-  if (S.tab === 'map' && kid()) mountMap($('#map'), kid());
-  const n = S.alerts.filter(a => !a.reviewed).length;
+  if (S.tab === 'map' && kid() && kid().device) loadDev('location', kid());
+  if (S.tab === 'alerts' && kid() && kid().device) loadDev('alerts', kid());
+  const n = recentAlerts();
   $('#tabs').innerHTML = Object.keys(TABS).map(t => `<button class="tab" data-a="tab" data-v="${t}" ${S.tab === t ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ico[t]}</svg><span>${TABS[t]}</span>${t === 'alerts' && n ? `<i class="badge" style="font-style:normal">${n}</i>` : ''}</button>`).join('');
 }
 
@@ -138,16 +186,16 @@ const onClick = async ev => {
       case 'signout': await api.signOut(); cb.onSignOut && cb.onSignOut(); return;
       case 'tab': S.tab = v; break;
       case 'kid': S.k = t.dataset.id; break;
-      case 'af': S.af = v; break;
       case 'act': S.act = v; break;
       case 'usagerefresh': if (k) loadUsage(k, true); break;
+      case 'devrefresh': if (k) loadDev(v, k, { force: true }); break;
+      case 'alertsmore': if (k) loadDev('alerts', k, { more: true }); break;
       case 'addkid': open(`<h2 style="font-size:19px">Add a child</h2><p class="muted sm">You\u2019ll get a code to pair their phone.</p>` + form('addchild', `<div style="margin-top:14px">${fld('name', 'Name', 'text', 'off')}</div>`, 'Continue')); return;
       case 'code': pairModal(S.children.find(c => c.id === t.dataset.id)); return;
       case 'newcode': { const c = await api.regeneratePairingCode(t.dataset.id); Object.assign(S.children.find(x => x.id === c.id), c); pairModal(c); return; }
       case 'invite': open(`<h2 style="font-size:19px">Invite another parent</h2><p class="muted sm">They\u2019ll get an email to join your family.</p>` + form('invite', `<div style="margin-top:14px">${fld('email', 'Email', 'email', 'off', '', 'inputmode="email"')}</div>`, 'Send invite')); return;
       case 'cmd': await api.sendCommand(k.id, v); toast(v === 'ring' ? `Ringing ${k.name}\u2019s phone\u2026` : `Check-in request sent to ${k.name}`); return;
-      case 'alert': { const x = S.alerts.find(y => y.id === t.dataset.id); open(`<span class="tag ${e(x.severity)}">${SEV[x.severity] || ''} priority</span><h2 style="margin-top:8px;font-size:19px">${e(x.category)}</h2><p class="muted sm">${e(x.app)} · ${when(x.time)} · ${e(x.from)}</p><div class="msg">${x.lines.map(l => `<p class="${l.flagged ? 'flag' : ''}"><span class="fr">${e(l.who)}</span><br>${e(l.text)}</p>`).join('')}</div><p class="sm muted">Harbor only shows the flagged part of the conversation.</p>${x.tips.length ? `<div class="lab">Suggested next steps</div><ul class="tips">${x.tips.map(q => `<li>${e(q)}</li>`).join('')}</ul>` : ''}<div class="ma"><button class="btn p" data-a="rev" data-id="${e(x.id)}">${x.reviewed ? 'Mark as needs review' : 'Mark as reviewed'}</button><button class="btn o" data-a="x">Close</button></div>`); return; }
-      case 'rev': { const x = S.alerts.find(y => y.id === t.dataset.id); x.reviewed = !x.reviewed; await api.setAlertReviewed(x.id, x.reviewed); shut(); toast(x.reviewed ? 'Marked as reviewed' : 'Moved back to review'); break; }
+      case 'alert': { const u = scoped('alerts', k), x = u && u.reply ? toAlertsView(u.reply).alerts.find(y => y.id === t.dataset.id) : null; if (x) open(renderAlertDetail(x)); return; }
       case 'pause': patch(k, { paused: !k.paused }); toast(k.paused ? `${k.name}\u2019s phone is paused` : `${k.name}\u2019s phone resumed`); break;
       case 'req': { await api.respondToRequest(k.id, t.dataset.rid, !!t.dataset.ok); await refresh(); toast(t.dataset.ok ? 'Approved' : 'Denied'); break; }
       case 'bcall': { const c = k.calls[i]; patch(k, { blockedContacts: [...k.blockedContacts, c.number || c.name] }); toast(`Blocked ${c.name || c.number}`); break; }
@@ -158,7 +206,7 @@ const onClick = async ev => {
       default: return;
     }
   } catch (x) { if (!handle(x)) toast(x instanceof ApiError ? x.message : 'Something went wrong. Please try again.'); return; }
-  const en = ['tab', 'kid', 'af', 'act'].includes(a);
+  const en = ['tab', 'kid', 'act'].includes(a);
   a === 'tab' ? render(en) : setTimeout(() => render(en), 130);
 };
 
@@ -194,8 +242,8 @@ export async function mountParent(session, callbacks) {
 }
 export function unmountParent() {
   document.removeEventListener('click', onClick); document.removeEventListener('change', onChange); document.removeEventListener('submit', onSubmit); document.removeEventListener('visibilitychange', onVisible);
-  usageSeq++;
-  Object.assign(S, { user: null, children: [], alerts: [], settings: {}, k: null, tab: 'map', af: 'open', act: 'overview', usage: null });
+  usageSeq++; seqs.location++; seqs.alerts++;
+  Object.assign(S, { user: null, children: [], settings: {}, k: null, tab: 'map', act: 'overview', usage: null, location: null, alerts: null });
   shut(); $('#shell').hidden = true;
   // Wipe the rendered family data so nothing lingers in the page after sign-out (shared phones).
   for (const id of ['#view', '#kids', '#tabs', '#brand']) $(id).innerHTML = '';

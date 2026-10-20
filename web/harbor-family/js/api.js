@@ -52,6 +52,8 @@
  * respondToRequest(childId, requestId, approve)
  * grantTime(childId, minutes)          → Child  (extra minutes for today only)
  * getDeviceUsage(deviceId)             → UsageReadReplyV1 {state:'available'|'none'|'expired', report, receivedAt}; read-only, parent only
+ * getDeviceLocation(deviceId)          → LocationReadReplyV1 {state, status, observedAt, receivedAt, fixes:[{at,latitude,longitude,accuracyM,provider}]}
+ * getDeviceAlerts(deviceId, before?)   → AlertReadReplyV1 {state, notificationAccess, smsPermission, receivedAt, alerts:[{id,appLabel,category,at,savedContact}], nextBefore}
  * sendCommand(childId, 'checkin'|'ring')   ('no_device' if not paired)
  * inviteParent(email)
  *
@@ -145,6 +147,8 @@ export const localApi = {
   },
   async grantTime(cid, minutes) { return mutate(d => { const c = child(d, cid); c.bonusMin = (c.bonusMin || 0) + minutes; return c; }); },
   async getDeviceUsage() { await delay(120); return { state: 'none', report: null, receivedAt: null }; },
+  async getDeviceLocation() { await delay(120); return { state: 'none', status: null, observedAt: null, receivedAt: null, fixes: [] }; },
+  async getDeviceAlerts() { await delay(120); return { state: 'none', notificationAccess: null, smsPermission: null, observedAt: null, receivedAt: null, alerts: [], nextBefore: null }; },
   async sendCommand(cid, type) { await delay(200); mutate(d => { const c = child(d, cid); if (!c.device) throw new ApiError('no_device', 'This child\u2019s device isn\u2019t paired yet.'); c.pendingCommand = type; }); },
   async inviteParent() { await delay(300); },
 
