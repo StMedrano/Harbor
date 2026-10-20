@@ -75,6 +75,10 @@ data class ParentChildData(
     val alerts: AlertsViewState? = null, val onRefreshAlerts: (() -> Unit)? = null,
     val usage: UsageViewState? = null, val onRefreshUsage: (() -> Unit)? = null,
     val checkIn: CheckInViewState? = null, val onAskCheckIn: (() -> Unit)? = null,
+    val controls: dev.stmedrano.harbor.parent.controls.ControlsViewState? = null,
+    val onSaveControls: ((dev.stmedrano.harbor.parent.controls.ControlsV1) -> Unit)? = null, val onRefreshControls: (() -> Unit)? = null,
+    val activity: dev.stmedrano.harbor.parent.activity.ActivityViewState? = null, val activityToday: java.time.LocalDate = java.time.LocalDate.now(),
+    val onActivityDay: (java.time.LocalDate) -> Unit = {}, val onRefreshActivity: (() -> Unit)? = null,
 )
 
 /** One tab's page for one child. Detail text lives in About and the policies; the page shows only what the phone reported. */
@@ -95,7 +99,11 @@ fun ParentChildPage(tab: ParentTab, child: ChildV1, device: DevicePublicV1?, dat
                 if (data.checkIn != null && device.status == "active") ParentCheckInScreen(data.checkIn, child.displayName, data.onAskCheckIn)
             }
             ParentTab.ALERTS -> data.alerts?.let { ParentAlertsScreen(it, data.onRefreshAlerts) }
-            ParentTab.ACTIVITY -> data.usage?.let { UsageReportScreen(it, data.onRefreshUsage) }
+            ParentTab.ACTIVITY -> {
+                data.controls?.let { ParentControlsScreen(it, data.usage?.apps.orEmpty(), data.activity?.controlsOn, data.onSaveControls ?: {}, data.onRefreshControls) }
+                data.activity?.let { ParentActivityScreen(it, data.activityToday, data.onActivityDay, data.onRefreshActivity) }
+                data.usage?.let { UsageReportScreen(it, data.onRefreshUsage) }
+            }
             ParentTab.FAMILY -> Unit
         }
     }

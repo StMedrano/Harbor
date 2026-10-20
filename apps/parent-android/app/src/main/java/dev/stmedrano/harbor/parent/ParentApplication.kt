@@ -454,6 +454,10 @@ class ParentApplication : Application() {
     val parentLocation: ParentLocationModel? get() = if (parentConstructionAllowed) parentLocationModel else null
     private val parentAlertsModel by lazy { parentAuth?.let { ParentAlertsModel(SdkParentAlertsApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentAlerts: ParentAlertsModel? get() = if (parentConstructionAllowed) parentAlertsModel else null
+    private val parentControlsModel by lazy { parentAuth?.let { dev.stmedrano.harbor.parent.controls.ParentControlsModel(dev.stmedrano.harbor.parent.controls.SdkParentControlsApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentControls: dev.stmedrano.harbor.parent.controls.ParentControlsModel? get() = if (parentConstructionAllowed) parentControlsModel else null
+    private val parentActivityModel by lazy { parentAuth?.let { dev.stmedrano.harbor.parent.activity.ParentActivityModel(dev.stmedrano.harbor.parent.activity.SdkParentActivityApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentActivity: dev.stmedrano.harbor.parent.activity.ParentActivityModel? get() = if (parentConstructionAllowed) parentActivityModel else null
     private val parentCheckInModel by lazy { parentAuth?.let { ParentCheckInModel(SdkParentCheckInApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentCheckIn: ParentCheckInModel? get() = if (parentConstructionAllowed) parentCheckInModel else null
     private val parentFamilyMapModel by lazy { parentAuth?.let { dev.stmedrano.harbor.parent.familymap.ParentFamilyMapModel(dev.stmedrano.harbor.parent.familymap.SdkParentFamilyMapApi(checkNotNull(client), it), ::currentIdentity) { System.currentTimeMillis() } } }
@@ -527,12 +531,12 @@ class ParentApplication : Application() {
             ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
-            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {
-                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.clear() }
+                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
                         finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
@@ -585,7 +589,7 @@ class ParentApplication : Application() {
         parentCollectors = null
         if (parentConstructionAllowed) {
             realtime?.disconnect()
-            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear()
+            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear()
             familyViewModel?.hideVisible()
             securityViewModel?.clear()
             mutableTap.value = ParentTapState()

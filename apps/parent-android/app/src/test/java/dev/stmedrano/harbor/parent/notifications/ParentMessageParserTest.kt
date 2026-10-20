@@ -62,6 +62,11 @@ class ParentMessageParserTest {
         }
     }
 
+    @Test fun controlsOffKindIsAcceptedAndRendersGenericText() {
+        val route = envelope().getValue("route")
+        assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.controls.off"))))
+        assertEquals("App controls were turned off on a child's phone. Open Harbor to check.", parentPushText("device.controls.off"))
+    }
     @Test fun messageAlertKindIsAcceptedAndRendersGenericReviewTextWithoutContent() {
         val route = envelope().getValue("route")
         assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.alert.created"))))

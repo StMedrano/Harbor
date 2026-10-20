@@ -23,6 +23,8 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     alertsModel: dev.stmedrano.harbor.parent.alerts.ParentAlertsModel? = null,
     checkInModel: dev.stmedrano.harbor.parent.checkin.ParentCheckInModel? = null,
     familyMapModel: dev.stmedrano.harbor.parent.familymap.ParentFamilyMapModel? = null,
+    controlsModel: dev.stmedrano.harbor.parent.controls.ParentControlsModel? = null,
+    activityModel: dev.stmedrano.harbor.parent.activity.ParentActivityModel? = null,
     tab: ParentTab = ParentTab.FAMILY, resumeTick: Int = 0,
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null) {
     val family by model.repository.state.collectAsState()
@@ -84,6 +86,8 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             }
         } else {
             val phone = activeDevice(snapshot.devices, child.id)
+            val today = remember(resumeTick) { java.time.LocalDate.now() }
+            var activityDay by remember(phone?.id) { mutableStateOf(today) }
             // Each page reads only what it shows, so an idle tab makes no requests.
             val data = if (phone == null) ParentChildData() else ParentChildData(
                 location = if (tab == ParentTab.MAP) rememberParentLocationView(locationModel, identity, phone.id, resumeTick) else null,
@@ -93,6 +97,12 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
                 usage = if (tab == ParentTab.ACTIVITY) rememberParentUsageView(usageModel, identity, phone.id, resumeTick) else null,
                 onRefreshUsage = usageModel?.let { m -> { scope.launch { m.load(identity, phone.id) } } },
                 checkIn = if (tab == ParentTab.MAP) rememberParentCheckInView(checkInModel, identity, phone.id, resumeTick) else null,
+                controls = if (tab == ParentTab.ACTIVITY) rememberParentControlsView(controlsModel, identity, phone.id, resumeTick) else null,
+                onSaveControls = controlsModel?.takeIf { online }?.let { m -> { c -> scope.launch { m.save(identity, phone.familyId, phone.id, c) } } },
+                onRefreshControls = controlsModel?.let { m -> { scope.launch { m.load(identity, phone.id) } } },
+                activity = if (tab == ParentTab.ACTIVITY) rememberParentActivityView(activityModel, identity, phone.id, activityDay, resumeTick) else null,
+                activityToday = today, onActivityDay = { activityDay = it },
+                onRefreshActivity = activityModel?.let { m -> { scope.launch { m.load(identity, phone.id, activityDay) } } },
                 onAskCheckIn = checkInModel?.takeIf { online }?.let { m -> { scope.launch { m.ask(identity, phone.id) } } })
             ParentChildPage(tab, child, phone, data, HarborKid.color(index), onPair = if (online) ({ sheet = "pair"; submit { model.issuePairing(identity) } }) else null)
         }
