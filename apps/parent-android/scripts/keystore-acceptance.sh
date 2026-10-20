@@ -138,3 +138,10 @@ for method in childPanelDisclosesSharingAndNeverOffersAStopButton lastKnownMapIs
   run_test "$method" dev.stmedrano.harbor.parent.location.LocationUiTest || location_ui_status=1
 done
 [[ "$location_ui_status" == 0 ]]
+
+# Child setup gate (permissions checklist) runs on API 29 and API 36 without network.
+child_setup_status=0
+for method in incompleteSetupListsEveryReasonAndCannotBeFinished finishingNeedsEveryPermissionAndIsADeliberateTap onlyMissingPermissionsOfferTurnOn; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.ChildSetupGateUiTest || child_setup_status=1
+done
+[[ "$child_setup_status" == 0 ]]
