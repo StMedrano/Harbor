@@ -1,7 +1,7 @@
 # Harbor Android activity and app control — design
 
 Date: 2026-10-20
-Status: draft for owner review. The owner supplied the decisions below on 2026-10-20. The implementation plan is written only after the open questions at the end are answered, and implementation starts only on the owner's go.
+Status: approved to build on 2026-10-20 (owner said "continue" without answering the open questions, so the defaults recorded under "Open questions" apply). Plan: `docs/superpowers/plans/2026-10-20-harbor-android-activity-and-app-control.md`.
 Base: branch `fix/message-alert-allowlist` (stacked on `feat/checkin-alert`). This work must not be merged before those.
 
 ## Owner decisions (2026-10-20)
@@ -91,7 +91,17 @@ On the device page: a **Controls** screen (pause now with an end time, bedtime, 
 - Instrumented tests: block screen wording, child panel has no disable control, accessibility service config cannot retrieve window content.
 - Real-phone runbook: block an app, hit a limit, bedtime across midnight, pause and resume, offline enforcement, turning accessibility off reaches the parent, reboot, revocation clears policy and activity.
 
-## Open questions for the owner
+## Open questions and the defaults applied (2026-10-20)
+
+The owner did not answer these; the defaults below are in force until they say otherwise.
+
+- Exempt apps: dialer/emergency, launcher, System UI, Settings, Harbor and the **default SMS app** (so a child can always reach a parent). Camera is not exempt.
+- Bedtime: one window applied to the chosen days.
+- "Ask for more time": phase 2, not in this effort.
+- Parent screens: Android parent app first; the web parent app later.
+- Sessions under 60 seconds: left off the timeline, still counted toward limits and totals.
+
+Original questions:
 
 1. **Exempt apps:** besides the dialer, launcher, System UI, Settings and Harbor, should SMS/Messages and the camera be always allowed by default during pause and bedtime?
 2. **Bedtime:** one window for every chosen day, or a different window per weekday (for example later on weekends)?
