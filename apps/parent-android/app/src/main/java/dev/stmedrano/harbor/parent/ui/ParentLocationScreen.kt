@@ -27,8 +27,8 @@ fun ParentLocationScreen(view: LocationViewState, onRefresh: (() -> Unit)? = nul
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = System.currentTimeMillis() } }
     HarborPanel("Location") {
         when (view.status) {
-            LocationViewStatus.NONE -> Text("This phone has not shared a place yet. It starts after the child allows location in Harbor on their phone.")
-            LocationViewStatus.EXPIRED -> Text("The last places this phone shared are older than 30 days and were removed.")
+            LocationViewStatus.NONE -> Text("No place shared yet.")
+            LocationViewStatus.EXPIRED -> Text("No places in the last 30 days.")
             LocationViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this device's location.", HarborTone.DANGER, emphasis = true)
             LocationViewStatus.LOAD_FAILED -> HarborNote("Location could not be loaded. Check your connection and try again.", HarborTone.DANGER, emphasis = true)
             LocationViewStatus.AVAILABLE -> AvailableLocation(view, now, accent.takeIf { it != Color.Unspecified } ?: MaterialTheme.colorScheme.primary)

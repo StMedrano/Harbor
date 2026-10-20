@@ -59,7 +59,7 @@ class LocationUiTest {
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
             ParentLocationScreen(LocationViewState(LocationViewStatus.NONE))
         } } }
-        compose.onNodeWithText("This phone has not shared a place yet", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("No place shared yet.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Last known place", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Sharing location").assertDoesNotExist()
     }

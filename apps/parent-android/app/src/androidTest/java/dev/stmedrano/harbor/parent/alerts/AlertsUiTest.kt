@@ -53,7 +53,7 @@ class AlertsUiTest {
 
     @Test fun neverReportedShowsNoFalseConcern() {
         compose.setContent { HarborTheme { ParentApp(showBrand = false) { ParentAlertsScreen(AlertsViewState(AlertsViewStatus.NONE)) } } }
-        compose.onNodeWithText("No concerns have been flagged on this phone", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("No alerts yet.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Possible", substring = true).assertDoesNotExist()
     }
 }

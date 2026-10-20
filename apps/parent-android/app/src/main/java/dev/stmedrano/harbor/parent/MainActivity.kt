@@ -30,6 +30,9 @@ import dev.stmedrano.harbor.parent.ui.HarborBottomBar
 import dev.stmedrano.harbor.parent.ui.HarborGlyph
 import dev.stmedrano.harbor.parent.ui.HarborNavItem
 import dev.stmedrano.harbor.parent.ui.childNavItems
+import dev.stmedrano.harbor.parent.ui.ParentTab
+import dev.stmedrano.harbor.parent.ui.defaultParentTab
+import dev.stmedrano.harbor.parent.ui.parentNavItems
 import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
@@ -76,6 +79,8 @@ class MainActivity : ComponentActivity() {
     private val authenticationPage = mutableStateOf(true)
     private val settingsPage = mutableStateOf(false)
     private val securityPage = mutableStateOf(false)
+    /** Null until a parent picks a tab, so the first page follows whether a child exists (see defaultParentTab). */
+    private val parentTab = mutableStateOf<ParentTab?>(null)
     private var requestedHint: ParentHint? = null
     private var requestedChildHint: ParentRoute? = null
     private val logoutRequested = mutableStateOf(false)
@@ -267,16 +272,14 @@ class MainActivity : ComponentActivity() {
             }
             val authenticationOpen = authenticationPage.value || callback.value != null
             val parentHome = identity != null && profile is ProfileState.Parent && profile.lease.ownerId == identity.userId && !authenticationOpen
+            val familyForTabs = graph.familyViewModel?.repository?.state?.collectAsState()?.value
+            val effectiveTab = parentTab.value ?: defaultParentTab(familyForTabs?.snapshot?.children?.isNotEmpty() == true)
             val parentBar: (@Composable () -> Unit)? = if (parentHome && runtime?.signingOut != true) {
-                @Composable { HarborBottomBar(listOf(
-                    HarborNavItem("Family", HarborGlyph.FAMILY, !settingsPage.value && !securityPage.value) {
-                        authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
-                    HarborNavItem("Settings", HarborGlyph.SETTINGS, settingsPage.value) {
-                        settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
-                    HarborNavItem("Security", HarborGlyph.SECURITY, securityPage.value) {
-                        securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
-                )) }
+                @Composable { HarborBottomBar(parentNavItems(if (settingsPage.value || securityPage.value) ParentTab.FAMILY else effectiveTab) { picked ->
+                    authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
+                    parentTab.value = picked; graph.closeNotification() }) }
             } else null
+            androidx.activity.compose.BackHandler(settingsPage.value) { settingsPage.value = false }
             HarborTheme {
                 ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar) {
                     if (runtime?.signingOut == true) Text("Signing out…")
@@ -290,6 +293,7 @@ class MainActivity : ComponentActivity() {
                                         graph.profiles.activateParent()
                                         if (graph.profiles.state.value is ProfileState.Parent) withContext(Dispatchers.Main) {
                                         authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
+                                        parentTab.value = null
                                         logoutRequested.value = false; graph.closeNotification()
                                         }
                                         }
@@ -334,7 +338,10 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts,
+                                    checkInModel = graph.parentCheckIn, tab = effectiveTab, resumeTick = resumeTick.intValue,
+                                    onSettings = { settingsPage.value = true; securityPage.value = false; graph.closeNotification() },
+                                    onSecurity = { securityPage.value = true; settingsPage.value = false; graph.closeNotification() }) }
                             })
                     }
                 }

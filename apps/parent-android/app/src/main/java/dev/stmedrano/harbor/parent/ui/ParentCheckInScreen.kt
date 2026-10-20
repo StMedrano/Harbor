@@ -46,7 +46,6 @@ fun ParentCheckInScreen(view: CheckInViewState, childName: String, onAsk: (() ->
                 if (open != null) {
                     HarborNote("Waiting for $childName to answer. Asked ${formatTimestamp(open.requestedAt)}.", HarborTone.INFO)
                 } else if (onAsk != null) {
-                    Text("Ask $childName to check in. Harbor notifies their phone and shows the request in the app. They answer with “I’m okay” or “Running late”.")
                     HarborButton(onAsk, Modifier.fillMaxWidth(), enabled = !view.asking) { Text(if (view.asking) "Asking…" else "Ask $childName to check in") }
                 }
                 if (view.askFailed) HarborNote("The request did not go through. Try again.", HarborTone.WARN, emphasis = true)

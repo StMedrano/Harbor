@@ -159,3 +159,10 @@ for method in childAboutShowsHeadingsAndFilledAppList policyLinksOpenBothDocumen
   run_test "$method" dev.stmedrano.harbor.parent.ui.ChildAboutUiTest || about_ui_status=1
 done
 [[ "$about_ui_status" == 0 ]]
+
+# Parent pages (tab bar, child chips, per-page content, Family links) run on API 29 and API 36 without network.
+parent_tabs_status=0
+for method in bottomBarHasTheFourPagesAndSwitchingMarksOne childChipsSelectAndAddFromEveryPage pageWithoutAPhoneSaysSoAndOffersPairing mapPageShowsOnlyLocationAndAlertsPageDoesNot familyPageLinksToSettingsSecurityAboutAndPolicies; do
+  run_test "$method" dev.stmedrano.harbor.parent.ui.ParentTabsUiTest || parent_tabs_status=1
+done
+[[ "$parent_tabs_status" == 0 ]]
