@@ -22,12 +22,15 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     usageModel: ParentUsageModel? = null, locationModel: dev.stmedrano.harbor.parent.location.ParentLocationModel? = null,
     alertsModel: dev.stmedrano.harbor.parent.alerts.ParentAlertsModel? = null,
     checkInModel: dev.stmedrano.harbor.parent.checkin.ParentCheckInModel? = null,
+    familyMapModel: dev.stmedrano.harbor.parent.familymap.ParentFamilyMapModel? = null,
     tab: ParentTab = ParentTab.FAMILY, resumeTick: Int = 0,
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null) {
     val family by model.repository.state.collectAsState()
     val control by model.state.collectAsState()
     val pairing by model.pairing.state.collectAsState()
     val scope = rememberCoroutineScope()
+    // Runs on every parent page so a parent who chose to share keeps sharing while Harbor is open.
+    val sharing = rememberParentSharing(familyMapModel, identity, family.snapshot?.takeIf { !family.cached }?.family?.id, resumeTick)
     var sheet by remember(identity) { mutableStateOf<String?>(null) }
     var deviceId by remember(identity) { mutableStateOf<String?>(null) }
     var name by remember(identity) { mutableStateOf("") }
@@ -100,7 +103,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onAddChild = { sheet = "child"; error = null },
             onPair = { sheet = "pair"; submit { model.issuePairing(identity) } },
             onDevice = { deviceId = it.id },
-            onSettings = onSettings, onSecurity = onSecurity, onOpenDoc = { legalDoc = it })
+            onSettings = onSettings, onSecurity = onSecurity, onOpenDoc = { legalDoc = it }, sharing = sharing)
         if (control.message != null && sheet == null) Text(control.message!!)
     }
     when (sheet) {

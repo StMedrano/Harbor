@@ -152,6 +152,11 @@ for method in mapListsEveryoneWithZoomControls aTurnedOffMapSaysSoAndShowsNobody
   run_test "$method" dev.stmedrano.harbor.parent.familymap.FamilyMapUiTest || family_map_status=1
 done
 [[ "$family_map_status" == 0 ]]
+parent_sharing_status=0
+for method in bothSwitchesAreLabelledAndReportTheirNewValue whileSharingTheNameIsShownAndTheSwitchTurnsItOff anInvalidNameCannotStartSharing switchesAreLockedWhileASaveIsInFlight loadingAndFailureAreHonest problemsAndPlaceHintsAreSaidPlainly; do
+  run_test "$method" dev.stmedrano.harbor.parent.familymap.ParentSharingUiTest || parent_sharing_status=1
+done
+[[ "$parent_sharing_status" == 0 ]]
 
 # Check-in screens (child answer, Today banner, parent ask and read) run on API 29 and API 36 without network.
 checkin_ui_status=0

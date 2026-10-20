@@ -341,7 +341,7 @@ class MainActivity : ComponentActivity() {
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
                                 else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts,
-                                    checkInModel = graph.parentCheckIn, tab = effectiveTab, resumeTick = resumeTick.intValue,
+                                    checkInModel = graph.parentCheckIn, familyMapModel = graph.parentFamilyMap, tab = effectiveTab, resumeTick = resumeTick.intValue,
                                     onSettings = { settingsPage.value = true; securityPage.value = false; graph.closeNotification() },
                                     onSecurity = { securityPage.value = true; settingsPage.value = false; graph.closeNotification() }) }
                             })

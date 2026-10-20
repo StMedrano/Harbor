@@ -24,7 +24,8 @@ import java.time.Instant
 fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: String?,
     onRefresh: () -> Unit, onSelectFamily: (String) -> Unit, onSelectChild: (String) -> Unit,
     onCreateFamily: () -> Unit, onAddChild: () -> Unit, onPair: () -> Unit, onDevice: (DevicePublicV1) -> Unit,
-    onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null) {
+    onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null,
+    sharing: ParentSharingUi? = null) {
     val snapshot = state.snapshot
     val online = !state.cached && state.failure == null && !state.loading
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -76,6 +77,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
             HarborOutlinedButton(onPair, enabled = online && selectedChildId != null, modifier = Modifier.fillMaxWidth()) { Text("Pair device") }
             TextButton(onCreateFamily, enabled = online) { Text("Create family") }
         }
+        if (snapshot != null && sharing != null) ParentSharingPanel(sharing)
         if (onSettings != null || onSecurity != null || onOpenDoc != null) HarborCard {
             if (onSettings != null) HarborRow("Settings", onClick = onSettings, trailing = { Chevron() })
             if (onSecurity != null) HarborRow("Security", divider = onSettings != null, onClick = onSecurity, trailing = { Chevron() })
