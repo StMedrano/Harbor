@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.ParentApplication
 import dev.stmedrano.harbor.parent.location.*
 import dev.stmedrano.harbor.parent.profile.ProfileLease
@@ -36,35 +37,31 @@ fun rememberChildLocationUi(graph: ParentApplication, lease: ProfileLease, resum
 }
 
 /**
- * Plain disclosure and the steps a child can take. Sharing starts by itself once Android's permission is given. Only a
- * parent can turn it off (by removing this device in the parent app), so there is deliberately no stop control here.
+ * One short status line and, only when something needs doing, the action for it. Sharing starts by itself once Android's
+ * permission is given. Only a parent can turn it off (by removing this device in the parent app), so there is
+ * deliberately no stop control here. The full explanation lives in About.
  */
 @Composable
-fun LocationSetupPanel(ui: ChildLocationUi) {
-    HarborPanel("Share your location with your parents") {
-        Text("Harbor sends this phone's location to your parents about every 5 minutes while moving or 15 minutes while still, when Android allows: latitude, longitude, accuracy and time. Updates may be delayed by location permissions or battery settings. " +
-            "It keeps up to 30 days of recent places for them. A notification stays visible while location is being shared. " +
-            "Only your parents can turn sharing off, by removing this device in the parent app.")
+fun LocationStatusSection(ui: ChildLocationUi) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         when (locationStatus(ui.access)) {
             LocationStatus.PERMISSION_LOST -> {
-                HarborNote("Location is not allowed for Harbor yet, so your parents cannot see where this phone is.", HarborTone.WARN, emphasis = true)
+                HarborStatus("Location off", ok = false)
                 HarborButton(ui.onAllowLocation, Modifier.fillMaxWidth()) { Text("Allow location") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }
             LocationStatus.SERVICES_OFF -> {
-                HarborNote("Location is switched off on this phone. Turn it on in Android settings.", HarborTone.WARN, emphasis = true)
+                HarborStatus("Location is off in Android settings", ok = false)
                 HarborButton(ui.onOpenLocationSettings, Modifier.fillMaxWidth()) { Text("Open location settings") }
             }
             LocationStatus.BACKGROUND_MISSING -> {
-                HarborNote("Sharing works while Harbor is open. Allow location \"all the time\" so it keeps working when Harbor is closed.", HarborTone.WARN, emphasis = true)
+                HarborStatus("Sharing only while Harbor is open", ok = false)
                 HarborButton(ui.onAllowAllTheTime, Modifier.fillMaxWidth()) { Text("Allow all the time") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }
-            LocationStatus.SHARING -> {
-                Text("Sharing your location.", style = MaterialTheme.typography.titleSmall)
-                if (ui.host.uploadFailing) Text("Your phone could not reach Harbor just now. It will try again.", style = MaterialTheme.typography.bodySmall)
-                else ui.host.lastUploadMs?.let { Text("Last sent: ${formatTimestamp(java.time.Instant.ofEpochMilli(it).toString())}", style = MaterialTheme.typography.bodySmall) }
-            }
+            LocationStatus.SHARING -> HarborStatus("Sharing location", ok = true,
+                detail = if (ui.host.uploadFailing) "Can't reach Harbor. Trying again."
+                    else ui.host.lastUploadMs?.let { "Last sent ${formatTimestamp(java.time.Instant.ofEpochMilli(it).toString())}" })
         }
     }
 }

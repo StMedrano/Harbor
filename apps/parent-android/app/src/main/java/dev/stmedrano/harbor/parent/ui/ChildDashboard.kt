@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.child.ChildBinding
 import dev.stmedrano.harbor.parent.child.ChildSyncState
+import dev.stmedrano.harbor.parent.legal.LegalDoc
 
 @Composable fun ChildDashboard(state: ChildSyncState, binding: ChildBinding, onSync: () -> Unit, onRequestRoleChange: () -> Unit,
     notificationConfirmed: Boolean = false, onEnableNotifications: (() -> Unit)? = null, usage: ChildUsageUi? = null,
@@ -24,6 +25,9 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
         return
     }
     var localTab by remember(binding.deviceId) { mutableStateOf("Today") }
+    var legalDoc by remember(binding.deviceId) { mutableStateOf<LegalDoc?>(null) }
+    val openDoc = legalDoc
+    if (openDoc != null) { LegalScreen(openDoc) { legalDoc = null }; return }
     val current = tab ?: localTab
     val selectTab: (String) -> Unit = { name -> if (onSelectTab != null) { onSelectTab(name) } else { localTab = name } }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -34,36 +38,38 @@ import dev.stmedrano.harbor.parent.child.ChildSyncState
                 HarborCard {
                     Text("Connected to your family", style = MaterialTheme.typography.titleMedium)
                     when (state) {
-                        is ChildSyncState.Fresh -> {
-                            Text("Signed sync confirmed. State version: ${state.desiredVersion}.")
-                            Text("Last sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}")
-                        }
+                        is ChildSyncState.Fresh ->
+                            Text("Synced ${formatTimestamp(java.time.Instant.ofEpochSecond(state.receivedAt).toString())}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         is ChildSyncState.Stale -> {
                             HarborNote("Showing saved setup. Current status has not been confirmed.", HarborTone.WARN)
-                            state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}") }
+                            state.lastSuccessAt?.let { Text("Last confirmed sync: ${formatTimestamp(java.time.Instant.ofEpochSecond(it).toString())}", style = MaterialTheme.typography.bodySmall) }
                         }
                         is ChildSyncState.Blocked -> Unit
                     }
                 }
                 checkIn?.state?.pending?.let { pending -> CheckInRequestBanner(pending) { selectTab(CHECK_IN_TAB) } }
-                HarborButton(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Sync now") }
-                if (location != null) LocationSetupPanel(location)
-                if (alerts != null) MessageAlertsPanel(alerts)
-                if (usage != null) {
-                    UsageSetupPanel(usage)
-                    UsageTodayPanel(usage.view)
+                if (location != null || alerts != null || usage != null) {
+                    HarborPanel("On this phone") {
+                        val sections = buildList<@Composable () -> Unit> {
+                            if (location != null) add { LocationStatusSection(location) }
+                            if (alerts != null) add { MessageAlertsSection(alerts) }
+                            if (usage != null) add { UsageStatusSection(usage) }
+                        }
+                        sections.forEachIndexed { index, section ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                            section()
+                        }
+                        TextButton({ selectTab("About") }) { Text("What Harbor shares and why") }
+                    }
                 }
+                if (usage != null) UsageTodayPanel(usage.view)
+                HarborOutlinedButton(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Sync now") }
             }
             CHECK_IN_TAB -> if (checkIn != null) CheckInScreen(checkIn) else Text("Check-ins are starting. Try again in a moment.")
             "Apps" -> if (usage != null) UsageAppsPanel(usage.view) else Text("App information is not available yet.")
             "About" -> {
-                HarborCard {
-                    Text("Harbor stores this phone’s pairing credentials securely and checks its family connection with signed requests.")
-                    if (usage != null) Text("Harbor measures screen time only while sharing is on. It does not limit or block apps.")
-                    if (location != null) Text("Harbor shares this phone's location with your parents while location is allowed. A notification shows while it does.")
-                    if (alerts != null) Text("Harbor checks messages from a set list of apps and your texts for possible concerns, and tells your parents only the category, app and time — never the message text. See \"What Harbor watches\" on Today.")
-                    else Text("Screen time and app enforcement are not available in this build.")
-                }
+                LegalBody(rememberLegalBlocks(LegalDoc.CHILD_ABOUT))
+                PolicyLinks { legalDoc = it }
                 if (onEnableNotifications != null) {
                     HarborCard {
                         Text(if (notificationConfirmed) "Backend notification registration confirmed. Delivery still requires receipt evidence."

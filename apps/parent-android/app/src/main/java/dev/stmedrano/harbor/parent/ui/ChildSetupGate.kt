@@ -4,12 +4,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.alerts.AlertAccess
+import dev.stmedrano.harbor.parent.legal.LegalDoc
 import dev.stmedrano.harbor.parent.location.LocationAccess
 
 /** The permissions a child phone needs before Harbor works. New features add a step here; nothing else has to change. */
@@ -22,19 +27,19 @@ data class SetupStep(val id: SetupStepId, val title: String, val why: String, va
 data class PermissionSnapshot(val location: LocationAccess, val notificationsOn: Boolean, val usageGranted: Boolean, val alerts: AlertAccess? = null)
 
 fun childSetupSteps(snapshot: PermissionSnapshot): List<SetupStep> = listOf(
-    SetupStep(SetupStepId.LOCATION, "Location", "Lets Harbor know where this phone is while the app is open.",
+    SetupStep(SetupStepId.LOCATION, "Location", "Share where this phone is.",
         snapshot.location.fineGranted && snapshot.location.servicesOn),
-    SetupStep(SetupStepId.LOCATION_ALWAYS, "Location all the time", "Keeps sharing working when Harbor is closed or the screen is off.",
+    SetupStep(SetupStepId.LOCATION_ALWAYS, "Location all the time", "Keep sharing when Harbor is closed.",
         snapshot.location.fineGranted && snapshot.location.backgroundGranted),
-    SetupStep(SetupStepId.NOTIFICATIONS, "Notifications", "Shows the sharing notification and tells you when a parent asks you to check in.",
+    SetupStep(SetupStepId.NOTIFICATIONS, "Notifications", "Show the sharing notice and check-in requests.",
         snapshot.notificationsOn),
-    SetupStep(SetupStepId.USAGE_ACCESS, "Usage access", "Lets Harbor measure screen time. It never limits or blocks apps.",
+    SetupStep(SetupStepId.USAGE_ACCESS, "Usage access", "Measure screen time. Never blocks apps.",
         snapshot.usageGranted),
 ) + (snapshot.alerts?.let { alerts -> listOf(
     SetupStep(SetupStepId.NOTIFICATION_ACCESS, "Notification access",
-        "Lets Harbor check messages in chat apps on this phone. Your parents only get the app, the kind of concern and the time, never the words.",
+        "Check chat notifications on this phone.",
         alerts.notificationAccess),
-    SetupStep(SetupStepId.SMS, "Text messages", "Lets Harbor check texts the same way. Your parents never get the words.", alerts.smsPermission),
+    SetupStep(SetupStepId.SMS, "Text messages", "Check texts on this phone.", alerts.smsPermission),
 ) } ?: emptyList())
 
 fun setupComplete(steps: List<SetupStep>) = steps.isNotEmpty() && steps.all { it.on }
@@ -55,11 +60,14 @@ fun SetupGateMemory.visible(complete: Boolean) = !complete || (sawGate && !finis
  */
 @Composable
 fun ChildSetupGate(steps: List<SetupStep>, onTurnOn: (SetupStepId) -> Unit, onOpenAppSettings: () -> Unit, onFinish: () -> Unit) {
+    var doc by remember { mutableStateOf<LegalDoc?>(null) }
+    val openDoc = doc
+    if (openDoc != null) { LegalScreen(openDoc) { doc = null }; return }
     val done = steps.count { it.on }
     val complete = setupComplete(steps)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Set up this phone", style = MaterialTheme.typography.headlineSmall)
-        Text("Harbor needs everything below turned on, and each one says what it is for. Harbor never records your screen, your camera or your microphone.",
+        Text("Turn these on to finish. What Harbor shares, and what it never does, is explained below.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LinearProgressIndicator(progress = { if (steps.isEmpty()) 0f else done.toFloat() / steps.size },
@@ -85,9 +93,11 @@ fun ChildSetupGate(steps: List<SetupStep>, onTurnOn: (SetupStepId) -> Unit, onOp
                     })
             }
         }
-        HarborNote("Each button opens Android's own screen. Harbor can't switch these on for you. If one is turned off later, Harbor brings you back here and your parents see that sharing has stopped.")
+        HarborNote("Each button opens Android's own screen. If one is turned off later, Harbor brings you back here.")
         HarborButton(onClick = onFinish, enabled = complete, modifier = Modifier.fillMaxWidth()) { Text("Finish setup") }
         if (!complete) Text("Turn on everything above to continue.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HarborOutlinedButton(onClick = onOpenAppSettings, modifier = Modifier.fillMaxWidth()) { Text("Open app settings") }
+        HarborOutlinedButton(onClick = { doc = LegalDoc.CHILD_ABOUT }, modifier = Modifier.fillMaxWidth()) { Text("What Harbor shares and why") }
+        PolicyLinks { doc = it }
     }
 }

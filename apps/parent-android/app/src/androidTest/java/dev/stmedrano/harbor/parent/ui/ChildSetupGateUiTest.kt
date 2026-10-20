@@ -30,7 +30,7 @@ class ChildSetupGateUiTest {
         compose.setContent { HarborTheme { Scrolling { ChildSetupGate(childSetupSteps(none), { asked += it }, {}, {}) } } }
         compose.onNodeWithText("Set up this phone").assertExists()
         compose.onNodeWithText("0 of 4").assertExists()
-        compose.onNodeWithText("Lets Harbor measure screen time. It never limits or blocks apps.").assertExists()
+        compose.onNodeWithText("Measure screen time. Never blocks apps.").assertExists()
         compose.onNodeWithText("Finish setup").assertIsNotEnabled()
         compose.onNodeWithText("Turn on everything above to continue.").assertExists()
         compose.onNodeWithContentDescription("Turn on Location").performClick()
