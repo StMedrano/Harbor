@@ -6,7 +6,7 @@ import org.junit.Test
 class FamilyMapModelsTest {
     private val raw = checkNotNull(javaClass.classLoader?.getResource("family-map-reply-v1.json")).readText()
     private val now = java.time.Instant.parse("2026-10-20T16:00:00Z").toEpochMilli()
-    private fun rejected(text: String) = assertThrows(Exception::class.java) { decodeFamilyMap(text) }
+    private fun rejected(text: String) { assertThrows(Exception::class.java) { decodeFamilyMap(text) } }
 
     @Test fun sharedFixtureDecodesWithChildrenAndASharingParent() {
         val reply = decodeFamilyMap(raw)
