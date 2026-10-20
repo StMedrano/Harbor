@@ -21,8 +21,15 @@ For Supabase: copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` an
 | Child status | signed `device-sync` (method, operation, device id, body SHA-256, timestamp, nonce) |
 | Remove monitoring | parent re-auths on a separate client → `revoke-device`, which needs recent MFA (AAL2) |
 
+## Read-only reports from the child's phone
+- **Screen time** (Activity › Overview): `get-device-usage`.
+- **Location** (Map): `get-device-location`. The newest place is drawn on OpenStreetMap tiles with earlier places as dots; a place more than 30 minutes since the last upload is "last known" and grey. Tiles come from `tile.openstreetmap.org` (allowed in the CSP), which is for development only.
+- **Message alerts** (Alerts): `get-message-alerts`, 50 per page. Each item is a possible concern with category, app, time and a saved-contact flag only; the contract has no message text, sender or excerpt. Self-harm items show guidance and crisis resources.
+
+The child's **About me** tab discloses all of this in the same words as the Android panels (`js/child-disclosure.js`; a test checks the app list against `MonitoredApps.kt`). The browser itself shares nothing, and the child has no off switch: only a parent can stop it by removing the phone.
+
 ## Not available yet (shown honestly, never faked)
-Screen time, app lists, alerts, location, requests, SOS/check-in, settings and removing a child: the backend has no tables/functions for them. The adapter returns empty data or `ApiError('unavailable')`.
+Requests, controls, SOS/check-in, notification settings and removing a child: the backend has no tables/functions for them. The adapter returns empty data or `ApiError('unavailable')`.
 
 ## Known gaps
 - The approved design makes the child client native Android (Keystore). A browser key is weaker, so the web child path is for development/preview.

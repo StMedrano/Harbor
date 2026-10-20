@@ -30,6 +30,9 @@ import dev.stmedrano.harbor.parent.ui.HarborBottomBar
 import dev.stmedrano.harbor.parent.ui.HarborGlyph
 import dev.stmedrano.harbor.parent.ui.HarborNavItem
 import dev.stmedrano.harbor.parent.ui.childNavItems
+import dev.stmedrano.harbor.parent.ui.ParentTab
+import dev.stmedrano.harbor.parent.ui.defaultParentTab
+import dev.stmedrano.harbor.parent.ui.parentNavItems
 import dev.stmedrano.harbor.parent.ui.ParentSessionContent
 import dev.stmedrano.harbor.parent.ui.AuthScreen
 import dev.stmedrano.harbor.parent.ui.FamilyRoute
@@ -46,8 +49,27 @@ import dev.stmedrano.harbor.parent.ui.FamilyDestination
 import dev.stmedrano.harbor.parent.ui.FamilyRoleContent
 import dev.stmedrano.harbor.parent.ui.FamilyEntryScreen
 import dev.stmedrano.harbor.parent.ui.ChildDashboard
+import dev.stmedrano.harbor.parent.ui.ChildSetupGate
+import dev.stmedrano.harbor.parent.ui.PermissionSnapshot
+import dev.stmedrano.harbor.parent.ui.SetupGateMemory
+import dev.stmedrano.harbor.parent.ui.SetupStepId
+import dev.stmedrano.harbor.parent.ui.childSetupSteps
+import dev.stmedrano.harbor.parent.ui.finish
+import dev.stmedrano.harbor.parent.ui.observe
+import dev.stmedrano.harbor.parent.ui.setupComplete
+import dev.stmedrano.harbor.parent.ui.visible
+import dev.stmedrano.harbor.parent.child.ChildSyncState
+import androidx.compose.runtime.SideEffect
+import kotlinx.coroutines.delay
 import dev.stmedrano.harbor.parent.ui.rememberChildUsageUi
+import dev.stmedrano.harbor.parent.ui.rememberChildCheckInUi
+import dev.stmedrano.harbor.parent.ui.rememberChildFamilyMapUi
+import dev.stmedrano.harbor.parent.ui.rememberParentCheckInView
+import dev.stmedrano.harbor.parent.ui.rememberChildLocationUi
+import dev.stmedrano.harbor.parent.ui.rememberChildAlertsUi
 import dev.stmedrano.harbor.parent.ui.rememberParentUsageView
+import dev.stmedrano.harbor.parent.ui.rememberParentLocationView
+import dev.stmedrano.harbor.parent.ui.rememberParentAlertsView
 import dev.stmedrano.harbor.parent.ui.ChildPairingScreen
 import dev.stmedrano.harbor.parent.ui.ParentApprovalScreen
 import dev.stmedrano.harbor.parent.ui.ProtectSensitiveScreen
@@ -58,6 +80,8 @@ class MainActivity : ComponentActivity() {
     private val authenticationPage = mutableStateOf(true)
     private val settingsPage = mutableStateOf(false)
     private val securityPage = mutableStateOf(false)
+    /** Null until a parent picks a tab, so the first page follows whether a child exists (see defaultParentTab). */
+    private val parentTab = mutableStateOf<ParentTab?>(null)
     private var requestedHint: ParentHint? = null
     private var requestedChildHint: ParentRoute? = null
     private val logoutRequested = mutableStateOf(false)
@@ -105,9 +129,11 @@ class MainActivity : ComponentActivity() {
                     if (expected != null && graph.profiles.isCurrent(expected)) graph.enableChildNotifications(expected)
                 }
                 val childTab = remember { mutableStateOf("Today") }
+                // The setup gate hides the bottom bar. Assume the gate until the child screen says otherwise, so the bar never flashes.
+                val childGateVisible = remember { mutableStateOf(!BuildConfig.CI_FIXTURE) }
                 val destination = entryState.destination()
-                val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME) {
-                    @Composable { HarborBottomBar(childNavItems(childTab.value) { childTab.value = it }) }
+                val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME && !childGateVisible.value) {
+                    @Composable { HarborBottomBar(childNavItems(childTab.value, withCheckIn = !BuildConfig.CI_FIXTURE, withFamily = !BuildConfig.CI_FIXTURE) { childTab.value = it }) }
                 } else null
                 HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
                     transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -133,6 +159,56 @@ class MainActivity : ComponentActivity() {
                             val usageUi = if (BuildConfig.CI_FIXTURE) null else rememberChildUsageUi(graph, lease, resumeTick.intValue) {
                                 try { startActivity(graph.usageSettingsIntent()) } catch (_: Exception) { startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                             }
+                            val locationFine = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { graph.refreshChildLocation(lease) }
+                            val locationBackground = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { graph.refreshChildLocation(lease) }
+                            val locationUi = if (BuildConfig.CI_FIXTURE) null else rememberChildLocationUi(graph, lease, resumeTick.intValue,
+                                onAllowLocation = { locationFine.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
+                                onAllowAllTheTime = { locationBackground.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) },
+                                onOpenLocationSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
+                                onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
+                            val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { graph.refreshChildAlerts(lease) }
+                            val alertsUi = if (BuildConfig.CI_FIXTURE) null else rememberChildAlertsUi(graph, lease, resumeTick.intValue,
+                                onOpenNotificationAccess = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (_: Exception) { /* No settings screen to open. */ } },
+                                onAllowSms = { smsPermission.launch(Manifest.permission.RECEIVE_SMS) },
+                                onOpenAppSettings = { try { startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) { /* No settings screen to open. */ } })
+                            val notificationsOn = remember(lease) { mutableStateOf(areNotificationsOn()) }
+                            LaunchedEffect(lease, resumeTick.intValue) {
+                                while (true) {
+                                    notificationsOn.value = areNotificationsOn()
+                                    delay(3000)
+                                }
+                            }
+                            val checkInUi = if (BuildConfig.CI_FIXTURE) null else rememberChildCheckInUi(graph, lease, resumeTick.intValue)
+                            val familyMapUi = if (BuildConfig.CI_FIXTURE) null else rememberChildFamilyMapUi(graph, lease, resumeTick.intValue)
+                            val gateLocation = locationUi
+                            val gateUsage = usageUi
+                            val gateSteps = if (gateLocation != null && gateUsage != null)
+                                childSetupSteps(PermissionSnapshot(gateLocation.access, notificationsOn.value, gateUsage.permissionGranted, alertsUi?.access)) else null
+                            val gateComplete = gateSteps?.let(::setupComplete) ?: true
+                            val gateMemory = remember(lease) { mutableStateOf(SetupGateMemory()) }
+                            if (gateSteps != null) LaunchedEffect(gateComplete) { gateMemory.value = gateMemory.value.observe(gateComplete) }
+                            val showGate = gateSteps != null && childState !is ChildSyncState.Blocked && gateMemory.value.visible(gateComplete)
+                            SideEffect { childGateVisible.value = showGate }
+                            if (showGate && gateSteps != null && gateLocation != null && gateUsage != null) {
+                                ChildSetupGate(gateSteps,
+                                    onTurnOn = { id ->
+                                        val access = gateLocation.access
+                                        when (id) {
+                                            SetupStepId.LOCATION -> if (!access.fineGranted) gateLocation.onAllowLocation() else gateLocation.onOpenLocationSettings()
+                                            SetupStepId.LOCATION_ALWAYS -> if (!access.fineGranted) gateLocation.onAllowLocation() else gateLocation.onAllowAllTheTime()
+                                            SetupStepId.NOTIFICATIONS ->
+                                                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                                    childPermissionRequest.value = lease
+                                                    childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                                } else openNotificationSettings()
+                                            SetupStepId.USAGE_ACCESS -> gateUsage.onOpenSettings()
+                                            SetupStepId.NOTIFICATION_ACCESS -> alertsUi?.onOpenNotificationAccess?.invoke()
+                                            SetupStepId.SMS -> alertsUi?.onAllowSms?.invoke()
+                                        }
+                                    },
+                                    onOpenAppSettings = gateLocation.onOpenAppSettings,
+                                    onFinish = { gateMemory.value = gateMemory.value.finish(gateComplete) })
+                            } else
                             ChildDashboard(checkNotNull(childState), checkNotNull(childBinding),
                                 onSync = { graph.syncChild(lease, childBinding) },
                                 onRequestRoleChange = {
@@ -143,7 +219,7 @@ class MainActivity : ComponentActivity() {
                                         } catch (_: Exception) { transitionMessage.value = "Parent approval could not start. This phone remains enrolled." }
                                     }
                                 },
-                                usage = usageUi, tab = childTab.value,
+                                usage = usageUi, location = locationUi, alerts = alertsUi, checkIn = checkInUi, familyMap = familyMapUi, tab = childTab.value, onSelectTab = { childTab.value = it },
                                 notificationConfirmed = registration.lease == lease && registration.confirmed,
                                 onEnableNotifications = {
                                     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -198,18 +274,16 @@ class MainActivity : ComponentActivity() {
             }
             val authenticationOpen = authenticationPage.value || callback.value != null
             val parentHome = identity != null && profile is ProfileState.Parent && profile.lease.ownerId == identity.userId && !authenticationOpen
+            val familyForTabs = graph.familyViewModel?.repository?.state?.collectAsState()?.value
+            val effectiveTab = parentTab.value ?: defaultParentTab(familyForTabs?.snapshot?.children?.isNotEmpty() == true)
             val parentBar: (@Composable () -> Unit)? = if (parentHome && runtime?.signingOut != true) {
-                @Composable { HarborBottomBar(listOf(
-                    HarborNavItem("Family", HarborGlyph.FAMILY, !settingsPage.value && !securityPage.value) {
-                        authenticationPage.value = false; settingsPage.value = false; securityPage.value = false; graph.closeNotification() },
-                    HarborNavItem("Settings", HarborGlyph.SETTINGS, settingsPage.value) {
-                        settingsPage.value = !settingsPage.value; securityPage.value = false; graph.closeNotification() },
-                    HarborNavItem("Security", HarborGlyph.SECURITY, securityPage.value) {
-                        securityPage.value = !securityPage.value; settingsPage.value = false; graph.closeNotification() },
-                )) }
+                @Composable { HarborBottomBar(parentNavItems(if (settingsPage.value || securityPage.value) ParentTab.FAMILY else effectiveTab) { picked ->
+                    authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
+                    parentTab.value = picked; graph.closeNotification() }) }
             } else null
+            androidx.activity.compose.BackHandler(settingsPage.value) { settingsPage.value = false }
             HarborTheme {
-                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar) {
+                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar, scrollKey = effectiveTab) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
@@ -221,6 +295,7 @@ class MainActivity : ComponentActivity() {
                                         graph.profiles.activateParent()
                                         if (graph.profiles.state.value is ProfileState.Parent) withContext(Dispatchers.Main) {
                                         authenticationPage.value = false; settingsPage.value = false; securityPage.value = false
+                                        parentTab.value = null
                                         logoutRequested.value = false; graph.closeNotification()
                                         }
                                         }
@@ -233,14 +308,23 @@ class MainActivity : ComponentActivity() {
                                 val snapshot = family?.snapshot
                                 val visibleDevice = tap.device?.let { reference -> snapshot?.takeIf {
                                     identity != null && it.membership.userId == identity.userId && it.family.id == reference.familyId
-                                }?.devices?.firstOrNull { it.id == reference.id } }
+                                }?.devices?.firstOrNull { it.id == reference.id && it.status != "revoked" } }
                                 if (identity != null && securityPage.value) key(identity) { SecurityScreen(checkNotNull(graph.securityViewModel), onBack = { securityPage.value = false }, runtime = graph.runtime) }
                                 else if (identity != null && visibleDevice != null) {
                                     val usage = rememberParentUsageView(graph.parentUsage, identity, visibleDevice.id, resumeTick.intValue)
+                                    val location = rememberParentLocationView(graph.parentLocation, identity, visibleDevice.id, resumeTick.intValue)
+                                    val alerts = rememberParentAlertsView(graph.parentAlerts, identity, visibleDevice.id, resumeTick.intValue)
+                                    val checkIn = rememberParentCheckInView(graph.parentCheckIn, identity, visibleDevice.id, resumeTick.intValue)
+                                    val childName = snapshot?.children?.firstOrNull { it.id == visibleDevice.childId }?.displayName ?: "your child"
                                     DeviceScreen(visibleDevice,
                                         onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
                                         cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
-                                        onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } }) { graph.closeNotification() }
+                                        onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
+                                        checkIn = checkIn, childName = childName,
+                                        onAskCheckIn = graph.parentCheckIn?.takeIf { family != null && !family.cached && !family.loading && family.failure == null }
+                                            ?.let { m -> { graph.accountScope.launch { m.ask(identity, visibleDevice.id) } } }) { graph.closeNotification() }
                                 }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
                                     onEnable = {
@@ -256,7 +340,10 @@ class MainActivity : ComponentActivity() {
                                         pendingExport.value = identity to receipt
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
-                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage) }
+                                else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts,
+                                    checkInModel = graph.parentCheckIn, familyMapModel = graph.parentFamilyMap, tab = effectiveTab, resumeTick = resumeTick.intValue,
+                                    onSettings = { settingsPage.value = true; securityPage.value = false; graph.closeNotification() },
+                                    onSecurity = { securityPage.value = true; settingsPage.value = false; graph.closeNotification() }) }
                             })
                     }
                 }
@@ -283,6 +370,12 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() { super.onStart(); (application as ParentApplication).foreground() }
     override fun onResume() { super.onResume(); resumeTick.intValue++ }
+    private fun areNotificationsOn(): Boolean = getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
+    private fun openNotificationSettings() {
+        try {
+            startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
+        } catch (_: Exception) { /* No settings screen to open. */ }
+    }
 
     private fun scrubCallback(intent: Intent): String? {
         val requested = intent.dataString

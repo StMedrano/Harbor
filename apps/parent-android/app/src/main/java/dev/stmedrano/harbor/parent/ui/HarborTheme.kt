@@ -5,10 +5,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import dev.stmedrano.harbor.parent.R
 
 @Composable
 fun HarborTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
@@ -43,22 +47,50 @@ fun HarborTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -
         surfaceTint = Color(0xFF163A3A),
     )
     MaterialTheme(colorScheme = colors, typography = harborTypography(), shapes = Shapes(
-        small = RoundedCornerShape(8.dp), medium = RoundedCornerShape(12.dp), large = RoundedCornerShape(22.dp),
+        extraSmall = RoundedCornerShape(6.dp), small = RoundedCornerShape(10.dp), medium = RoundedCornerShape(12.dp),
+        large = RoundedCornerShape(14.dp), extraLarge = RoundedCornerShape(22.dp),
     ), content = content)
 }
 
-// Sizes, weights and tracking follow web/harbor-family/css/styles.css (h1 26/600, h2 16/600, body 15, labels 13/600).
+/** Instrument Sans (SIL OFL, see docs/third-party), the design system's face. Glyphs it lacks fall back to the system font. */
+val HarborFont = FontFamily(
+    Font(R.font.instrument_sans_regular, FontWeight.Normal),
+    Font(R.font.instrument_sans_medium, FontWeight.Medium),
+    Font(R.font.instrument_sans_semibold, FontWeight.SemiBold),
+    Font(R.font.instrument_sans_bold, FontWeight.Bold),
+)
+
+/** Design-system `metric`: the big number on a report, tight and tabular so digits do not jitter. */
+val HarborMetricStyle = TextStyle(fontFamily = HarborFont, fontSize = 32.sp, lineHeight = 35.sp, fontWeight = FontWeight.SemiBold,
+    letterSpacing = (-0.03).em, fontFeatureSettings = "tnum")
+
+/** Design-system `code`: a six-digit pairing code, wide-tracked. */
+val HarborCodeStyle = TextStyle(fontFamily = HarborFont, fontSize = 34.sp, lineHeight = 41.sp, fontWeight = FontWeight.SemiBold,
+    letterSpacing = 0.18.em, fontFeatureSettings = "tnum")
+
+/** Family colours `kid-1` to `kid-6`, handed out in the order children were added. Initials on them are always white. */
+object HarborKid {
+    val colors = listOf(Color(0xFFC0563A), Color(0xFF3A6FB0), Color(0xFF2F8F6B), Color(0xFF8A5AA8), Color(0xFFB8860B), Color(0xFFC2527A))
+    fun color(index: Int): Color = colors[Math.floorMod(index, colors.size)]
+}
+
+// Sizes, weights and tracking follow the Harbor Family design system type scale (title 26, heading 16, body 15, button 14.5, label 13, caption 12.5, tab 11.5).
 private fun harborTypography(): Typography {
     val base = Typography()
+    fun TextStyle.harbor() = copy(fontFamily = HarborFont)
     return base.copy(
-        headlineMedium = base.headlineMedium.copy(fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.02).em),
-        headlineSmall = base.headlineSmall.copy(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.02).em),
-        titleLarge = base.titleLarge.copy(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.02).em),
-        titleMedium = base.titleMedium.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
-        bodyLarge = base.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp, letterSpacing = 0.sp),
-        bodyMedium = base.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.sp),
-        bodySmall = base.bodySmall.copy(fontSize = 12.5.sp, lineHeight = 17.sp, letterSpacing = 0.sp),
-        labelLarge = base.labelLarge.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
-        labelMedium = base.labelMedium.copy(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+        displayLarge = base.displayLarge.harbor(), displayMedium = base.displayMedium.harbor(), displaySmall = base.displaySmall.harbor(),
+        headlineLarge = base.headlineLarge.harbor(),
+        headlineMedium = base.headlineMedium.copy(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.02).em).harbor(),
+        headlineSmall = base.headlineSmall.copy(fontSize = 26.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.02).em).harbor(),
+        titleLarge = base.titleLarge.copy(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.02).em).harbor(),
+        titleMedium = base.titleMedium.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp).harbor(),
+        titleSmall = base.titleSmall.copy(fontSize = 14.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp).harbor(),
+        bodyLarge = base.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp, letterSpacing = 0.sp).harbor(),
+        bodyMedium = base.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.sp).harbor(),
+        bodySmall = base.bodySmall.copy(fontSize = 12.5.sp, lineHeight = 17.sp, letterSpacing = 0.sp).harbor(),
+        labelLarge = base.labelLarge.copy(fontSize = 14.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp).harbor(),
+        labelMedium = base.labelMedium.copy(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp).harbor(),
+        labelSmall = base.labelSmall.copy(fontSize = 11.5.sp, lineHeight = 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp).harbor(),
     )
 }

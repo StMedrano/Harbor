@@ -1,0 +1,20 @@
+begin;
+select plan(15);
+select ok(to_regclass('private.device_message_alerts') is not null,'alerts private');
+select ok(to_regclass('private.device_alert_status') is not null,'alert status private');
+select ok(to_regclass('private.device_alert_checkpoints') is not null,'alert checkpoints retained privately');
+select ok(not has_table_privilege('anon','private.device_message_alerts','select'),'anonymous cannot read alerts');
+select ok(not has_table_privilege('authenticated','private.device_message_alerts','select'),'parent cannot directly read alerts');
+select ok(not has_table_privilege('authenticated','private.device_alert_checkpoints','select'),'checkpoints server only');
+select ok(not has_function_privilege('authenticated','private.harbor_get_device_alerts(uuid,uuid,uuid,timestamptz,integer)','execute'),'parent read helper server only');
+select ok(not has_function_privilege('anon','private.harbor_purge_device_alerts()','execute'),'janitor server only');
+select ok(not has_function_privilege('authenticated','private.harbor_enqueue_alert_push(uuid,uuid,bigint)','execute'),'push enqueue server only');
+select ok((select relrowsecurity from pg_class where oid='private.device_message_alerts'::regclass),'alerts RLS enabled');
+select ok((select relrowsecurity from pg_class where oid='private.device_alert_status'::regclass),'status RLS enabled');
+select is((select count(*)::int from cron.job where jobname='harbor-alert-retention' and schedule='41 3 * * *'),1,'one daily named retention job');
+select ok(exists(select 1 from pg_trigger where tgname='device_alert_revoke_cleanup' and not tgisinternal),'revoke deletes alert data');
+select is((select array_agg(column_name::text order by column_name) from information_schema.columns where table_schema='private' and table_name='device_message_alerts'),
+ array['alert_at','alert_id','app_label','category','device_id','expires_at','received_at','rule_set_version','saved_contact'],'alert rows have no text, sender or excerpt column');
+select is((select count(*)::int from information_schema.columns where table_schema='private' and table_name in ('device_message_alerts','device_alert_status','device_alert_checkpoints') and column_name ~* '(text|body|sender|excerpt|snippet|message|contact_name|phone|address)'),0,'no content-bearing column names in any alert table');
+select * from finish();
+rollback;

@@ -1,0 +1,16 @@
+begin;
+select plan(12);
+select ok(to_regclass('private.parent_location_sharing') is not null,'parent sharing is private');
+select ok(to_regclass('private.family_map_settings') is not null,'family map setting is private');
+select ok(not has_table_privilege('anon','private.parent_location_sharing','select'),'anonymous cannot read parent places');
+select ok(not has_table_privilege('authenticated','private.parent_location_sharing','select'),'a signed-in user cannot read parent places directly');
+select ok(not has_table_privilege('authenticated','private.family_map_settings','select'),'a signed-in user cannot read the setting directly');
+select ok((select relrowsecurity from pg_class where oid='private.parent_location_sharing'::regclass),'RLS on parent places');
+select ok((select relrowsecurity from pg_class where oid='private.family_map_settings'::regclass),'RLS on the setting');
+select ok(not has_function_privilege('authenticated','private.harbor_get_family_map(uuid,uuid,uuid,uuid)','execute'),'child map read is server only');
+select ok(not has_function_privilege('authenticated','private.harbor_report_parent_location(uuid,uuid,uuid,jsonb)','execute'),'parent report is server only');
+select ok(not has_function_privilege('anon','private.harbor_purge_parent_location_sharing()','execute'),'janitor server only');
+select is((select count(*)::int from cron.job where jobname='harbor-parent-location-retention' and schedule='43 3 * * *'),1,'one daily named retention job');
+select ok(exists(select 1 from pg_trigger where tgname='parent_location_sharing_membership_cleanup' and not tgisinternal),'a removed parent stops appearing');
+select * from finish();
+rollback;

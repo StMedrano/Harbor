@@ -30,6 +30,7 @@ class ParentMessageParserTest {
     @Test fun onlySupportedKindsWithEveryReferenceAreAccepted() {
         val route = envelope().getValue("route")
         assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.command.created"))))
+        assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.checkin.requested"))))
         assertNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "future.unknown"))))
         for ((field, value) in listOf("familyId" to FAMILY, "childId" to CHILD, "deviceId" to DEVICE, "resourceId" to EVENT)) {
             assertNull("Missing $field", ParentMessageParser.parse(envelope(route.replace(",\"$field\":\"$value\"", ""))))
@@ -59,5 +60,15 @@ class ParentMessageParserTest {
             valid.replace("\"version\":1", "\"version\":2"), valid.replace(EVENT, "bad-id"))) {
             assertNull(ParentMessageParser.parse(envelope(route)))
         }
+    }
+
+    @Test fun messageAlertKindIsAcceptedAndRendersGenericReviewTextWithoutContent() {
+        val route = envelope().getValue("route")
+        assertNotNull(ParentMessageParser.parse(envelope(route.replace("device.state.changed", "device.alert.created"))))
+        val text = parentPushText("device.alert.created")
+        assertEquals("Harbor flagged a possible concern. Open to review.", text)
+        // The generic text never carries an identifier, a category or any message content.
+        for (secret in listOf(FAMILY, CHILD, DEVICE, EVENT, "bullying", "self_harm")) assertFalse(text.contains(secret))
+        assertEquals("Open Harbor to check your family.", parentPushText("device.state.changed"))
     }
 }

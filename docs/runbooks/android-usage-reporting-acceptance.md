@@ -4,7 +4,7 @@ Applies to the approved design `docs/superpowers/specs/2026-10-08-harbor-android
 
 ## What the measurements are
 
-Usage is read on the child's phone from Android's UsageStats and sent as a signed, device-observed report. The server stores the latest report per device, confirms receipt, and lets active owner/parent members read it. Reports are not server-attested and make no claim to equal Digital Wellbeing. Overlapping app time is counted once in the day total, so app times may add up to more than the total. Unknown is never shown as zero: no report, absent Usage Access, unavailable days and expired data each have their own state. Harbor measures only; it adds no limits, blocking, location, messaging, SOS or anti-removal behavior.
+Usage is read on the child's phone from Android's UsageStats and sent as a signed, device-observed report. The server stores the latest report per device, confirms receipt, and lets active owner/parent members read it. Reports are not server-attested and make no claim to equal Digital Wellbeing. Overlapping app time is counted once in the day total, so app times may add up to more than the total. Unknown is never shown as zero: no report, absent Usage Access, unavailable days and expired data each have their own state. Usage reporting measures only; it adds no limits, blocking, SOS or anti-removal behavior. Location sharing is a separate feature with its own runbook (`android-location-acceptance.md`).
 
 ## Evidence classes
 
