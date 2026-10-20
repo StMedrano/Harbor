@@ -47,6 +47,8 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     LaunchedEffect(pairing.code) {
         while (pairing.code != null) { expired = model.pairing.expired(); delay(1000) }
     }
+    // Picking another bottom tab leaves any open device page or legal document, so the page matches the selected tab.
+    LaunchedEffect(tab) { deviceId = null; legalDoc = null }
     BackHandler(sheet != null || deviceId != null || legalDoc != null) { sheet = null; deviceId = null; legalDoc = null }
     val canRevoke = !family.cached && !family.loading && family.failure == null && !control.busy
     val device = family.snapshot?.takeIf { it.membership.userId == identity.userId && it.membership.status == "active" }

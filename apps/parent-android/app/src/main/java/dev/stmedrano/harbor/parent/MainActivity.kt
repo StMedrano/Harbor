@@ -281,7 +281,7 @@ class MainActivity : ComponentActivity() {
             } else null
             androidx.activity.compose.BackHandler(settingsPage.value) { settingsPage.value = false }
             HarborTheme {
-                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar) {
+                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar, scrollKey = effectiveTab) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")
