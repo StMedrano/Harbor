@@ -23,8 +23,12 @@ data class LocationViewState(
     val offline: Boolean = false,
 ) {
     val latest: LocationFix? get() = fixes.firstOrNull()
-    /** Nothing new from the child's phone for a while; the map is then labelled instead of looking live. */
-    fun isStale(nowMs: Long): Boolean = receivedAtMs?.let { nowMs - it > LOCATION_STALE_AFTER_MS } ?: true
+    /** Nothing new from the child's phone for a while, or the newest place itself is old: the map is then labelled instead of looking live. A status-only report cannot make an old place look current. */
+    fun isStale(nowMs: Long): Boolean {
+        val received = receivedAtMs ?: return true
+        val recorded = latest?.at?.let(::locationInstantMsLenient) ?: return true
+        return nowMs - received > LOCATION_STALE_AFTER_MS || nowMs - recorded > LOCATION_STALE_AFTER_MS
+    }
 
     companion object {
         fun fromReply(reply: LocationReadReplyV1, nowMs: Long, offline: Boolean = false): LocationViewState = when (reply.state) {
