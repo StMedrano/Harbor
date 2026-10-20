@@ -1,6 +1,7 @@
 // CHILD experience: simple, friendly, and open about what parents can see. Mounted only for role === 'child'.
 import { api, ApiError } from './api.js';
 import { $, e, LOGO, toast, open, shut, fld, form } from './common.js';
+import { renderDisclosure } from './child-disclosure.js';
 
 const TABS = { today: 'Today', apps: 'Apps', about: 'About me' };
 const ico = {
@@ -17,16 +18,15 @@ function today() {
   return `<div class="hello"><h1>Hi${st.child.name ? ' ' + e(st.child.name) : ' there'}</h1><p>${new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p></div>
 <div class="panel"><div class="row"><div><div class="rt">This phone is paired</div><div class="rs">Connected to your family\u2019s Harbor Family account</div></div><span class="tag ${st.offline ? 'm' : ''}">${st.offline ? 'Offline' : 'Connected'}</span></div>
 <div class="row"><div><div class="rt">Last sync</div><div class="rs">${st.lastSync ? e(when(st.lastSync)) : 'Not synced yet'}${st.offline ? ' (showing the last known state)' : ''}</div></div></div></div>
-<p class="rs" style="text-align:center;margin-top:12px">Screen time is measured only by the Harbor Family Android app. This browser does not report usage.</p>`;
+<p class="rs" style="text-align:center;margin-top:12px">Screen time, location and message checks come only from the Harbor Family Android app. This browser shares none of them. See <button class="lnk" data-a="tab" data-v="about">About me</button> for what Harbor can see.</p>`;
 }
 function apps() {
   return `<div class="head"><h1>Apps</h1></div>${emptyKid('Not measured here', 'App use is measured only by the Harbor Family Android app. This browser does not report usage.')}`;
 }
 function about() {
   return `<div class="head"><h1>About me</h1></div>
-<p class="note"><b>Nothing is hidden.</b> Harbor Family is on this phone so your parents can help keep you safe. Right now it can do this:</p>
-<div class="panel"><div class="row"><div><div class="rt">Connect this phone to your family</div><div class="rs">Your parents can see that it is paired and when it last synced</div></div></div></div>
-<p class="rs">More features, like screen time and location, will be explained here before they are turned on.</p>
+<p class="note"><b>Nothing is hidden.</b> Harbor Family is on this phone so your parents can help keep you safe. This is everything it can do:</p>
+${renderDisclosure()}
 <div class="lab">Parents only</div><button class="btn g" style="width:100%" data-a="unpair">Remove Harbor Family from this phone</button>`;
 }
 
