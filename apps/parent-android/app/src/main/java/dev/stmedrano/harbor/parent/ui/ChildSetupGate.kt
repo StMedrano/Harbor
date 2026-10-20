@@ -9,15 +9,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.stmedrano.harbor.parent.alerts.AlertAccess
 import dev.stmedrano.harbor.parent.location.LocationAccess
 
 /** The permissions a child phone needs before Harbor works. New features add a step here; nothing else has to change. */
-enum class SetupStepId { LOCATION, LOCATION_ALWAYS, NOTIFICATIONS, USAGE_ACCESS }
+enum class SetupStepId { LOCATION, LOCATION_ALWAYS, NOTIFICATIONS, USAGE_ACCESS, NOTIFICATION_ACCESS, SMS }
 
 data class SetupStep(val id: SetupStepId, val title: String, val why: String, val on: Boolean)
 
 /** What the phone currently allows, read fresh from Android. The gate never trusts a remembered answer. */
-data class PermissionSnapshot(val location: LocationAccess, val notificationsOn: Boolean, val usageGranted: Boolean)
+/** [alerts] is null in builds without message alerts; the two message steps are then not part of setup. */
+data class PermissionSnapshot(val location: LocationAccess, val notificationsOn: Boolean, val usageGranted: Boolean, val alerts: AlertAccess? = null)
 
 fun childSetupSteps(snapshot: PermissionSnapshot): List<SetupStep> = listOf(
     SetupStep(SetupStepId.LOCATION, "Location", "Lets Harbor know where this phone is while the app is open.",
@@ -28,7 +30,12 @@ fun childSetupSteps(snapshot: PermissionSnapshot): List<SetupStep> = listOf(
         snapshot.notificationsOn),
     SetupStep(SetupStepId.USAGE_ACCESS, "Usage access", "Lets Harbor measure screen time. It never limits or blocks apps.",
         snapshot.usageGranted),
-)
+) + (snapshot.alerts?.let { alerts -> listOf(
+    SetupStep(SetupStepId.NOTIFICATION_ACCESS, "Notification access",
+        "Lets Harbor check messages in chat apps on this phone. Your parents only get the app, the kind of concern and the time, never the words.",
+        alerts.notificationAccess),
+    SetupStep(SetupStepId.SMS, "Text messages", "Lets Harbor check texts the same way. Your parents never get the words.", alerts.smsPermission),
+) } ?: emptyList())
 
 fun setupComplete(steps: List<SetupStep>) = steps.isNotEmpty() && steps.all { it.on }
 

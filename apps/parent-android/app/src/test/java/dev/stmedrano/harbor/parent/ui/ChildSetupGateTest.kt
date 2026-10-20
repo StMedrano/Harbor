@@ -1,11 +1,13 @@
 package dev.stmedrano.harbor.parent.ui
 
+import dev.stmedrano.harbor.parent.alerts.AlertAccess
 import dev.stmedrano.harbor.parent.location.LocationAccess
 import org.junit.Assert.*
 import org.junit.Test
 
 class ChildSetupGateTest {
-    private val allOn = PermissionSnapshot(LocationAccess(fineGranted = true, backgroundGranted = true, servicesOn = true), notificationsOn = true, usageGranted = true)
+    private val allOn = PermissionSnapshot(LocationAccess(fineGranted = true, backgroundGranted = true, servicesOn = true), notificationsOn = true, usageGranted = true,
+        alerts = AlertAccess(notificationAccess = true, smsPermission = true))
     private fun on(s: PermissionSnapshot) = childSetupSteps(s).associate { it.id to it.on }
 
     @Test fun everythingOnCompletesSetup() {
@@ -18,6 +20,8 @@ class ChildSetupGateTest {
             SetupStepId.LOCATION_ALWAYS to allOn.copy(location = allOn.location.copy(backgroundGranted = false)),
             SetupStepId.NOTIFICATIONS to allOn.copy(notificationsOn = false),
             SetupStepId.USAGE_ACCESS to allOn.copy(usageGranted = false),
+            SetupStepId.NOTIFICATION_ACCESS to allOn.copy(alerts = AlertAccess(notificationAccess = false, smsPermission = true)),
+            SetupStepId.SMS to allOn.copy(alerts = AlertAccess(notificationAccess = true, smsPermission = false)),
         )
         for ((missing, snapshot) in cases) {
             val steps = childSetupSteps(snapshot)
@@ -32,6 +36,17 @@ class ChildSetupGateTest {
         val steps = on(allOn.copy(location = LocationAccess(fineGranted = false, backgroundGranted = true, servicesOn = true)))
         assertFalse(steps.getValue(SetupStepId.LOCATION))
         assertFalse(steps.getValue(SetupStepId.LOCATION_ALWAYS))
+    }
+    @Test fun buildsWithoutMessageAlertsAskForTheFourBasics() {
+        val steps = childSetupSteps(allOn.copy(alerts = null))
+        assertEquals(listOf(SetupStepId.LOCATION, SetupStepId.LOCATION_ALWAYS, SetupStepId.NOTIFICATIONS, SetupStepId.USAGE_ACCESS), steps.map { it.id })
+        assertTrue(setupComplete(steps))
+    }
+    @Test fun messageAlertPermissionsAreStepsOfTheirOwnWithPlainReasons() {
+        val steps = childSetupSteps(allOn)
+        assertEquals(6, steps.size)
+        val reasons = steps.filter { it.id == SetupStepId.NOTIFICATION_ACCESS || it.id == SetupStepId.SMS }.map { it.why }
+        assertTrue(reasons.all { it.contains("never the words") || it.contains("never get the words") })
     }
     @Test fun emptyListIsNeverComplete() = assertFalse(setupComplete(emptyList()))
     @Test fun everyStepExplainsItself() {

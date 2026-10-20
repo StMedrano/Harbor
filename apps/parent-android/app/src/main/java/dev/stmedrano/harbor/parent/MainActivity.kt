@@ -176,7 +176,7 @@ class MainActivity : ComponentActivity() {
                             val gateLocation = locationUi
                             val gateUsage = usageUi
                             val gateSteps = if (gateLocation != null && gateUsage != null)
-                                childSetupSteps(PermissionSnapshot(gateLocation.access, notificationsOn.value, gateUsage.permissionGranted)) else null
+                                childSetupSteps(PermissionSnapshot(gateLocation.access, notificationsOn.value, gateUsage.permissionGranted, alertsUi?.access)) else null
                             val gateComplete = gateSteps?.let(::setupComplete) ?: true
                             val gateMemory = remember(lease) { mutableStateOf(SetupGateMemory()) }
                             if (gateSteps != null) LaunchedEffect(gateComplete) { gateMemory.value = gateMemory.value.observe(gateComplete) }
@@ -195,6 +195,8 @@ class MainActivity : ComponentActivity() {
                                                     childPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                                 } else openNotificationSettings()
                                             SetupStepId.USAGE_ACCESS -> gateUsage.onOpenSettings()
+                                            SetupStepId.NOTIFICATION_ACCESS -> alertsUi?.onOpenNotificationAccess?.invoke()
+                                            SetupStepId.SMS -> alertsUi?.onAllowSms?.invoke()
                                         }
                                     },
                                     onOpenAppSettings = gateLocation.onOpenAppSettings,
