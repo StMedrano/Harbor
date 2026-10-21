@@ -23,6 +23,23 @@ class PolicyEngineTest {
         PolicyEngine.decide(pkg, now, policy, used, exempt)
     private fun block(reason: BlockReason) = Decision.Block(reason)
 
+    @Test fun dailyTotalLocksEverythingExceptUnlimitedAndExemptApps() {
+        val p = base.copy(dailyLimit = DailyLimit(60))
+        val noon = at(20, 12)
+        assertEquals(Decision.Allow, PolicyEngine.decide("com.whatsapp", noon, p, 0, exempt, 59 * 60_000L))
+        assertEquals(Decision.Block(BlockReason.LIMIT_REACHED, daily = true), PolicyEngine.decide("com.whatsapp", noon, p, 0, exempt, 60 * 60_000L))
+        assertEquals(Decision.Allow, PolicyEngine.decide(duolingo, noon, p, 0, exempt, 600 * 60_000L))
+        assertEquals(Decision.Allow, PolicyEngine.decide("com.android.dialer", noon, p, 0, exempt, 600 * 60_000L))
+        // An outright block still reads as a block, not as time being up.
+        assertEquals(block(BlockReason.BLOCKED_APP), PolicyEngine.decide(tiktok, noon, p, 0, exempt, 600 * 60_000L))
+        // Extra time counts only on its own day.
+        val extra = base.copy(dailyLimit = DailyLimit(60, "2026-10-20", 15))
+        assertEquals(Decision.Allow, PolicyEngine.decide("com.whatsapp", noon, extra, 0, exempt, 70 * 60_000L))
+        assertEquals(Decision.Block(BlockReason.LIMIT_REACHED, daily = true), PolicyEngine.decide("com.whatsapp", at(21, 12), extra, 0, exempt, 70 * 60_000L))
+        assertEquals(5 * 60_000L, PolicyEngine.totalRemainingMs(noon, extra, 70 * 60_000L))
+        assertNull(PolicyEngine.totalRemainingMs(noon, base, 70 * 60_000L))
+    }
+
     @Test fun emptyPolicyAllowsEverything() {
         assertEquals(Decision.Allow, PolicyEngine.decide(tiktok, at(20, 12), ControlsV1(), Long.MAX_VALUE, emptySet()))
     }

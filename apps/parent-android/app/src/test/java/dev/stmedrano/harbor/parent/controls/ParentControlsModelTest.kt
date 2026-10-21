@@ -4,9 +4,7 @@ import dev.stmedrano.harbor.parent.activity.*
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import dev.stmedrano.harbor.parent.family.FamilyAccessDenied
 import dev.stmedrano.harbor.parent.notifications.parentPushText
-import dev.stmedrano.harbor.parent.ui.AppRule
-import dev.stmedrano.harbor.parent.ui.ruleOf
-import dev.stmedrano.harbor.parent.ui.withAppRule
+import dev.stmedrano.harbor.parent.ui.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -24,9 +22,11 @@ class ParentControlsModelTest {
         var deny = false
         var writes = 0
         var raceOnce = false
+        var fail = false
         override suspend fun read(deviceId: String): DeviceControlsRead { if (deny) throw FamilyAccessDenied(); return server }
         override suspend fun write(familyId: String, deviceId: String, controls: ControlsV1, expectedVersion: Long): Long {
             writes++
+            if (fail) throw IllegalStateException("offline")
             if (raceOnce) { raceOnce = false; server = server.copy(desiredStateVersion = server.desiredStateVersion + 1); throw StaleControls() }
             if (expectedVersion != server.desiredStateVersion) throw StaleControls()
             server = DeviceControlsRead(controls, expectedVersion + 1, server.acknowledgedVersion)
@@ -63,6 +63,42 @@ class ParentControlsModelTest {
         assertEquals(4L, view.version)
         assertFalse(view.applied)
         assertFalse(model.save(parentA, family, device, wanted.copy(blockedApps = listOf("not a package"))))
+    }
+    @Test fun eachChangeIsWrittenAtOnceOnTopOfTheLastAndUndoneIfItFails() = runTest {
+        val api = FakeApi(DeviceControlsRead(null, 0, 0))
+        val model = ParentControlsModel(api) { parentA }
+        model.load(parentA, device)
+        assertTrue(model.update(parentA, family, device) { withAppRule(it, "com.zhiliaoapp.musically", AppRule.BLOCKED) })
+        assertTrue(model.update(parentA, family, device) { it.copy(pause = ControlsPause(true, null)) })
+        assertEquals(listOf("com.zhiliaoapp.musically"), api.server.controls?.blockedApps)
+        assertTrue(checkNotNull(api.server.controls).pause.active)
+        assertEquals(2L, checkNotNull(model.state.value).view.version)
+        api.fail = true
+        assertFalse(model.update(parentA, family, device) { withDailyMinutes(it, 0) })
+        val view = checkNotNull(model.state.value).view
+        assertTrue(view.saveFailed)
+        assertNull(view.controls.dailyLimit)
+        assertFalse(model.update(parentA, family, device) { it.copy(blockedApps = listOf("not a package")) })
+    }
+    @Test fun dailyLimitStepperExtraTimeAndAppLines() {
+        var c = withDailyMinutes(ControlsV1(), 0)
+        assertEquals(DailyLimit(120), c.dailyLimit)
+        c = withDailyMinutes(c, -15)
+        assertEquals(105, c.dailyLimit?.minutes)
+        assertEquals(15, withDailyMinutes(ControlsV1(dailyLimit = DailyLimit(15)), -15).dailyLimit?.minutes)
+        assertEquals(720, withDailyMinutes(ControlsV1(dailyLimit = DailyLimit(720)), 15).dailyLimit?.minutes)
+        val day = LocalDate.of(2026, 10, 21)
+        c = withExtraTime(withExtraTime(c, day), day)
+        assertEquals(DailyLimit(105, "2026-10-21", 30), c.dailyLimit)
+        assertEquals(DailyLimit(105, "2026-10-22", 15), withExtraTime(c, day.plusDays(1)).dailyLimit)
+        validateControls(c)
+        assertEquals(ControlsV1(), withExtraTime(ControlsV1(), day))
+        assertEquals("Blocked" to true, appStatusLine(ControlsV1(blockedApps = listOf("a.b")), "a.b", 0, false))
+        assertEquals("40m of 60m today" to false, appStatusLine(ControlsV1(appLimits = listOf(AppLimit("a.b", 60))), "a.b", 40, false))
+        assertEquals("60m today · limit reached" to true, appStatusLine(ControlsV1(appLimits = listOf(AppLimit("a.b", 60))), "a.b", 60, false))
+        assertEquals("40m today · Unlimited, works after time's up" to false, appStatusLine(ControlsV1(alwaysAllowed = listOf("a.b")), "a.b", 40, false))
+        assertEquals("40m today · locked, time's up" to true, appStatusLine(ControlsV1(), "a.b", 40, true))
+        assertEquals("1h 05m", formatHm(65))
     }
     @Test fun accessLossAndIdentityChangeHideData() = runTest {
         val api = FakeApi(DeviceControlsRead(decodeControls(raw), 1, 1))

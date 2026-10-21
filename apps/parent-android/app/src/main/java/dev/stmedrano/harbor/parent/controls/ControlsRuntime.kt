@@ -75,7 +75,13 @@ object ControlsBridge {
     private val connected = MutableStateFlow(false)
     /** True while Android has Harbor's accessibility service bound, i.e. controls are actually being enforced. */
     val serviceConnected: StateFlow<Boolean> = connected.asStateFlow()
-    fun publish(value: ControlsV1?) { policy = value }
+    /** Set by the accessibility service so a new policy (a pause, a new block) applies to the app already on screen. */
+    @Volatile var onPolicyChanged: (() -> Unit)? = null
+    fun publish(value: ControlsV1?) {
+        val changed = policy != value
+        policy = value
+        if (changed) try { onPolicyChanged?.invoke() } catch (_: Exception) { /* The next window change or tick re-checks. */ }
+    }
     fun setConnected(value: Boolean) { connected.value = value }
     fun record(event: ControlEvent) { try { recorder?.invoke(event) } catch (_: Exception) { /* Recording never blocks enforcement. */ } }
 }
@@ -160,8 +166,21 @@ fun foregroundMs(transitions: List<Pair<Long, Boolean>>, fromMs: Long, toMs: Lon
     return total
 }
 
+/**
+ * Today's foreground time across apps, from resume/pause transitions, leaving out [excluded] (the phone's exempt apps and
+ * the always-allowed ones, which do not count toward the daily limit).
+ */
+fun totalForegroundMs(transitions: List<dev.stmedrano.harbor.parent.activity.AppTransition>, fromMs: Long, toMs: Long, excluded: Set<String>): Long =
+    transitions.filter { it.packageName !in excluded }.groupBy { it.packageName }.values
+        .sumOf { app -> foregroundMs(app.map { it.atMs to it.resumed }, fromMs, toMs) }
+
 /** The words the child sees on the block screen. Plain and specific; never a fake system message. */
-fun blockMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?): Pair<String, String> = when (reason) {
+fun blockMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?, daily: Boolean = false): Pair<String, String> = when {
+    daily -> "Time's up for today" to
+        "You've used today's screen time. Only apps a parent set to Unlimited work until tomorrow. Calls and texts still work."
+    else -> blockReasonMessage(reason, appLabel, policy)
+}
+private fun blockReasonMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?): Pair<String, String> = when (reason) {
     BlockReason.PAUSED -> "Your phone is paused" to
         (policy?.pause?.until?.let { "A parent paused your phone. It unlocks at ${localClock(it)}." }
             ?: "A parent paused your phone. It unlocks when they resume it.")

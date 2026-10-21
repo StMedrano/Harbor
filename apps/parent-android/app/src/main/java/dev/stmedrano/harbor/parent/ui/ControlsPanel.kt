@@ -8,6 +8,8 @@ import androidx.compose.ui.Modifier
 import dev.stmedrano.harbor.parent.ParentApplication
 import dev.stmedrano.harbor.parent.controls.ControlsAccess
 import dev.stmedrano.harbor.parent.controls.ControlsV1
+import dev.stmedrano.harbor.parent.controls.ExemptApps
+import dev.stmedrano.harbor.parent.controls.totalSinceMidnight
 import dev.stmedrano.harbor.parent.controls.PolicyEngine
 import dev.stmedrano.harbor.parent.controls.UsageToday
 import dev.stmedrano.harbor.parent.controls.Weekday
@@ -25,6 +27,8 @@ data class ChildControlsUi(
     val labels: Map<String, String>,
     val remainingMs: Map<String, Long>,
     val now: ZonedDateTime,
+    /** Screen time left today under the daily limit, or null when there is no daily limit. */
+    val totalRemainingMs: Long? = null,
     val onTurnOn: () -> Unit,
 )
 
@@ -37,6 +41,7 @@ fun rememberChildControlsUi(graph: ParentApplication, lease: ProfileLease, resum
     var remaining by remember(lease) { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var labels by remember(lease) { mutableStateOf<Map<String, String>>(emptyMap()) }
     var now by remember(lease) { mutableStateOf(ZonedDateTime.now()) }
+    var totalLeft by remember(lease) { mutableStateOf<Long?>(null) }
     LaunchedEffect(lease, resumeTick, controls) {
         while (true) {
             enabled = ControlsAccess.isEnabled(graph)
@@ -49,12 +54,16 @@ fun rememberChildControlsUi(graph: ParentApplication, lease: ProfileLease, resum
                     limit.packageName to (PolicyEngine.remainingMs(limit.packageName, policy,
                         UsageToday.foregroundSinceMidnight(graph, limit.packageName, nowMs, midnight)) ?: 0L)
                 }
-                labels = (policy.blockedApps + policy.appLimits.map { it.packageName }).associateWith { appLabel(graph, it) }
+                totalLeft = policy.dailyLimit?.let {
+                    val excluded = ExemptApps.resolve(graph) + policy.alwaysAllowed
+                    PolicyEngine.totalRemainingMs(now, policy, UsageToday.totalSinceMidnight(graph, nowMs, midnight, excluded))
+                }
+                labels = (policy.blockedApps + policy.appLimits.map { it.packageName } + policy.alwaysAllowed).associateWith { appLabel(graph, it) }
             }
             delay(5000)
         }
     }
-    return ChildControlsUi(controls, enabled, labels, remaining, now, onTurnOn)
+    return ChildControlsUi(controls, enabled, labels, remaining, now, totalLeft, onTurnOn)
 }
 
 /** The rules in plain words, one line each. Empty when a parent has not set any. */
@@ -63,6 +72,15 @@ fun controlsSummary(ui: ChildControlsUi): List<String> {
     val label = { pkg: String -> ui.labels[pkg] ?: pkg }
     return buildList {
         if (PolicyEngine.isPaused(ui.now, c)) add("Your phone is paused by a parent. Calls and texts still work.")
+        c.dailyLimit?.let { d ->
+            val left = ui.totalRemainingMs
+            val leftText = when {
+                left == null -> ""
+                left <= 0L -> " — used up for today. Only Unlimited apps work until tomorrow."
+                else -> " — ${formatHm(maxOf(1L, left / 60_000L).toInt())} left today"
+            }
+            add("Screen time: ${formatHm(d.allowanceMinutes(ui.now.toLocalDate()))} a day$leftText")
+        }
         c.bedtime?.takeIf { it.enabled }?.let { b ->
             val days = if (b.days.toSet() == Weekday.entries.toSet()) "every night" else "on " + b.days.joinToString(", ") { it.name.lowercase().replaceFirstChar(Char::uppercase) }
             add("Bedtime is ${b.start} to ${b.end} $days." + if (PolicyEngine.isBedtime(ui.now, c)) " It's bedtime now." else "")
@@ -77,6 +95,7 @@ fun controlsSummary(ui: ChildControlsUi): List<String> {
             }
             add("${label(limit.packageName)}: ${limit.minutesPerDay} min a day$leftText")
         }
+        if (c.alwaysAllowed.isNotEmpty()) add("Unlimited: " + c.alwaysAllowed.joinToString(", ") { label(it) } + ".")
     }
 }
 

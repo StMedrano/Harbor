@@ -369,6 +369,15 @@ class ParentApplication : Application() {
         childControls = host
         host.start(lease)
         scope.launch { childRepository.desired.collectLatest { desired -> if (desired != null) host.apply(lease, desired) } }
+        // The child is usually in other apps, so controls cannot wait for Harbor to be opened: check once a minute. A
+        // parent's change also sends a wake push (device.controls.changed) that syncs within seconds when it arrives.
+        scope.launch {
+            while (true) {
+                try { childRepository.binding.value?.let { childRepository.sync(it) } }
+                catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
+                delay(60_000L)
+            }
+        }
         scope.launch {
             childRepository.state.collectLatest { value ->
                 // Keep enforcing the last policy through network or sign-in trouble; only a confirmed revocation ends it.

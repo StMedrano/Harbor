@@ -30,6 +30,12 @@ class ControlsSummaryTest {
         assertEquals("YouTube: 60 min a day — used up for today", controlsSummary(ui(c, mapOf("com.google.android.youtube" to 0L))).last())
         assertTrue(controlsSummary(ui(c, at = noon.withHour(22))).first().endsWith("It's bedtime now."))
     }
+    @Test fun dailyLimitAndUnlimitedAppsAreSpelledOut() {
+        val c = ControlsV1(alwaysAllowed = listOf("com.google.android.youtube"), dailyLimit = DailyLimit(120, "2026-10-20", 15))
+        val left = ChildControlsUi(c, true, mapOf("com.google.android.youtube" to "YouTube"), emptyMap(), noon, 45 * 60_000L) {}
+        assertEquals(listOf("Screen time: 2h 15m a day — 0h 45m left today", "Unlimited: YouTube."), controlsSummary(left))
+        assertTrue(controlsSummary(left.copy(totalRemainingMs = 0L)).first().endsWith("Only Unlimited apps work until tomorrow."))
+    }
     @Test fun pauseAndChosenDaysAreSpelledOut() {
         val c = ControlsV1(pause = ControlsPause(true, null), bedtime = ControlsBedtime(true, "21:00", "07:00", listOf(Weekday.SUN, Weekday.MON)))
         val lines = controlsSummary(ui(c))

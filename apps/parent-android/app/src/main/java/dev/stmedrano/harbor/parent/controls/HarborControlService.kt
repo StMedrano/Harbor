@@ -29,6 +29,8 @@ class HarborControlService : AccessibilityService() {
 
     override fun onServiceConnected() {
         exempt = ExemptApps.resolve(this)
+        // A pause or a new block arriving while an app is open applies to that app now, not at the next window change.
+        ControlsBridge.onPolicyChanged = { handler.post { evaluate() } }
         ControlsBridge.setConnected(true)
     }
 
@@ -53,24 +55,31 @@ class HarborControlService : AccessibilityService() {
         val nowMs = now.toInstant().toEpochMilli()
         val limited = policy.appLimits.any { it.packageName == pkg }
         val used = if (limited) UsageToday.foregroundSinceMidnight(this, pkg, nowMs, midnight) else 0L
-        when (val decision = PolicyEngine.decide(pkg, now, policy, used, exempt)) {
-            is Decision.Block -> block(pkg, decision.reason, policy, nowMs)
+        // Always-allowed ("Unlimited") apps neither count toward nor stop at the day's total screen time.
+        val counts = policy.dailyLimit != null && pkg !in policy.alwaysAllowed
+        val total = if (counts) UsageToday.totalSinceMidnight(this, nowMs, midnight, exempt + policy.alwaysAllowed) else 0L
+        when (val decision = PolicyEngine.decide(pkg, now, policy, used, exempt, total)) {
+            is Decision.Block -> block(pkg, decision, nowMs)
             Decision.Allow -> {
-                PolicyEngine.remainingMs(pkg, policy, used)?.let { warnIfLow(pkg, it, now.toLocalDate()) }
+                val appLeft = PolicyEngine.remainingMs(pkg, policy, used)
+                val totalLeft = if (counts) PolicyEngine.totalRemainingMs(now, policy, total) else null
+                appLeft?.let { warnIfLow(pkg, it, now.toLocalDate()) }
+                totalLeft?.let { warnIfLow(TOTAL_KEY, it, now.toLocalDate()) }
                 // Re-check while the app stays open: a limit can run out and a pause or bedtime can begin.
-                val remaining = PolicyEngine.remainingMs(pkg, policy, used)
-                val next = if (remaining != null) remaining.coerceIn(1_000L, CHECK_EVERY_MS) else CHECK_EVERY_MS
-                handler.postDelayed(tick, next)
+                val soonest = listOfNotNull(appLeft, totalLeft).minOrNull()
+                handler.postDelayed(tick, soonest?.coerceIn(1_000L, CHECK_EVERY_MS) ?: CHECK_EVERY_MS)
             }
         }
     }
 
-    private fun block(pkg: String, reason: BlockReason, policy: ControlsV1, nowMs: Long) {
+    private fun block(pkg: String, decision: Decision.Block, nowMs: Long) {
+        val reason = decision.reason
         val label = appLabel(this, pkg)
         performGlobalAction(GLOBAL_ACTION_HOME)
-        startActivity(BlockActivity.intent(this, label, reason))
+        startActivity(BlockActivity.intent(this, label, reason, decision.daily))
         foreground = null
-        if (reason == BlockReason.LIMIT_REACHED && limitRecorded.add("$pkg@${LocalDate.now()}")) {
+        // "Daily time limit reached" on the timeline names one app's own limit; the day's total shows as blocked opens.
+        if (reason == BlockReason.LIMIT_REACHED && !decision.daily && limitRecorded.add("$pkg@${LocalDate.now()}")) {
             ControlsBridge.record(ControlEvent(ActivityKind.LIMIT_REACHED, nowMs, pkg, label))
         }
         // One "tried to open" event per app per minute is enough for the parent's timeline.
@@ -80,6 +89,7 @@ class HarborControlService : AccessibilityService() {
         }
     }
 
+    /** [pkg] is an app with its own limit, or [TOTAL_KEY] for the day's total screen time. */
     private fun warnIfLow(pkg: String, remainingMs: Long, day: LocalDate) {
         if (warnedDay != day) { warned.clear(); limitRecorded.clear(); warnedDay = day }
         val step = when { remainingMs <= 60_000L -> 1; remainingMs <= 5 * 60_000L -> 5; else -> return }
@@ -87,7 +97,7 @@ class HarborControlService : AccessibilityService() {
         warned[pkg] = step
         val manager = getSystemService(NotificationManager::class.java) ?: return
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "App time limits", NotificationManager.IMPORTANCE_DEFAULT))
-        val label = appLabel(this, pkg)
+        val label = if (pkg == TOTAL_KEY) "screen time" else appLabel(this, pkg)
         val text = if (step == 1) "About 1 minute of $label left today." else "About 5 minutes of $label left today."
         try {
             manager.notify(pkg.hashCode(), NotificationCompat.Builder(this, CHANNEL)
@@ -100,6 +110,7 @@ class HarborControlService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tick)
+        ControlsBridge.onPolicyChanged = null
         ControlsBridge.setConnected(false)
         super.onDestroy()
     }
@@ -107,5 +118,6 @@ class HarborControlService : AccessibilityService() {
     companion object {
         private const val CHANNEL = "harbor-app-limits"
         private const val CHECK_EVERY_MS = 30_000L
+        private const val TOTAL_KEY = "harbor.total"
     }
 }

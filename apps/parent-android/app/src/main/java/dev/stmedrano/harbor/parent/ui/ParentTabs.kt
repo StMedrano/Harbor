@@ -24,13 +24,11 @@ import dev.stmedrano.harbor.parent.family.DevicePublicV1
 import dev.stmedrano.harbor.parent.location.LocationViewState
 import dev.stmedrano.harbor.parent.usage.UsageViewState
 
-/**
- * The parent app's four pages, like the web app's tab bar (Map, Alerts, Activity, Family). The web app's fifth tab,
- * Controls, is not here: Harbor does not block, limit or filter anything.
- */
+/** The parent app's five pages, like the web app's tab bar: Map, Alerts, Controls, Activity, Family. */
 enum class ParentTab(val label: String, val glyph: HarborGlyph) {
     MAP("Map", HarborGlyph.MAP),
     ALERTS("Alerts", HarborGlyph.ALERTS),
+    CONTROLS("Controls", HarborGlyph.CONTROLS),
     ACTIVITY("Activity", HarborGlyph.ACTIVITY),
     FAMILY("Family", HarborGlyph.FAMILY),
 }
@@ -76,7 +74,9 @@ data class ParentChildData(
     val usage: UsageViewState? = null, val onRefreshUsage: (() -> Unit)? = null,
     val checkIn: CheckInViewState? = null, val onAskCheckIn: (() -> Unit)? = null,
     val controls: dev.stmedrano.harbor.parent.controls.ControlsViewState? = null,
-    val onSaveControls: ((dev.stmedrano.harbor.parent.controls.ControlsV1) -> Unit)? = null, val onRefreshControls: (() -> Unit)? = null,
+    /** Applies one change to the latest controls and writes it straight away; null while offline. */
+    val onChangeControls: (((dev.stmedrano.harbor.parent.controls.ControlsV1) -> dev.stmedrano.harbor.parent.controls.ControlsV1) -> Unit)? = null,
+    val onRefreshControls: (() -> Unit)? = null,
     val activity: dev.stmedrano.harbor.parent.activity.ActivityViewState? = null, val activityToday: java.time.LocalDate = java.time.LocalDate.now(),
     val onActivityDay: (java.time.LocalDate) -> Unit = {}, val onRefreshActivity: (() -> Unit)? = null,
 )
@@ -99,8 +99,10 @@ fun ParentChildPage(tab: ParentTab, child: ChildV1, device: DevicePublicV1?, dat
                 if (data.checkIn != null && device.status == "active") ParentCheckInScreen(data.checkIn, child.displayName, data.onAskCheckIn)
             }
             ParentTab.ALERTS -> data.alerts?.let { ParentAlertsScreen(it, data.onRefreshAlerts) }
+            ParentTab.CONTROLS -> data.controls?.let {
+                ParentControlsScreen(it, child.displayName, data.usage, data.activity?.controlsOn, data.onChangeControls, data.onRefreshControls)
+            }
             ParentTab.ACTIVITY -> {
-                data.controls?.let { ParentControlsScreen(it, data.usage?.apps.orEmpty(), data.activity?.controlsOn, data.onSaveControls ?: {}, data.onRefreshControls) }
                 data.activity?.let { ParentActivityScreen(it, data.activityToday, data.onActivityDay, data.onRefreshActivity) }
                 data.usage?.let { UsageReportScreen(it, data.onRefreshUsage) }
             }

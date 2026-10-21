@@ -34,6 +34,7 @@ enum class HarborGlyph(val paths: List<String>) {
     MAP(listOf("M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z", circle(12.0, 9.5, 2.5))),
     ALERTS(listOf("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0")),
     ACTIVITY(listOf("M3 12h4l2.5-6 5 12 2.5-6h4")),
+    CONTROLS(listOf(roundRect(6.0, 3.0, 12.0, 18.0, 2.5), "M12 8v4l2.5 1.5")),
 }
 
 @Composable

@@ -13,6 +13,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
@@ -83,8 +85,9 @@ data class ControlsViewState(
 
 /**
  * Parent read and write of one device's controls. Every reply is fenced by the captured identity, device and request
- * order, so a late reply for another child or a signed-out parent is dropped. A save that loses a race reloads and
- * re-applies the parent's change once on top of the newer version.
+ * order, so a late reply for another child or a signed-out parent is dropped. Each change is written as soon as the
+ * parent makes it (like a switch, with no separate Save), one at a time and on top of the latest controls; a change that
+ * loses a race reloads and re-applies itself once on top of the newer version.
  */
 class ParentControlsModel(private val api: ParentControlsApi, private val currentIdentity: () -> ParentIdentity?) {
     data class Scope(val identity: ParentIdentity, val deviceId: String)
@@ -92,12 +95,13 @@ class ParentControlsModel(private val api: ParentControlsApi, private val curren
     private val mutable = MutableStateFlow<Scoped?>(null)
     val state: StateFlow<Scoped?> = mutable.asStateFlow()
     private val generation = AtomicLong()
+    private val writes = Mutex()
 
     suspend fun load(identity: ParentIdentity, deviceId: String) {
         val scope = Scope(identity, deviceId)
         val mine = generation.incrementAndGet()
         fun live() = mine == generation.get() && currentIdentity() == identity
-        if (!live()) return
+        if (!live() || writes.isLocked) return // A change being written shows its own result.
         val previous = mutable.value?.takeIf { it.scope == scope }?.view
         try {
             val read = api.read(deviceId)
@@ -108,18 +112,26 @@ class ParentControlsModel(private val api: ParentControlsApi, private val curren
         catch (_: Exception) { if (live()) mutable.value = Scoped(scope, previous ?: ControlsViewState(ControlsViewStatus.LOAD_FAILED)) }
     }
 
-    suspend fun save(identity: ParentIdentity, familyId: String, deviceId: String, controls: ControlsV1): Boolean {
+    suspend fun save(identity: ParentIdentity, familyId: String, deviceId: String, controls: ControlsV1): Boolean =
+        update(identity, familyId, deviceId) { controls }
+
+    /** Applies [change] to the latest controls and writes the result now. The view shows it at once and undoes it on failure. */
+    suspend fun update(identity: ParentIdentity, familyId: String, deviceId: String, change: (ControlsV1) -> ControlsV1): Boolean = writes.withLock {
         val scope = Scope(identity, deviceId)
         val current = mutable.value?.takeIf { it.scope == scope && it.view.status == ControlsViewStatus.AVAILABLE }?.view ?: return false
-        try { validateControls(controls) } catch (_: Exception) { return false }
+        val next = try { validateControls(change(current.controls)) } catch (_: Exception) { return false }
+        if (next == current.controls) return true
         val mine = generation.incrementAndGet()
         fun live() = mine == generation.get() && currentIdentity() == identity
-        mutable.value = Scoped(scope, current.copy(saving = true, saveFailed = false))
+        mutable.value = Scoped(scope, current.copy(controls = next, applied = false, saving = true, saveFailed = false))
         return try {
-            var expected = current.version
-            val written = try { api.write(familyId, deviceId, controls, expected) }
-            catch (_: StaleControls) { expected = api.read(deviceId).desiredStateVersion; api.write(familyId, deviceId, controls, expected) }
-            if (live()) mutable.value = Scoped(scope, ControlsViewState(ControlsViewStatus.AVAILABLE, controls, written, applied = false))
+            val (written, saved) = try { api.write(familyId, deviceId, next, current.version) to next }
+            catch (_: StaleControls) {
+                val fresh = api.read(deviceId)
+                val again = validateControls(change(fresh.controls ?: ControlsV1()))
+                api.write(familyId, deviceId, again, fresh.desiredStateVersion) to again
+            }
+            if (live()) mutable.value = Scoped(scope, ControlsViewState(ControlsViewStatus.AVAILABLE, saved, written, applied = false))
             true
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: FamilyAccessDenied) { if (live()) mutable.value = Scoped(scope, ControlsViewState(ControlsViewStatus.ACCESS_LOST)); false }

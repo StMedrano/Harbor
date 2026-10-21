@@ -59,6 +59,20 @@ Deno.test("one rule per app", () => {
   rejected(tweak((c) => c.alwaysAllowed.push(c.appLimits[0].packageName)));
 });
 
+Deno.test("daily limit: bounds, extra time for one day, legacy policies", () => {
+  assert.ok(validateControls(tweak((c) => (c.dailyLimit = { minutes: 90, extraDate: "2026-10-21", extraMinutes: 15 }))));
+  assert.ok(validateControls(tweak((c) => (c.dailyLimit = null))));
+  rejected(tweak((c) => (c.dailyLimit = { minutes: 0, extraDate: null, extraMinutes: 0 })));
+  rejected(tweak((c) => (c.dailyLimit = { minutes: 1441, extraDate: null, extraMinutes: 0 })));
+  rejected(tweak((c) => (c.dailyLimit = { minutes: 60, extraDate: null, extraMinutes: 15 })));
+  rejected(tweak((c) => (c.dailyLimit = { minutes: 60, extraDate: "2026-02-30", extraMinutes: 15 })));
+  rejected(tweak((c) => (c.dailyLimit = { minutes: 60, extraDate: "2026-10-21", extraMinutes: 721 })));
+  rejected(tweak((c) => Object.assign(c.dailyLimit!, { note: "x" })));
+  const legacy = controls() as Partial<ControlsV1>;
+  delete legacy.dailyLimit;
+  assert.equal(validateControls(legacy).dailyLimit, null);
+});
+
 Deno.test("device controls read request and reply", async () => {
   const { validateDeviceControlsReply, validateDeviceControlsRequest } = await import("../src/v1/controls.ts");
   const deviceId = "22222222-2222-4222-8222-222222222222";

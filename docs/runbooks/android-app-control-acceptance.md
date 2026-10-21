@@ -21,20 +21,33 @@ A parent sets app controls for one child phone: pause (now, or for one hour), on
 - Functions deployed with `verify_jwt=true`: `get-device-controls`, `get-device-activity`, `report-device-activity`, `get-device-activity-checkpoint`, `clear-device-activity`, and `update-device-state` (v6, now validates `desiredState.controls`).
 - Verified: cron `harbor-activity-retention` (`47 3 * * *`) active once; trigger `device_activity_revoke_cleanup` present; RLS on all three `private.device_activity_*` tables; no grants to `anon`/`authenticated`/`public`; `authenticated` cannot execute any of the new `private` functions. Security advisors show only the pre-existing patterns (private tables with RLS and no policies by design; existing anonymous-role notices; leaked-password protection).
 
+## 0.22 fixes (2026-10-21)
+
+The first real-phone run on 0.21 showed accessibility turning on but nothing blocked. Two causes, both fixed:
+
+- **Nothing was saved.** Rules waited for a "Save changes" button at the bottom of the Activity tab; the development logs show no `update-device-state` call and no desired-state row. Controls now have their own **Controls** tab, laid out like the web app, and every change is written the moment it is made.
+- **The child phone only fetched controls when Harbor was opened on it.** It now checks every minute while its controls run, and a parent's change also queues a data-only `device.controls.changed` push (migration `20261021160000_controls_wake_push`) that makes the phone sync within seconds when it arrives. A new policy is applied to the app already on screen, not only at the next app switch.
+
+Also added, matching the web app: a **daily screen-time limit** (−/+ in 15-minute steps; when it is used up only Unlimited apps work until midnight), **Give 15 more min** (today only), and a per-app sheet with **No limit / Unlimited / 15–120 min a day / Blocked**. Unlimited apps do not count toward the daily limit. Both phones must run 0.22: a 0.21 child phone cannot read controls that carry a daily limit.
+
 ## Real-phone procedure (owned disposable devices only)
 
-Install build 0.21 (versionCode 21) on both phones. Record only whether each step passed.
+Install build 0.22 (versionCode 22) on both phones. Record only whether each step passed. Times are "within about a minute" unless a step says otherwise.
 
 1. **Disclosure.** On the child phone, the Today tab shows "What Harbor controls" explaining that Harbor sees which apps are open and when, never what is on the screen, before any access is requested.
 2. **Accessibility access.** Tap the action; Android's Accessibility settings open. Turn on Harbor. The panel shows controls as on.
-3. **Block an app.** On the parent phone, open the child, Activity tab, App controls; set one app to Blocked and save. Within a minute the status reads "In force on the phone." Opening that app on the child phone shows Harbor's block screen; the parent timeline shows "Tried to open … (blocked)".
-4. **Daily limit.** Set an app to 15 min/day. Use it past 15 minutes. It is blocked for the rest of the day and the timeline shows "… daily time limit reached".
-5. **Always allowed.** Set the limited app to Always allowed and pause the phone. That app still opens; other apps are blocked.
-6. **Pause.** Pause 1 hour. Non-exempt apps are blocked; the dialer, Settings, Messages and Harbor still open. Resume; apps open again.
-7. **Bedtime.** Set a bedtime starting in a few minutes on today's day. At the start, apps are blocked and the timeline shows "Bedtime started"; at the end, "Bedtime ended".
-8. **Emergency.** During pause, place an emergency-call screen (do not dial) and confirm the dialer is never blocked.
-9. **Timeline.** Use an app for over a minute and another for under a minute. Only the first appears, with its duration; "Time by app" totals match.
-10. **Protection off.** Turn off Harbor's accessibility service on the child phone. The parent receives the generic push once, the timeline shows protection off, and the controls screen warns that controls are off. Turn it back on; the timeline shows protection on.
-11. **Offline replay.** Turn off data on the child phone, use apps, turn data back on. The events arrive once, with no duplicates.
-12. **Stale write.** Edit controls from two parent sessions; the second save retries against the newer version and does not overwrite silently.
-13. **Revocation.** Remove the device from the parent app. The child's next activity report is denied and the device's stored activity is gone on the server (verify by count only).
+3. **Controls tab.** On the parent phone the bottom bar reads Map · Alerts · Controls · Activity · Family. Open Controls for the child: "Used today", "Daily limit", Pause, Schedules and App limits are shown, with the child's reported apps listed.
+4. **Block an app.** Tap an app's button and choose Blocked. No Save button is needed: the line at the top goes from "Saving…" to "Sending to …'s phone…" and then "In force on …'s phone." With the child already inside that app, it closes to Harbor's block screen; opening it again is blocked. The Activity tab shows "Tried to open … (blocked)".
+5. **Pause now.** Tap Pause phone now while the child is in any non-exempt app. It closes within seconds (push) or within a minute (poll). The dialer, Messages, Settings and Harbor still open. Resume phone; apps open again.
+6. **App limit.** Set an app to 15 min a day. Use it past 15 minutes: a "5 minutes left" notice, then the block screen "Time's up for …". The parent row reads "limit reached".
+7. **Daily limit.** Set the daily limit just above today's "Used today". Keep using a normal app: a "5 minutes of screen time left" notice, then "Time's up for today". Every non-Unlimited app is now blocked; the parent shows "Time's up. …'s apps are locked."
+8. **Unlimited.** Set one app to Unlimited. It still opens after time is up, and its minutes do not add to "Used today".
+9. **Give 15 more min.** Tap it on the parent phone. Within a minute the child's apps open again, and the child panel shows the new allowance.
+10. **Bedtime.** Turn Bedtime on with a start a few minutes away on today's day. At the start, apps are blocked and the timeline shows "Bedtime started"; at the end, "Bedtime ended".
+11. **Timeline.** Use an app for over a minute and another for under a minute. Only the first appears, with its duration; "Time by app" totals match.
+12. **Protection off.** Turn off Harbor's accessibility service on the child phone. The parent receives the generic push once, the timeline shows protection off, and the Controls tab warns that controls are off. Turn it back on; the timeline shows protection on.
+13. **Offline.** Turn off data on the child phone: rules already applied keep working. Change a rule on the parent; turn data back on; the phone applies it within a minute.
+14. **Two parents.** Change controls from two parent sessions; neither change is lost.
+15. **Revocation.** Remove the device from the parent app. The child's next report is denied and the device's stored activity is gone on the server (verify by count only).
+
+

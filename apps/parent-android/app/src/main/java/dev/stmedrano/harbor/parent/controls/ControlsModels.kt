@@ -22,6 +22,14 @@ import kotlinx.serialization.json.jsonObject
 @Serializable data class ControlsPause(val active: Boolean, val until: String?)
 @Serializable data class ControlsBedtime(val enabled: Boolean, val start: String, val end: String, val days: List<Weekday>)
 @Serializable data class AppLimit(val packageName: String, val minutesPerDay: Int)
+/**
+ * Total screen time a day, a hard stop: when it is used up only always-allowed ("Unlimited") apps and the exempt apps
+ * work until midnight. Always-allowed apps do not count toward it. [extraMinutes] apply only on [extraDate] (the child
+ * phone's local date), for "Give 15 more min".
+ */
+@Serializable data class DailyLimit(val minutes: Int, val extraDate: String? = null, val extraMinutes: Int = 0) {
+    fun allowanceMinutes(today: java.time.LocalDate): Int = minutes + if (extraDate == today.toString()) extraMinutes else 0
+}
 @Serializable data class ControlsV1(
     val version: Int = 1,
     val pause: ControlsPause = ControlsPause(false, null),
@@ -29,6 +37,7 @@ import kotlinx.serialization.json.jsonObject
     val blockedApps: List<String> = emptyList(),
     val appLimits: List<AppLimit> = emptyList(),
     val alwaysAllowed: List<String> = emptyList(),
+    val dailyLimit: DailyLimit? = null,
 )
 
 const val CONTROLS_MAX_BLOCKED = 200
@@ -62,6 +71,10 @@ fun validateControls(value: ControlsV1): ControlsV1 {
     value.appLimits.forEach { require(isPackageName(it.packageName) && limited.add(it.packageName) && it.minutesPerDay in 1..1440) }
     // One rule per app: blocked, limited, always allowed, or none of these.
     require(blocked.none { it in allowed || it in limited } && limited.none { it in allowed })
+    value.dailyLimit?.let { d ->
+        require(d.minutes in 1..1440 && d.extraMinutes in 0..720)
+        if (d.extraDate == null) require(d.extraMinutes == 0) else require(runCatching { java.time.LocalDate.parse(d.extraDate).toString() == d.extraDate }.getOrDefault(false))
+    }
     return value
 }
 private fun packageSet(values: List<String>, max: Int): Set<String> {
@@ -75,7 +88,10 @@ private fun packageSet(values: List<String>, max: Int): Set<String> {
  */
 fun decodeControls(raw: String): ControlsV1 {
     val root = controlsJson.parseToJsonElement(raw).jsonObject
-    require(root.keys == setOf("version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed"))
+    // A policy written before the daily limit existed has no `dailyLimit` key and reads as "no daily limit".
+    val legacy = setOf("version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed")
+    require(root.keys == legacy || root.keys == legacy + "dailyLimit")
+    (root["dailyLimit"] as? JsonObject)?.let { require(it.keys == setOf("minutes", "extraDate", "extraMinutes")) }
     require(root.getValue("pause").jsonObject.keys == setOf("active", "until"))
     (root.getValue("bedtime") as? JsonObject)?.let { require(it.keys == setOf("enabled", "start", "end", "days")) }
     root.getValue("appLimits").jsonArray.forEach { require(it.jsonObject.keys == setOf("packageName", "minutesPerDay")) }

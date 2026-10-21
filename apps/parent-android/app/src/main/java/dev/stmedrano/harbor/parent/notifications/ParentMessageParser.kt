@@ -31,8 +31,12 @@ fun ParentHint.matchesFamily(identity: ParentIdentity, state: FamilyState): Bool
 }
 
 object ParentMessageParser {
-    /** `device.checkin.requested` is only ever sent to a child phone; the parent app treats it like any other hint. */
-    private val ALLOWED_KINDS = setOf("device.state.changed", "device.command.created", "device.alert.created", "device.checkin.requested", "device.controls.off")
+    /**
+     * `device.checkin.requested` and `device.controls.changed` are only ever sent to a child phone; the parent app treats
+     * them like any other hint.
+     */
+    private val ALLOWED_KINDS = setOf("device.state.changed", "device.command.created", "device.alert.created", "device.checkin.requested",
+        "device.controls.off", "device.controls.changed")
     private val fields = setOf("version", "kind", "familyId", "childId", "deviceId", "resourceId")
     internal fun uuid(value: String) = runCatching { UUID.fromString(value).toString() == value.lowercase() }.getOrDefault(false)
     fun parse(data: Map<String, String>): ParentHint? = runCatching {

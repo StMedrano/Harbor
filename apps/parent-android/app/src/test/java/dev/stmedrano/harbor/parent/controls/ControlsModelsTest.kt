@@ -15,6 +15,22 @@ class ControlsModelsTest {
         assertEquals(controls, decodeControls(encodeControls(controls)))
         assertEquals(ControlsV1(), validateControls(ControlsV1()))
     }
+    @Test fun dailyLimitRulesAndLegacyPolicies() {
+        assertEquals(DailyLimit(120), controls.dailyLimit)
+        validateControls(ControlsV1(dailyLimit = DailyLimit(90, "2026-10-21", 15)))
+        rejected(ControlsV1(dailyLimit = DailyLimit(0)))
+        rejected(ControlsV1(dailyLimit = DailyLimit(1441)))
+        rejected(ControlsV1(dailyLimit = DailyLimit(60, null, 15)))
+        rejected(ControlsV1(dailyLimit = DailyLimit(60, "2026-02-30", 15)))
+        rejected(ControlsV1(dailyLimit = DailyLimit(60, "2026-10-21", 721)))
+        assertEquals(135, DailyLimit(120, "2026-10-21", 15).allowanceMinutes(java.time.LocalDate.of(2026, 10, 21)))
+        assertEquals(120, DailyLimit(120, "2026-10-20", 15).allowanceMinutes(java.time.LocalDate.of(2026, 10, 21)))
+        // Written before the daily limit existed: no key, read as no daily limit. A wrong inner key is still rejected.
+        val legacy = raw.replace(Regex(""",\s*"dailyLimit"[^}]*\}"""), "")
+        assertNull(decodeControls(legacy).dailyLimit)
+        assertThrows(Exception::class.java) { decodeControls(raw.replace("\"extraMinutes\"", "\"bonus\"")) }
+        assertTrue(encodeControls(ControlsV1()).contains("\"dailyLimit\":null"))
+    }
     @Test fun unknownKeysAreRejected() {
         assertThrows(Exception::class.java) { decodeControls(raw.replaceFirst("{", "{\"webFilter\":true,")) }
     }

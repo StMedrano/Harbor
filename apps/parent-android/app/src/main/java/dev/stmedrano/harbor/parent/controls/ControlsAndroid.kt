@@ -68,6 +68,10 @@ object UsageToday {
     } catch (_: Exception) { 0L }
 }
 
+/** Today's screen time that counts toward the daily limit: every app except [excluded]. */
+fun UsageToday.totalSinceMidnight(context: Context, nowMs: Long, midnightMs: Long, excluded: Set<String>): Long =
+    totalForegroundMs(usageTransitions(context, midnightMs - 6 * 3_600_000L, nowMs), midnightMs, nowMs, excluded)
+
 /** Every app's resume/pause transitions in a window, for the activity timeline. Names and times only. */
 fun usageTransitions(context: Context, fromMs: Long, toMs: Long): List<dev.stmedrano.harbor.parent.activity.AppTransition> = try {
     val manager = context.getSystemService(UsageStatsManager::class.java)

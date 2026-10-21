@@ -10,7 +10,7 @@ class ParentTabsTest {
         DevicePublicV1(1, id, "family", child, id, "standard", status, null, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z")
 
     @Test fun tabsAreMapAlertsActivityFamilyAndNothingThatEnforces() {
-        assertEquals(listOf("Map", "Alerts", "Activity", "Family"), ParentTab.values().map { it.label })
+        assertEquals(listOf("Map", "Alerts", "Controls", "Activity", "Family"), ParentTab.values().map { it.label })
     }
 
     @Test fun opensOnMapOnceAChildExistsAndOnFamilyBefore() {

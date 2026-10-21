@@ -4,5 +4,6 @@
   "bedtime": { "enabled": true, "start": "21:00", "end": "07:00", "days": ["sun", "mon", "tue", "wed", "thu"] },
   "blockedApps": ["com.zhiliaoapp.musically"],
   "appLimits": [{ "packageName": "com.google.android.youtube", "minutesPerDay": 60 }],
-  "alwaysAllowed": ["com.duolingo"]
+  "alwaysAllowed": ["com.duolingo"],
+  "dailyLimit": { "minutes": 120, "extraDate": null, "extraMinutes": 0 }
 }

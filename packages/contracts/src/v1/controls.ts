@@ -8,6 +8,12 @@ export const WEEKDAYS: readonly WeekdayV1[] = ["mon", "tue", "wed", "thu", "fri"
 export type ControlsPauseV1 = { active: boolean; until: string | null };
 export type ControlsBedtimeV1 = { enabled: boolean; start: string; end: string; days: WeekdayV1[] };
 export type AppLimitV1 = { packageName: string; minutesPerDay: number };
+/**
+ * Total screen time a day, a hard stop: when it is used up, only always-allowed ("Unlimited") apps and the phone's
+ * exempt apps work until midnight. Always-allowed apps do not count toward it. A parent can add extra minutes for one
+ * day; `extraDate` is the child phone's local date they apply to.
+ */
+export type DailyLimitV1 = { minutes: number; extraDate: string | null; extraMinutes: number };
 export type ControlsV1 = {
   version: 1;
   pause: ControlsPauseV1;
@@ -15,6 +21,7 @@ export type ControlsV1 = {
   blockedApps: string[];
   appLimits: AppLimitV1[];
   alwaysAllowed: string[];
+  dailyLimit: DailyLimitV1 | null;
 };
 
 export const CONTROLS_MAX_BLOCKED = 200;
@@ -24,12 +31,14 @@ export const CONTROLS_MAX_BYTES = 32_768;
 
 /** The policy a device has before a parent sets anything: nothing is blocked. */
 export function emptyControls(): ControlsV1 {
-  return { version: 1, pause: { active: false, until: null }, bedtime: null, blockedApps: [], appLimits: [], alwaysAllowed: [] };
+  return { version: 1, pause: { active: false, until: null }, bedtime: null, blockedApps: [], appLimits: [], alwaysAllowed: [], dailyLimit: null };
 }
 
 export function validateControls(value: unknown): ControlsV1 {
   demand(new TextEncoder().encode(JSON.stringify(value) ?? "").length <= CONTROLS_MAX_BYTES);
-  const r = record(value, ["version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed"]);
+  // Policies written before the daily limit existed have no `dailyLimit` key; they read as "no daily limit".
+  const legacy = !!value && typeof value === "object" && !Array.isArray(value) && !Object.hasOwn(value, "dailyLimit");
+  const r = record(value, ["version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed", ...(legacy ? [] : ["dailyLimit"])]);
   demand(r.version === 1);
   const pause = record(r.pause, ["active", "until"]);
   demand(typeof pause.active === "boolean");
@@ -62,7 +71,16 @@ export function validateControls(value: unknown): ControlsV1 {
   // One rule per app: an app is blocked, limited, always allowed, or none of these.
   for (const name of blocked) demand(!allowed.has(name) && !limited.has(name));
   for (const name of limited) demand(!allowed.has(name));
-  return structuredClone(value) as ControlsV1;
+  if (!legacy && r.dailyLimit !== null) {
+    const d = record(r.dailyLimit, ["minutes", "extraDate", "extraMinutes"]);
+    demand(typeof d.minutes === "number" && Number.isSafeInteger(d.minutes) && d.minutes >= 1 && d.minutes <= 1440);
+    demand(typeof d.extraMinutes === "number" && Number.isSafeInteger(d.extraMinutes) && d.extraMinutes >= 0 && d.extraMinutes <= 720);
+    if (d.extraDate === null) demand(d.extraMinutes === 0);
+    else localDate(d.extraDate);
+  }
+  const out = structuredClone(value) as ControlsV1;
+  if (legacy) out.dailyLimit = null;
+  return out;
 }
 
 const PACKAGE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -90,6 +108,12 @@ function packages(value: unknown, max: number): Set<string> {
     seen.add(name);
   }
   return seen;
+}
+function localDate(value: unknown): string {
+  demand(typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value));
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  demand(Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value);
+  return value as string;
 }
 function clock(value: unknown): string {
   demand(typeof value === "string" && CLOCK.test(value));

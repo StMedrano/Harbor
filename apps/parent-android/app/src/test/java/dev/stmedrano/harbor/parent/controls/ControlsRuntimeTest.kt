@@ -97,6 +97,25 @@ class ControlsRuntimeTest {
         assertEquals(0L, foregroundMs(emptyList(), midnight, now))
         assertEquals(60_000L, foregroundMs(listOf(midnight to true, midnight + 60_000L to false, midnight + 70_000L to false), midnight, now))
     }
+    @Test fun totalForegroundLeavesOutExcludedApps() {
+        val t = listOf(
+            dev.stmedrano.harbor.parent.activity.AppTransition(1_000, "a.b", true), dev.stmedrano.harbor.parent.activity.AppTransition(61_000, "a.b", false),
+            dev.stmedrano.harbor.parent.activity.AppTransition(61_000, "c.d", true), dev.stmedrano.harbor.parent.activity.AppTransition(181_000, "c.d", false),
+            dev.stmedrano.harbor.parent.activity.AppTransition(200_000, "e.f", true))
+        assertEquals(60_000L + 120_000L + 100_000L, totalForegroundMs(t, 0, 300_000, emptySet()))
+        assertEquals(60_000L + 100_000L, totalForegroundMs(t, 0, 300_000, setOf("c.d")))
+    }
+    @Test fun aNewPolicyTellsTheServiceAtOnce() {
+        var told = 0
+        ControlsBridge.onPolicyChanged = { told++ }
+        try {
+            ControlsBridge.publish(ControlsV1(pause = ControlsPause(true, null)))
+            ControlsBridge.publish(ControlsV1(pause = ControlsPause(true, null)))
+            ControlsBridge.publish(null)
+            assertEquals(2, told)
+        } finally { ControlsBridge.onPolicyChanged = null }
+        assertEquals("Time's up for today", blockMessage(dev.stmedrano.harbor.parent.activity.BlockReason.LIMIT_REACHED, "YouTube", null, daily = true).first)
+    }
     @Test fun blockWordsArePlainAndSpecific() {
         val policy = decodeControls(raw)
         assertEquals("TikTok is blocked", blockMessage(BlockReason.BLOCKED_APP, "TikTok", policy).first)

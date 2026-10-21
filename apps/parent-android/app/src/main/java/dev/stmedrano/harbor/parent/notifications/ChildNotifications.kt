@@ -36,6 +36,9 @@ class ChildNotifications(private val current: () -> ProfileLease?, private val b
         if (!matches(lease, expected) || data.keys != setOf("route")) return false
         val route = ParentMessageParser.parseRoute(data.getValue("route")) ?: return false
         if (route.deviceId != expected.deviceId || route.childId != expected.childId || route.familyId != expected.familyId) return false
+        // New app controls: a silent wake. Fetch them with the signed sync and show nothing.
+        if (route.kind == CONTROLS_CHANGED_KIND) return try { sync(expected) is ChildSyncState.Fresh }
+            catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false }
         val ticket = synchronized(lock) { if (route in seen) return false; generation }
         val fresh = try { sync(expected) is ChildSyncState.Fresh }
         catch (cancelled: CancellationException) { throw cancelled }
@@ -52,6 +55,7 @@ class ChildNotifications(private val current: () -> ProfileLease?, private val b
             true
         }
     }
+    companion object { const val CONTROLS_CHANGED_KIND = "device.controls.changed" }
     fun invalidate() = synchronized(lock) {
         generation++; seen.clear(); latest.value = null; clear()
     }

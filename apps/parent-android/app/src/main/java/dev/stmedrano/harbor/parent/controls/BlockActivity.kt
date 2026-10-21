@@ -24,7 +24,7 @@ class BlockActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val label = intent.getStringExtra(EXTRA_LABEL)?.take(64) ?: "This app"
         val reason = intent.getStringExtra(EXTRA_REASON)?.let { runCatching { BlockReason.valueOf(it) }.getOrNull() } ?: BlockReason.BLOCKED_APP
-        val (title, body) = blockMessage(reason, label, ControlsBridge.policy)
+        val (title, body) = blockMessage(reason, label, ControlsBridge.policy, intent.getBooleanExtra(EXTRA_DAILY, false))
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() = goHome() })
         setContent {
             HarborTheme {
@@ -52,8 +52,9 @@ class BlockActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_REASON = "reason"
-        fun intent(context: Context, label: String, reason: BlockReason): Intent = Intent(context, BlockActivity::class.java)
-            .putExtra(EXTRA_LABEL, label).putExtra(EXTRA_REASON, reason.name)
+        private const val EXTRA_DAILY = "daily"
+        fun intent(context: Context, label: String, reason: BlockReason, daily: Boolean = false): Intent = Intent(context, BlockActivity::class.java)
+            .putExtra(EXTRA_LABEL, label).putExtra(EXTRA_REASON, reason.name).putExtra(EXTRA_DAILY, daily)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
 }

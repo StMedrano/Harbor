@@ -7,21 +7,26 @@ import java.time.ZonedDateTime
 
 sealed interface Decision {
     data object Allow : Decision
-    data class Block(val reason: BlockReason) : Decision
+    /** [daily] marks a block because the day's total screen time is used up (reason [BlockReason.LIMIT_REACHED]). */
+    data class Block(val reason: BlockReason, val daily: Boolean = false) : Decision
 }
 
 /**
  * Decides whether the app now on screen may stay there. Pure: the caller supplies the time (in the phone's own zone),
  * the policy, how long the app has been used today, and the apps that are always exempt on this phone (Harbor, the
  * launcher, the dialer, Settings, System UI and the default SMS app). Order matters: an exempt or always-allowed app is
- * never blocked; then pause, bedtime, an outright block, and finally the daily limit.
+ * never blocked; then pause, bedtime, an outright block, the day's total screen time, and finally the app's own limit.
+ * [totalUsedTodayMs] is today's foreground time of every app that counts toward the daily limit.
  */
 object PolicyEngine {
-    fun decide(packageName: String, now: ZonedDateTime, policy: ControlsV1, usedTodayMs: Long, exempt: Set<String>): Decision {
+    fun decide(packageName: String, now: ZonedDateTime, policy: ControlsV1, usedTodayMs: Long, exempt: Set<String>,
+        totalUsedTodayMs: Long = 0L): Decision {
         if (packageName in exempt || packageName in policy.alwaysAllowed) return Decision.Allow
         if (isPaused(now, policy)) return Decision.Block(BlockReason.PAUSED)
         if (isBedtime(now, policy)) return Decision.Block(BlockReason.BEDTIME)
         if (packageName in policy.blockedApps) return Decision.Block(BlockReason.BLOCKED_APP)
+        val total = totalRemainingMs(now, policy, totalUsedTodayMs)
+        if (total != null && total <= 0L) return Decision.Block(BlockReason.LIMIT_REACHED, daily = true)
         val remaining = remainingMs(packageName, policy, usedTodayMs)
         if (remaining != null && remaining <= 0L) return Decision.Block(BlockReason.LIMIT_REACHED)
         return Decision.Allow
@@ -57,6 +62,12 @@ object PolicyEngine {
     fun remainingMs(packageName: String, policy: ControlsV1, usedTodayMs: Long): Long? {
         val limit = policy.appLimits.firstOrNull { it.packageName == packageName } ?: return null
         return maxOf(0L, limit.minutesPerDay * 60_000L - maxOf(0L, usedTodayMs))
+    }
+
+    /** Screen time left today under the daily limit (with any extra minutes for today), or null when there is none. */
+    fun totalRemainingMs(now: ZonedDateTime, policy: ControlsV1, totalUsedTodayMs: Long): Long? {
+        val limit = policy.dailyLimit ?: return null
+        return maxOf(0L, limit.allowanceMinutes(now.toLocalDate()) * 60_000L - maxOf(0L, totalUsedTodayMs))
     }
 
     /** Daily limits reset at local midnight on the phone. */
