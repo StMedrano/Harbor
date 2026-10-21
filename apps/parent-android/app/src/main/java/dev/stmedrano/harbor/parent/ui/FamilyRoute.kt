@@ -25,6 +25,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     familyMapModel: dev.stmedrano.harbor.parent.familymap.ParentFamilyMapModel? = null,
     controlsModel: dev.stmedrano.harbor.parent.controls.ParentControlsModel? = null,
     activityModel: dev.stmedrano.harbor.parent.activity.ParentActivityModel? = null,
+    accessModel: dev.stmedrano.harbor.parent.access.ParentAccessModel? = null,
     tab: ParentTab = ParentTab.FAMILY, resumeTick: Int = 0,
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null) {
     val family by model.repository.state.collectAsState()
@@ -99,6 +100,16 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
                 checkIn = if (tab == ParentTab.MAP) rememberParentCheckInView(checkInModel, identity, phone.id, resumeTick) else null,
                 controls = if (tab == ParentTab.CONTROLS) rememberParentControlsView(controlsModel, identity, phone.id, resumeTick) else null,
                 onChangeControls = controlsModel?.takeIf { online }?.let { m -> { change -> scope.launch { m.update(identity, phone.familyId, phone.id, change) } } },
+                accessRequests = if (tab == ParentTab.CONTROLS) rememberParentAccessView(accessModel, identity, phone.id, resumeTick) else null,
+                onAnswerAccess = accessModel?.takeIf { online && controlsModel != null }?.let { m -> { item, approve -> scope.launch {
+                    // Yes = a 15-minute grant for that app, written to the phone's controls before the answer is recorded.
+                    m.answer(identity, phone.id, item, approve) { request ->
+                        val now = System.currentTimeMillis()
+                        controlsModel?.update(identity, phone.familyId, phone.id) {
+                            withGrant(it, request.packageName, now + dev.stmedrano.harbor.parent.access.ACCESS_GRANT_MS, now)
+                        } == true
+                    }
+                } } },
                 onRefreshControls = controlsModel?.let { m -> { scope.launch { m.load(identity, phone.id) } } },
                 activity = if (tab == ParentTab.ACTIVITY || tab == ParentTab.CONTROLS) rememberParentActivityView(activityModel, identity, phone.id, activityDay, resumeTick) else null,
                 activityToday = today, onActivityDay = { activityDay = it },

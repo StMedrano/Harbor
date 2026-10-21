@@ -58,7 +58,7 @@ fun rememberChildControlsUi(graph: ParentApplication, lease: ProfileLease, resum
                     val excluded = ExemptApps.resolve(graph) + policy.alwaysAllowed
                     PolicyEngine.totalRemainingMs(now, policy, UsageToday.totalSinceMidnight(graph, nowMs, midnight, excluded))
                 }
-                labels = (policy.blockedApps + policy.appLimits.map { it.packageName } + policy.alwaysAllowed).associateWith { appLabel(graph, it) }
+                labels = (policy.blockedApps + policy.appLimits.map { it.packageName } + policy.alwaysAllowed + policy.grants.map { it.packageName }).associateWith { appLabel(graph, it) }
             }
             delay(5000)
         }
@@ -96,6 +96,10 @@ fun controlsSummary(ui: ChildControlsUi): List<String> {
             add("${label(limit.packageName)}: ${limit.minutesPerDay} min a day$leftText")
         }
         if (c.alwaysAllowed.isNotEmpty()) add("Unlimited: " + c.alwaysAllowed.joinToString(", ") { label(it) } + ".")
+        c.grants.forEach { grant ->
+            val left = PolicyEngine.grantRemainingMs(grant.packageName, ui.now, c) ?: return@forEach
+            add("A parent said yes: ${label(grant.packageName)} for ${maxOf(1L, (left + 59_999L) / 60_000L)} more min.")
+        }
     }
 }
 

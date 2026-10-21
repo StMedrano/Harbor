@@ -30,6 +30,8 @@ import kotlinx.serialization.json.jsonObject
 @Serializable data class DailyLimit(val minutes: Int, val extraDate: String? = null, val extraMinutes: Int = 0) {
     fun allowanceMinutes(today: java.time.LocalDate): Int = minutes + if (extraDate == today.toString()) extraMinutes else 0
 }
+/** A parent's yes to a child's request: [packageName] may be used until [until], whatever else applies. */
+@Serializable data class Grant(val packageName: String, val until: String)
 @Serializable data class ControlsV1(
     val version: Int = 1,
     val pause: ControlsPause = ControlsPause(false, null),
@@ -38,11 +40,13 @@ import kotlinx.serialization.json.jsonObject
     val appLimits: List<AppLimit> = emptyList(),
     val alwaysAllowed: List<String> = emptyList(),
     val dailyLimit: DailyLimit? = null,
+    val grants: List<Grant> = emptyList(),
 )
 
 const val CONTROLS_MAX_BLOCKED = 200
 const val CONTROLS_MAX_LIMITS = 200
 const val CONTROLS_MAX_ALLOWED = 50
+const val CONTROLS_MAX_GRANTS = 20
 const val CONTROLS_MAX_BYTES = 32_768
 private val controlsJson = Json { ignoreUnknownKeys = false; explicitNulls = true; encodeDefaults = true }
 private val packagePattern = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
@@ -75,6 +79,9 @@ fun validateControls(value: ControlsV1): ControlsV1 {
         require(d.minutes in 1..1440 && d.extraMinutes in 0..720)
         if (d.extraDate == null) require(d.extraMinutes == 0) else require(runCatching { java.time.LocalDate.parse(d.extraDate).toString() == d.extraDate }.getOrDefault(false))
     }
+    require(value.grants.size <= CONTROLS_MAX_GRANTS)
+    require(value.grants.map { it.packageName }.toSet().size == value.grants.size)
+    value.grants.forEach { require(isPackageName(it.packageName)); alertInstantMs(it.until) }
     return value
 }
 private fun packageSet(values: List<String>, max: Int): Set<String> {
@@ -88,9 +95,10 @@ private fun packageSet(values: List<String>, max: Int): Set<String> {
  */
 fun decodeControls(raw: String): ControlsV1 {
     val root = controlsJson.parseToJsonElement(raw).jsonObject
-    // A policy written before the daily limit existed has no `dailyLimit` key and reads as "no daily limit".
-    val legacy = setOf("version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed")
-    require(root.keys == legacy || root.keys == legacy + "dailyLimit")
+    // Keys added after the first release may be missing from an older policy; they read as their empty value.
+    val base = setOf("version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed")
+    require(root.keys.containsAll(base) && (root.keys - base).all { it in setOf("dailyLimit", "grants") })
+    (root["grants"] as? kotlinx.serialization.json.JsonArray)?.forEach { require(it.jsonObject.keys == setOf("packageName", "until")) }
     (root["dailyLimit"] as? JsonObject)?.let { require(it.keys == setOf("minutes", "extraDate", "extraMinutes")) }
     require(root.getValue("pause").jsonObject.keys == setOf("active", "until"))
     (root.getValue("bedtime") as? JsonObject)?.let { require(it.keys == setOf("enabled", "start", "end", "days")) }

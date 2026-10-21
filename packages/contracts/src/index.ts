@@ -28,3 +28,4 @@ export * from "./v1/checkin.ts";
 export * from "./v1/familymap.ts";
 export * from "./v1/controls.ts";
 export * from "./v1/activity.ts";
+export * from "./v1/access-requests.ts";

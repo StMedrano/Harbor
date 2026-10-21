@@ -14,6 +14,11 @@ export type AppLimitV1 = { packageName: string; minutesPerDay: number };
  * day; `extraDate` is the child phone's local date they apply to.
  */
 export type DailyLimitV1 = { minutes: number; extraDate: string | null; extraMinutes: number };
+/**
+ * A parent's yes to a child's request: [packageName] may be used until [until], whatever pause, bedtime, block or limit
+ * applies. Grants that have ended are dropped the next time a parent changes controls.
+ */
+export type GrantV1 = { packageName: string; until: string };
 export type ControlsV1 = {
   version: 1;
   pause: ControlsPauseV1;
@@ -22,23 +27,28 @@ export type ControlsV1 = {
   appLimits: AppLimitV1[];
   alwaysAllowed: string[];
   dailyLimit: DailyLimitV1 | null;
+  grants: GrantV1[];
 };
 
 export const CONTROLS_MAX_BLOCKED = 200;
 export const CONTROLS_MAX_LIMITS = 200;
 export const CONTROLS_MAX_ALLOWED = 50;
+export const CONTROLS_MAX_GRANTS = 20;
 export const CONTROLS_MAX_BYTES = 32_768;
+/** Keys added after the first release; a policy written before them omits them and reads as their empty value. */
+const LATER_KEYS = ["dailyLimit", "grants"] as const;
 
 /** The policy a device has before a parent sets anything: nothing is blocked. */
 export function emptyControls(): ControlsV1 {
-  return { version: 1, pause: { active: false, until: null }, bedtime: null, blockedApps: [], appLimits: [], alwaysAllowed: [], dailyLimit: null };
+  return { version: 1, pause: { active: false, until: null }, bedtime: null, blockedApps: [], appLimits: [], alwaysAllowed: [], dailyLimit: null, grants: [] };
 }
 
 export function validateControls(value: unknown): ControlsV1 {
   demand(new TextEncoder().encode(JSON.stringify(value) ?? "").length <= CONTROLS_MAX_BYTES);
-  // Policies written before the daily limit existed have no `dailyLimit` key; they read as "no daily limit".
-  const legacy = !!value && typeof value === "object" && !Array.isArray(value) && !Object.hasOwn(value, "dailyLimit");
-  const r = record(value, ["version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed", ...(legacy ? [] : ["dailyLimit"])]);
+  const present = !!value && typeof value === "object" && !Array.isArray(value)
+    ? LATER_KEYS.filter((k) => Object.hasOwn(value, k))
+    : [];
+  const r = record(value, ["version", "pause", "bedtime", "blockedApps", "appLimits", "alwaysAllowed", ...present]);
   demand(r.version === 1);
   const pause = record(r.pause, ["active", "until"]);
   demand(typeof pause.active === "boolean");
@@ -71,15 +81,27 @@ export function validateControls(value: unknown): ControlsV1 {
   // One rule per app: an app is blocked, limited, always allowed, or none of these.
   for (const name of blocked) demand(!allowed.has(name) && !limited.has(name));
   for (const name of limited) demand(!allowed.has(name));
-  if (!legacy && r.dailyLimit !== null) {
+  if (r.dailyLimit !== undefined && r.dailyLimit !== null) {
     const d = record(r.dailyLimit, ["minutes", "extraDate", "extraMinutes"]);
     demand(typeof d.minutes === "number" && Number.isSafeInteger(d.minutes) && d.minutes >= 1 && d.minutes <= 1440);
     demand(typeof d.extraMinutes === "number" && Number.isSafeInteger(d.extraMinutes) && d.extraMinutes >= 0 && d.extraMinutes <= 720);
     if (d.extraDate === null) demand(d.extraMinutes === 0);
     else localDate(d.extraDate);
   }
+  if (r.grants !== undefined) {
+    demand(Array.isArray(r.grants) && r.grants.length <= CONTROLS_MAX_GRANTS);
+    const granted = new Set<string>();
+    for (const item of r.grants) {
+      const g = record(item, ["packageName", "until"]);
+      const name = validatePackageName(g.packageName);
+      demand(!granted.has(name));
+      granted.add(name);
+      instant(g.until);
+    }
+  }
   const out = structuredClone(value) as ControlsV1;
-  if (legacy) out.dailyLimit = null;
+  if (r.dailyLimit === undefined) out.dailyLimit = null;
+  if (r.grants === undefined) out.grants = [];
   return out;
 }
 

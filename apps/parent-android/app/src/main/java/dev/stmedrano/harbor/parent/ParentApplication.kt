@@ -37,6 +37,7 @@ import android.app.job.JobScheduler
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+const val ACCESS_REQUESTED_KIND = "device.access.requested"
 data class ParentTapState(val device: DevicePublicV1? = null, val message: String? = null)
 
 class ParentApplication : Application() {
@@ -130,7 +131,7 @@ class ParentApplication : Application() {
             if (lease.role == ProfileRole.PARENT) startParentRuntime()
             else {
                 check(childRepository.binding.value?.deviceId == lease.ownerId)
-                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildControls(lease); startChildActivity(lease); startChildCheckIn(lease); startChildFamilyMap() }
+                if (!BuildConfig.CI_FIXTURE) { startChildUsage(lease); startChildLocation(lease); startChildAlerts(lease); startChildControls(lease); startChildAccess(lease); startChildActivity(lease); startChildCheckIn(lease); startChildFamilyMap() }
             }
             accountScope.launch {
                 profiles.state.first { it != ProfileState.Transitioning }
@@ -300,6 +301,20 @@ class ParentApplication : Application() {
             }
         }, { childLocation?.latestFix() }, ::currentUsageLease, System::currentTimeMillis)
     }
+    // ---- Child: asking a parent for more time or access from Harbor's block screen. ----
+    private var childAccess: dev.stmedrano.harbor.parent.access.ChildAccessAsker? = null
+    val childAccessAsker: dev.stmedrano.harbor.parent.access.ChildAccessAsker?
+        get() = profiles.currentLease()?.takeIf(::currentUsageLease)?.let { childAccess }
+    private fun startChildAccess(lease: ProfileLease) {
+        childAccess = dev.stmedrano.harbor.parent.access.ChildAccessAsker({ body ->
+            check(currentUsageLease(lease))
+            val binding = checkNotNull(childRepository.binding.value)
+            childRepository.withCurrentSession(binding) { session ->
+                currentCoroutineContext().ensureActive(); check(currentUsageLease(lease))
+                usageApi.signedUsage("request-device-access", body, binding, session)
+            }
+        }, System::currentTimeMillis)
+    }
     fun refreshChildCheckIn(lease: ProfileLease) { accountScope.launch {
         if (!currentUsageLease(lease)) return@launch
         profileWork(lease) { childCheckIn?.refresh(lease); true }
@@ -465,6 +480,8 @@ class ParentApplication : Application() {
     val parentAlerts: ParentAlertsModel? get() = if (parentConstructionAllowed) parentAlertsModel else null
     private val parentControlsModel by lazy { parentAuth?.let { dev.stmedrano.harbor.parent.controls.ParentControlsModel(dev.stmedrano.harbor.parent.controls.SdkParentControlsApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentControls: dev.stmedrano.harbor.parent.controls.ParentControlsModel? get() = if (parentConstructionAllowed) parentControlsModel else null
+    private val parentAccessModel by lazy { parentAuth?.let { dev.stmedrano.harbor.parent.access.ParentAccessModel(dev.stmedrano.harbor.parent.access.SdkParentAccessApi(checkNotNull(client), it), ::currentIdentity) } }
+    val parentAccess: dev.stmedrano.harbor.parent.access.ParentAccessModel? get() = if (parentConstructionAllowed) parentAccessModel else null
     private val parentActivityModel by lazy { parentAuth?.let { dev.stmedrano.harbor.parent.activity.ParentActivityModel(dev.stmedrano.harbor.parent.activity.SdkParentActivityApi(checkNotNull(client), it), ::currentIdentity) } }
     val parentActivity: dev.stmedrano.harbor.parent.activity.ParentActivityModel? get() = if (parentConstructionAllowed) parentActivityModel else null
     private val parentCheckInModel by lazy { parentAuth?.let { ParentCheckInModel(SdkParentCheckInApi(checkNotNull(client), it), ::currentIdentity) } }
@@ -540,12 +557,12 @@ class ParentApplication : Application() {
             ParentRuntime({ auth.identity.value },
             { owner -> auth.withAccessToken { check(auth.identity.value == owner); it } },
             { notifications?.disableLocally(); renderer.clear() }, { realtime?.disconnect() },
-            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
+            { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentAccessModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.hideVisible(); securityViewModel?.clear(); mutableTap.value = ParentTapState() },
             { _, token -> registrationApi.remove(registrationStore.installationId(), token) },
             { tokenProvider.deleteToken() }, auth::signOutCurrent,
             { owner ->
                 if (auth.identity.value == null || auth.identity.value == owner) {
-                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.clear() }
+                    try { parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentAccessModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear(); familyViewModel?.clear() }
                     finally {
                         try { auth.clearLocal() }
                         finally { registrationStore.clearMarker(); registrationStore.clearOptIn(); contextBinding.reset() }
@@ -572,7 +589,7 @@ class ParentApplication : Application() {
         val alerts = childAlerts
         val controls = childControls
         childActivity?.stop(); childActivity = null; ControlsBridge.recorder = null
-        childCheckIn?.clear(); childFamilyMap?.clear()
+        childCheckIn?.clear(); childFamilyMap?.clear(); childAccess?.clear(); childAccess = null
         runtimeLease = null; profileScope = null; childUsage = null; childLocation = null; childAlerts = null; childControls = null; childCheckIn = null; childFamilyMap = null
         // Usage first, then the existing notification/profile/parent cleanup. Every step runs.
         runShutdownSteps(
@@ -598,7 +615,7 @@ class ParentApplication : Application() {
         parentCollectors = null
         if (parentConstructionAllowed) {
             realtime?.disconnect()
-            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear()
+            parentUsageModel?.clear(); parentLocationModel?.clear(); parentAlertsModel?.clear(); parentControlsModel?.clear(); parentAccessModel?.clear(); parentActivityModel?.clear(); parentCheckInModel?.clear(); parentFamilyMapModel?.clear()
             familyViewModel?.hideVisible()
             securityViewModel?.clear()
             mutableTap.value = ParentTapState()
@@ -673,7 +690,17 @@ class ParentApplication : Application() {
         if (lease.role == ProfileRole.PARENT || childNotificationStore.optedBinding() == childRepository.binding.value)
             ParentNotificationJob.enqueue(this@ParentApplication, lease, owner, null)
     } }
-    fun queueMessage(data: Map<String, String>) { accountScope.launch {
+    /** A child's request while this app is open: a toast now, and an open Controls tab reloads its requests. */
+    private fun announceAccessRequest(data: Map<String, String>) {
+        if (dev.stmedrano.harbor.parent.notifications.ParentMessageParser.parse(data)?.route?.kind != ACCESS_REQUESTED_KIND) return
+        parentAccessModel?.poke()
+        val process = android.app.ActivityManager.RunningAppProcessInfo().also(android.app.ActivityManager::getMyMemoryState)
+        if (process.importance != android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) return
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(this, "Your child is asking for more time. Open Controls to answer.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    fun queueMessage(data: Map<String, String>) { announceAccessRequest(data); accountScope.launch {
         profiles.state.first { it != ProfileState.Transitioning }
         notificationLease()?.let { profileNotifications.accept(data, it) }
     } }
@@ -727,10 +754,20 @@ class ParentApplication : Application() {
         ensureContext()
         val accepted = notifications?.onTap(hint) == true
         val device = if (accepted) familyViewModel?.repository?.state?.value?.snapshot?.devices?.firstOrNull { it.id == hint.route.deviceId && it.status != "revoked" } else null
-        if (profiles.isCurrent(lease)) mutableTap.value = ParentTapState(device, if (accepted) null else "This update is unavailable. Refresh your family or sign in again.")
+        // A child asking for more time opens that child's Controls tab, where the request can be answered.
+        val asking = accepted && device != null && hint.route.kind == ACCESS_REQUESTED_KIND
+        if (asking) runCatching { familyViewModel?.selectChild(checkNotNull(device).childId) }
+        if (profiles.isCurrent(lease)) {
+            mutableTap.value = ParentTapState(device.takeUnless { asking }, if (accepted) null else "This update is unavailable. Refresh your family or sign in again.")
+            if (asking) { mutableRequestedTab.value = dev.stmedrano.harbor.parent.ui.ParentTab.CONTROLS; parentAccessModel?.poke() }
+        }
         }; true }
     } }
     fun closeNotification() { mutableTap.value = ParentTapState() }
+    private val mutableRequestedTab = MutableStateFlow<dev.stmedrano.harbor.parent.ui.ParentTab?>(null)
+    /** A tab a tapped notification asks to show (a child's request opens Controls); the activity consumes it. */
+    val requestedTab = mutableRequestedTab.asStateFlow()
+    fun consumeRequestedTab() { mutableRequestedTab.value = null }
 }
 
 

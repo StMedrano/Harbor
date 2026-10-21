@@ -37,8 +37,13 @@ class ChildNotificationRenderer(private val context: Context) {
         val tap = PendingIntent.getActivity(context, route.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val checkIn = route.kind == CHECKIN_KIND
         return Notification.Builder(context, channelFor(route)).setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(if (route.kind == CHECKIN_KIND) "Check in" else "Harbor update")
-            .setContentText(if (route.kind == CHECKIN_KIND) "A parent asked you to check in. Open Harbor to answer." else "Open Harbor to check your phone.")
+            .setContentTitle(when (route.kind) { CHECKIN_KIND -> "Check in"; APPROVED_KIND -> "Your parent said yes"; DENIED_KIND -> "Your parent said no"; else -> "Harbor update" })
+            .setContentText(when (route.kind) {
+                CHECKIN_KIND -> "A parent asked you to check in. Open Harbor to answer."
+                APPROVED_KIND -> "You can open the app again for 15 minutes."
+                DENIED_KIND -> "Not right now. You can ask again later."
+                else -> "Open Harbor to check your phone."
+            })
             .apply { if (checkIn) setCategory(Notification.CATEGORY_REMINDER) }
             .setContentIntent(tap).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build()
     }
@@ -51,6 +56,8 @@ class ChildNotificationRenderer(private val context: Context) {
         private const val CHANNEL = "harbor-child-updates"
         private const val CHECKIN_CHANNEL = "harbor-child-checkins"
         private const val CHECKIN_KIND = "device.checkin.requested"
+        private const val APPROVED_KIND = "device.access.approved"
+        private const val DENIED_KIND = "device.access.denied"
         const val TAP_ACTION = "dev.stmedrano.harbor.parent.CHILD_NOTIFICATION"
         fun consumeTap(intent: Intent): ParentRoute? {
             val extras = intent.extras

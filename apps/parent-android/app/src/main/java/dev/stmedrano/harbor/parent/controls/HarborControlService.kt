@@ -61,12 +61,14 @@ class HarborControlService : AccessibilityService() {
         when (val decision = PolicyEngine.decide(pkg, now, policy, used, exempt, total)) {
             is Decision.Block -> block(pkg, decision, nowMs)
             Decision.Allow -> {
-                val appLeft = PolicyEngine.remainingMs(pkg, policy, used)
-                val totalLeft = if (counts) PolicyEngine.totalRemainingMs(now, policy, total) else null
+                // Under a parent's yes the app's limits do not apply; re-check when the yes ends so the app closes then.
+                val grantLeft = PolicyEngine.grantRemainingMs(pkg, now, policy)
+                val appLeft = PolicyEngine.remainingMs(pkg, policy, used).takeIf { grantLeft == null }
+                val totalLeft = (if (counts) PolicyEngine.totalRemainingMs(now, policy, total) else null).takeIf { grantLeft == null }
                 appLeft?.let { warnIfLow(pkg, it, now.toLocalDate()) }
                 totalLeft?.let { warnIfLow(TOTAL_KEY, it, now.toLocalDate()) }
                 // Re-check while the app stays open: a limit can run out and a pause or bedtime can begin.
-                val soonest = listOfNotNull(appLeft, totalLeft).minOrNull()
+                val soonest = listOfNotNull(appLeft, totalLeft, grantLeft).minOrNull()
                 handler.postDelayed(tick, soonest?.coerceIn(1_000L, CHECK_EVERY_MS) ?: CHECK_EVERY_MS)
             }
         }
@@ -76,7 +78,7 @@ class HarborControlService : AccessibilityService() {
         val reason = decision.reason
         val label = appLabel(this, pkg)
         performGlobalAction(GLOBAL_ACTION_HOME)
-        startActivity(BlockActivity.intent(this, label, reason, decision.daily))
+        startActivity(BlockActivity.intent(this, pkg, label, reason, decision.daily))
         foreground = null
         // "Daily time limit reached" on the timeline names one app's own limit; the day's total shows as blocked opens.
         if (reason == BlockReason.LIMIT_REACHED && !decision.daily && limitRecorded.add("$pkg@${LocalDate.now()}")) {

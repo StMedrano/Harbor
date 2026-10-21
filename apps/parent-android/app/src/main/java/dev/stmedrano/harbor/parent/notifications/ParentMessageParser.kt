@@ -18,6 +18,7 @@ data class ParentHint(val registrationId: String, val route: ParentRoute)
 fun parentPushText(kind: String): String = when (kind) {
     "device.alert.created" -> "Harbor flagged a possible concern. Open to review."
     "device.controls.off" -> "App controls were turned off on a child's phone. Open Harbor to check."
+    "device.access.requested" -> "Your child is asking for more time. Open Harbor to answer."
     else -> "Open Harbor to check your family."
 }
 
@@ -32,11 +33,11 @@ fun ParentHint.matchesFamily(identity: ParentIdentity, state: FamilyState): Bool
 
 object ParentMessageParser {
     /**
-     * `device.checkin.requested` and `device.controls.changed` are only ever sent to a child phone; the parent app treats
-     * them like any other hint.
+     * `device.checkin.requested`, `device.controls.changed` and `device.access.approved`/`denied` are only ever sent to a
+     * child phone, and `device.access.requested` only to parents; each app treats the other's kinds like any other hint.
      */
     private val ALLOWED_KINDS = setOf("device.state.changed", "device.command.created", "device.alert.created", "device.checkin.requested",
-        "device.controls.off", "device.controls.changed")
+        "device.controls.off", "device.controls.changed", "device.access.requested", "device.access.approved", "device.access.denied")
     private val fields = setOf("version", "kind", "familyId", "childId", "deviceId", "resourceId")
     internal fun uuid(value: String) = runCatching { UUID.fromString(value).toString() == value.lowercase() }.getOrDefault(false)
     fun parse(data: Map<String, String>): ParentHint? = runCatching {

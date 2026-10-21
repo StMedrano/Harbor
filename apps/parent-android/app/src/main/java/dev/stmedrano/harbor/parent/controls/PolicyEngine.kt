@@ -15,13 +15,14 @@ sealed interface Decision {
  * Decides whether the app now on screen may stay there. Pure: the caller supplies the time (in the phone's own zone),
  * the policy, how long the app has been used today, and the apps that are always exempt on this phone (Harbor, the
  * launcher, the dialer, Settings, System UI and the default SMS app). Order matters: an exempt or always-allowed app is
- * never blocked; then pause, bedtime, an outright block, the day's total screen time, and finally the app's own limit.
+ * never blocked, nor is an app a parent said yes to (a grant) until the grant ends; then pause, bedtime, an outright block, the day's total screen time, and finally the app's own limit.
  * [totalUsedTodayMs] is today's foreground time of every app that counts toward the daily limit.
  */
 object PolicyEngine {
     fun decide(packageName: String, now: ZonedDateTime, policy: ControlsV1, usedTodayMs: Long, exempt: Set<String>,
         totalUsedTodayMs: Long = 0L): Decision {
         if (packageName in exempt || packageName in policy.alwaysAllowed) return Decision.Allow
+        if (grantRemainingMs(packageName, now, policy) != null) return Decision.Allow
         if (isPaused(now, policy)) return Decision.Block(BlockReason.PAUSED)
         if (isBedtime(now, policy)) return Decision.Block(BlockReason.BEDTIME)
         if (packageName in policy.blockedApps) return Decision.Block(BlockReason.BLOCKED_APP)
@@ -68,6 +69,13 @@ object PolicyEngine {
     fun totalRemainingMs(now: ZonedDateTime, policy: ControlsV1, totalUsedTodayMs: Long): Long? {
         val limit = policy.dailyLimit ?: return null
         return maxOf(0L, limit.allowanceMinutes(now.toLocalDate()) * 60_000L - maxOf(0L, totalUsedTodayMs))
+    }
+
+    /** Time left on a parent's yes for this app, or null when there is none or it has ended. */
+    fun grantRemainingMs(packageName: String, now: ZonedDateTime, policy: ControlsV1): Long? {
+        val nowMs = now.toInstant().toEpochMilli()
+        return policy.grants.filter { it.packageName == packageName }
+            .mapNotNull { runCatching { alertInstantMs(it.until) - nowMs }.getOrNull() }.maxOrNull()?.takeIf { it > 0L }
     }
 
     /** Daily limits reset at local midnight on the phone. */

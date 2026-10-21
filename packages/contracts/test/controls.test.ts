@@ -73,6 +73,18 @@ Deno.test("daily limit: bounds, extra time for one day, legacy policies", () => 
   assert.equal(validateControls(legacy).dailyLimit, null);
 });
 
+Deno.test("grants: one per app, a real end instant, capped", () => {
+  assert.ok(validateControls(tweak((c) => (c.grants = []))));
+  rejected(tweak((c) => (c.grants = [{ packageName: "com.a.b", until: "2026-10-20T21:15:00Z" }, { packageName: "com.a.b", until: "2026-10-20T22:15:00Z" }])));
+  rejected(tweak((c) => (c.grants = [{ packageName: "not a package", until: "2026-10-20T21:15:00Z" }])));
+  rejected(tweak((c) => (c.grants = [{ packageName: "com.a.b", until: "2026-10-20 21:15" }])));
+  rejected(tweak((c) => Object.assign(c.grants[0], { reason: "x" })));
+  rejected(tweak((c) => (c.grants = Array.from({ length: 21 }, (_, i) => ({ packageName: `com.app.n${i}`, until: "2026-10-20T21:15:00Z" })))));
+  const older = controls() as Partial<ControlsV1>;
+  delete older.grants;
+  assert.deepEqual(validateControls(older).grants, []);
+});
+
 Deno.test("device controls read request and reply", async () => {
   const { validateDeviceControlsReply, validateDeviceControlsRequest } = await import("../src/v1/controls.ts");
   const deviceId = "22222222-2222-4222-8222-222222222222";

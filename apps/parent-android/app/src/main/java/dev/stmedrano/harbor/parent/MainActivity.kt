@@ -248,6 +248,10 @@ class MainActivity : ComponentActivity() {
             val runtime = graph.runtime?.state?.collectAsState()?.value
             val notifications = graph.notifications?.state?.collectAsState()?.value ?: ParentNotificationState()
             val tap = graph.tapState.collectAsState().value
+            val askedTab = graph.requestedTab.collectAsState().value
+            androidx.compose.runtime.LaunchedEffect(askedTab) {
+                if (askedTab != null) { parentTab.value = askedTab; settingsPage.value = false; securityPage.value = false; graph.consumeRequestedTab() }
+            }
             val pendingExport = remember { mutableStateOf<Pair<ParentIdentity, ParentReceipt>?>(null) }
             val exportReceipt = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
                 val captured = pendingExport.value
@@ -344,7 +348,7 @@ class MainActivity : ComponentActivity() {
                                         exportReceipt.launch("harbor-parent-receipt.json")
                                     } }, onChangeRole = { roleChangeParentLease.value = graph.profiles.currentLease() })
                                 else key(identity) { FamilyRoute(checkNotNull(graph.familyViewModel), checkNotNull(identity), graph.runtime, ::openRevocation, graph.parentUsage, graph.parentLocation, graph.parentAlerts,
-                                    checkInModel = graph.parentCheckIn, familyMapModel = graph.parentFamilyMap, controlsModel = graph.parentControls, activityModel = graph.parentActivity, tab = effectiveTab, resumeTick = resumeTick.intValue,
+                                    checkInModel = graph.parentCheckIn, familyMapModel = graph.parentFamilyMap, controlsModel = graph.parentControls, activityModel = graph.parentActivity, accessModel = graph.parentAccess, tab = effectiveTab, resumeTick = resumeTick.intValue,
                                     onSettings = { settingsPage.value = true; securityPage.value = false; graph.closeNotification() },
                                     onSecurity = { securityPage.value = true; settingsPage.value = false; graph.closeNotification() }) }
                             })

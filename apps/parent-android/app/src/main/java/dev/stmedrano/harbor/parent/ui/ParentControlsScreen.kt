@@ -12,6 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.stmedrano.harbor.parent.access.AccessRequestItem
+import dev.stmedrano.harbor.parent.access.AccessViewState
+import dev.stmedrano.harbor.parent.access.AccessViewStatus
+import dev.stmedrano.harbor.parent.access.ParentAccessModel
+import dev.stmedrano.harbor.parent.access.accessRequestTitle
+import dev.stmedrano.harbor.parent.alerts.alertInstantMs
+import dev.stmedrano.harbor.parent.alerts.alertInstantString
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import dev.stmedrano.harbor.parent.controls.*
 import dev.stmedrano.harbor.parent.usage.UsageViewState
@@ -28,6 +35,32 @@ fun rememberParentControlsView(model: ParentControlsModel?, identity: ParentIden
     }
     val scoped = model.state.collectAsState().value
     return scoped?.takeIf { it.scope == ParentControlsModel.Scope(identity, deviceId) }?.view
+}
+
+@Composable
+fun rememberParentAccessView(model: ParentAccessModel?, identity: ParentIdentity, deviceId: String, resumeTick: Int = 0): AccessViewState? {
+    if (model == null) return null
+    val pokes = model.refreshes.collectAsState().value
+    LaunchedEffect(model, identity, deviceId, resumeTick, pokes) {
+        while (true) { model.load(identity, deviceId); delay(30_000) }
+    }
+    val scoped = model.state.collectAsState().value
+    return scoped?.takeIf { it.scope == ParentAccessModel.Scope(identity, deviceId) }?.view
+}
+
+/**
+ * A parent's yes: [pkg] may be used until [untilMs]. Ended grants and any earlier grant for the same app are dropped, and
+ * the newest [CONTROLS_MAX_GRANTS] are kept, so the list never grows without bound.
+ */
+fun withGrant(controls: ControlsV1, pkg: String, untilMs: Long, nowMs: Long): ControlsV1 {
+    val live = controls.grants.filter { it.packageName != pkg && runCatching { alertInstantMs(it.until) > nowMs }.getOrDefault(false) }
+    return controls.copy(grants = (live + Grant(pkg, alertInstantString(untilMs))).takeLast(CONTROLS_MAX_GRANTS))
+}
+
+/** "just now", "3 min ago", "2 h ago" for a request time. */
+fun askedAgo(requestedAt: String, nowMs: Long): String {
+    val minutes = ((nowMs - runCatching { alertInstantMs(requestedAt) }.getOrDefault(nowMs)) / 60_000L).coerceAtLeast(0L)
+    return when { minutes < 1 -> "just now"; minutes < 60 -> "$minutes min ago"; else -> "${minutes / 60} h ago" }
 }
 
 /** The rule an app has, as the parent picks it: no rule of its own, Unlimited (always allowed), a daily limit, or Blocked. */
@@ -118,7 +151,8 @@ private data class AppEntry(val pkg: String, val label: String, val usedMinutes:
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: UsageViewState?, controlsOn: Boolean?,
-    onChange: (((ControlsV1) -> ControlsV1) -> Unit)?, onRefresh: (() -> Unit)?) {
+    onChange: (((ControlsV1) -> ControlsV1) -> Unit)?, onRefresh: (() -> Unit)?,
+    requests: AccessViewState? = null, onAnswer: ((AccessRequestItem, Boolean) -> Unit)? = null) {
     when (view.status) {
         ControlsViewStatus.ACCESS_LOST -> { HarborNote("You no longer have access to this phone's controls.", HarborTone.DANGER, emphasis = true); return }
         ControlsViewStatus.LOAD_FAILED -> {
@@ -150,6 +184,7 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (onChange == null) HarborNote("You're offline. Changes can be made once Harbor reconnects.", HarborTone.WARN)
+        requests?.takeIf { it.status == AccessViewStatus.AVAILABLE }?.let { RequestsPanel(it, childName, onAnswer) }
 
         if (paused) HarborNote(HarborTone.DANGER, emphasis = true) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -272,6 +307,39 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                         RadioButton(selected, null)
                     }
                 }
+            }
+        }
+    }
+}
+
+/** A child's requests from the block screen, like the web app: what they asked for, when, and Allow / Deny. */
+@Composable
+private fun RequestsPanel(r: AccessViewState, childName: String, onAnswer: ((AccessRequestItem, Boolean) -> Unit)?) {
+    val now = System.currentTimeMillis()
+    val answered = r.requests.filter { it.status != "pending" }.take(3)
+    if (r.pending.isEmpty() && answered.isEmpty() && r.problem == null) return
+    HarborPanel("Requests") {
+        r.problem?.let { HarborNote(it, HarborTone.WARN) }
+        if (r.pending.isEmpty()) Text("No requests waiting.", style = MaterialTheme.typography.bodySmall)
+        r.pending.forEachIndexed { index, item ->
+            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Text(accessRequestTitle(item), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text("$childName asked ${askedAgo(item.requestedAt, now)}", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val busy = r.answering != null || onAnswer == null
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HarborButton({ onAnswer?.invoke(item, true) }, Modifier.weight(1f), enabled = !busy) {
+                    Text(if (r.answering == item.requestId) "Sending…" else "Allow 15 min")
+                }
+                HarborSecondaryButton({ onAnswer?.invoke(item, false) }, Modifier.weight(1f), enabled = !busy) { Text("Deny") }
+            }
+        }
+        if (answered.isNotEmpty()) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            answered.forEach { item ->
+                val outcome = when (item.status) { "approved" -> "Allowed 15 min"; "denied" -> "Said no"; else -> "Not answered in time" }
+                Text("$outcome · ${accessRequestTitle(item)} · ${askedAgo(item.requestedAt, now)}", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

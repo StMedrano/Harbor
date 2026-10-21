@@ -30,6 +30,20 @@ The first real-phone run on 0.21 showed accessibility turning on but nothing blo
 
 Also added, matching the web app: a **daily screen-time limit** (−/+ in 15-minute steps; when it is used up only Unlimited apps work until midnight), **Give 15 more min** (today only), and a per-app sheet with **No limit / Unlimited / 15–120 min a day / Blocked**. Unlimited apps do not count toward the daily limit. Both phones must run 0.22: a 0.21 child phone cannot read controls that carry a daily limit.
 
+## 0.23: ask a parent (2026-10-21)
+
+The block screen is now Harbor-branded (the Harbor mark, the app's icon with a lock badge, plain words for why) and has a button to ask a parent: **Ask for 15 more minutes** for a limit, the daily total or bedtime, **Ask to use <app>** for a blocked app or a pause. A request names only the app and the reason; there is no free text. Parents get a push (`device.access.requested`, generic words on the lock screen) and, with Harbor open, a toast; tapping the push opens that child's Controls tab, where **Requests** shows **Allow 15 min** and **Deny**. Allow writes a 15-minute grant for that app into the phone's controls (it overrides pause, bedtime, block and limits until it ends) and then records the answer; the child gets `device.access.approved` / `device.access.denied` and the open block screen switches to **Open <app>**. One open request per app; at most 10 an hour; an unanswered request expires after an hour; rows are kept 7 days.
+
+Rollout on development: migration `20261021180000_device_access_requests`; new functions `request-device-access` (signed child op, in both child allowlists), `get-access-requests`, `decide-access-request`; `update-device-state` v8 and `get-device-controls` v3 accept `grants`. Verified: RLS on, no client grants, no client execute, cron `harbor-access-request-retention`, revoke cleanup trigger; dry run covered create, duplicate, replay conflict, read, approve, repeat, change refused and the hourly limit. Both phones must run 0.23.
+
+### Extra real-phone steps
+
+16. **Block screen.** Open a blocked app: Harbor's screen shows the app icon with a lock, "<app> is blocked", **Ask to use <app>** and **Go to home screen**.
+17. **Ask.** Tap the button: it changes to "Asked". The parent phone gets a notification within a minute (a toast as well if Harbor is open). Tapping it opens Controls for that child with the request under **Requests**.
+18. **Allow.** Tap **Allow 15 min**. The child's open block screen changes to "Your parent said yes" with **Open <app>**; the app opens and keeps working; after 15 minutes it closes again. The child gets "Your parent said yes".
+19. **Deny.** Ask again from another app and tap **Deny**: nothing opens; the child gets "Your parent said no".
+20. **Limits.** Ask 11 times within an hour (different apps): the last shows "You've asked a lot this hour".
+
 ## Real-phone procedure (owned disposable devices only)
 
 Install build 0.22 (versionCode 22) on both phones. Record only whether each step passed. Times are "within about a minute" unless a step says otherwise.

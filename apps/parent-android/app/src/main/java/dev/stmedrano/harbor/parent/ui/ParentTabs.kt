@@ -77,6 +77,8 @@ data class ParentChildData(
     /** Applies one change to the latest controls and writes it straight away; null while offline. */
     val onChangeControls: (((dev.stmedrano.harbor.parent.controls.ControlsV1) -> dev.stmedrano.harbor.parent.controls.ControlsV1) -> Unit)? = null,
     val onRefreshControls: (() -> Unit)? = null,
+    val accessRequests: dev.stmedrano.harbor.parent.access.AccessViewState? = null,
+    val onAnswerAccess: ((dev.stmedrano.harbor.parent.access.AccessRequestItem, Boolean) -> Unit)? = null,
     val activity: dev.stmedrano.harbor.parent.activity.ActivityViewState? = null, val activityToday: java.time.LocalDate = java.time.LocalDate.now(),
     val onActivityDay: (java.time.LocalDate) -> Unit = {}, val onRefreshActivity: (() -> Unit)? = null,
 )
@@ -100,7 +102,8 @@ fun ParentChildPage(tab: ParentTab, child: ChildV1, device: DevicePublicV1?, dat
             }
             ParentTab.ALERTS -> data.alerts?.let { ParentAlertsScreen(it, data.onRefreshAlerts) }
             ParentTab.CONTROLS -> data.controls?.let {
-                ParentControlsScreen(it, child.displayName, data.usage, data.activity?.controlsOn, data.onChangeControls, data.onRefreshControls)
+                ParentControlsScreen(it, child.displayName, data.usage, data.activity?.controlsOn, data.onChangeControls, data.onRefreshControls,
+                    data.accessRequests, data.onAnswerAccess)
             }
             ParentTab.ACTIVITY -> {
                 data.activity?.let { ParentActivityScreen(it, data.activityToday, data.onActivityDay, data.onRefreshActivity) }

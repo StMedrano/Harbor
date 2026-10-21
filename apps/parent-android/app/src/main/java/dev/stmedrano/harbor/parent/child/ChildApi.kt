@@ -124,7 +124,7 @@ class ChildApi(private val url: String, private val publishableKey: String,
         "report-device-location","clear-device-location","get-device-location-checkpoint",
         "get-checkin-state","reply-checkin","get-family-map",
         "report-message-alert","clear-message-alerts","get-message-alert-checkpoint",
-        "report-device-activity","clear-device-activity","get-device-activity-checkpoint"))
+        "report-device-activity","clear-device-activity","get-device-activity-checkpoint","request-device-access"))
         val bytes=body.toByteArray(Charsets.UTF_8)
         require(bytes.size<=1_048_576)
         val reply=requestBytes("/functions/v1/$operation",bytes,session,binding)

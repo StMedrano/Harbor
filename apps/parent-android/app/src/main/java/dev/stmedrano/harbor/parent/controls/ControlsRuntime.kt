@@ -174,6 +174,18 @@ fun totalForegroundMs(transitions: List<dev.stmedrano.harbor.parent.activity.App
     transitions.filter { it.packageName !in excluded }.groupBy { it.packageName }.values
         .sumOf { app -> foregroundMs(app.map { it.atMs to it.resumed }, fromMs, toMs) }
 
+/** Whether the rule that blocked [packageName] no longer applies: a parent's yes, a resume, or an unblock. */
+fun blockLifted(packageName: String, reason: BlockReason, policy: ControlsV1?, now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): Boolean {
+    if (policy == null) return false // Not loaded yet: never claim a yes that may not exist.
+    if (PolicyEngine.grantRemainingMs(packageName, now, policy) != null || packageName in policy.alwaysAllowed) return true
+    return when (reason) {
+        BlockReason.PAUSED -> !PolicyEngine.isPaused(now, policy)
+        BlockReason.BEDTIME -> !PolicyEngine.isBedtime(now, policy)
+        BlockReason.BLOCKED_APP -> packageName !in policy.blockedApps
+        BlockReason.LIMIT_REACHED -> false // Time used today does not shrink; only a yes or extra time reopens it.
+    }
+}
+
 /** The words the child sees on the block screen. Plain and specific; never a fake system message. */
 fun blockMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?, daily: Boolean = false): Pair<String, String> = when {
     daily -> "Time's up for today" to
