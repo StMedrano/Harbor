@@ -29,7 +29,10 @@ import kotlinx.serialization.json.Json
 }
 @Serializable data class ActivityEvent(val id: String, val kind: ActivityKind, val at: String, val endAt: String?,
     val packageName: String?, val appLabel: String?, val reason: BlockReason?)
-@Serializable data class ActivityStatus(val controlsOn: Boolean, val policyVersion: Long)
+/** Today's time on screen as this phone counts it for its limits: date, the daily-limit total, and up to 50 apps. */
+@Serializable data class AppTime(val packageName: String, val ms: Long)
+@Serializable data class ScreenTime(val date: String, val totalMs: Long, val apps: List<AppTime>)
+@Serializable data class ActivityStatus(val controlsOn: Boolean, val policyVersion: Long, val screenTime: ScreenTime? = null)
 @Serializable data class ActivityReportV1(val version: Int, val epochId: String, val sequence: Long, val observedAt: String,
     val status: ActivityStatus, val events: List<ActivityEvent>)
 @Serializable data class ActivityWriteReplyV1(val confirmed: Boolean, val sequence: Long, val receivedAt: String)
@@ -37,9 +40,19 @@ import kotlinx.serialization.json.Json
 @Serializable data class ActivityReadRequestV1(val version: Int = 1, val from: String, val to: String)
 @Serializable enum class ActivityReadState { @SerialName("available") AVAILABLE, @SerialName("none") NONE, @SerialName("expired") EXPIRED }
 @Serializable data class ActivityReadReplyV1(val state: ActivityReadState, val controlsOn: Boolean?, val policyVersion: Long?,
-    val observedAt: String?, val receivedAt: String?, val events: List<ActivityEvent>, val truncated: Boolean)
+    val observedAt: String?, val receivedAt: String?, val events: List<ActivityEvent>, val truncated: Boolean,
+    val screenTime: ScreenTime? = null)
 
 const val ACTIVITY_MAX_BYTES = 65_536
+const val SCREEN_TIME_MAX_APPS = 50
+private const val DAY_MS = 86_400_000L
+fun validateScreenTime(t: ScreenTime): ScreenTime {
+    require(runCatching { java.time.LocalDate.parse(t.date).toString() == t.date }.getOrDefault(false))
+    require(t.totalMs in 0..DAY_MS && t.apps.size <= SCREEN_TIME_MAX_APPS)
+    require(t.apps.map { it.packageName }.toSet().size == t.apps.size)
+    t.apps.forEach { require(isPackageName(it.packageName) && it.ms in 0..DAY_MS) }
+    return t
+}
 const val ACTIVITY_MAX_PER_REPORT = 100
 const val ACTIVITY_MAX_READ = 500
 const val ACTIVITY_MAX_WINDOW_MS = 48L * 3_600_000L
@@ -76,6 +89,7 @@ fun validateActivityReport(value: ActivityReportV1, nowMs: Long): ActivityReport
     require(strict.encodeToString(ActivityReportV1.serializer(), value).toByteArray(Charsets.UTF_8).size <= ACTIVITY_MAX_BYTES)
     require(value.version == 1 && activityUuid.matches(value.epochId) && value.sequence in 1..MAX_SAFE)
     require(value.status.policyVersion in 0..MAX_SAFE)
+    value.status.screenTime?.let(::validateScreenTime)
     val observed = alertInstantMs(value.observedAt)
     require(observed - nowMs <= 300_000)
     require(value.events.size <= ACTIVITY_MAX_PER_REPORT)
@@ -110,8 +124,10 @@ fun decodeActivityRead(raw: String): ActivityReadReplyV1 {
         require(reply.controlsOn != null && reply.policyVersion != null && reply.policyVersion in 0..MAX_SAFE)
         alertInstantMs(requireNotNull(reply.observedAt))
         alertInstantMs(requireNotNull(reply.receivedAt))
+        reply.screenTime?.let(::validateScreenTime)
     } else {
         require(reply.controlsOn == null && reply.policyVersion == null && reply.observedAt == null && reply.receivedAt == null)
+        require(reply.screenTime == null)
         require(reply.events.isEmpty() && !reply.truncated)
     }
     var previous = Long.MIN_VALUE

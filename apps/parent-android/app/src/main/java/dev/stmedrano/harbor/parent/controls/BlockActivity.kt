@@ -83,9 +83,21 @@ class BlockActivity : ComponentActivity() {
         val icon = remember(b.packageName) { b.packageName?.let { appIcon(this, it) } }
         // A parent's yes (or a resume or unblock) reaches this phone as new controls; offer to open the app when it does.
         LaunchedEffect(b) {
+            val uncounted = ExemptApps.uncounted(this@BlockActivity)
             while (true) {
-                nowAllowed = b.packageName != null && blockLifted(b.packageName, b.reason, ControlsBridge.policy)
-                delay(1_500)
+                val policy = ControlsBridge.policy
+                val pkg = b.packageName
+                if (pkg != null) {
+                    val now = java.time.ZonedDateTime.now()
+                    val usage = if (b.reason == BlockReason.LIMIT_REACHED) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        UsageToday.read(this@BlockActivity, now.toInstant().toEpochMilli(), now.toLocalDate().atStartOfDay(now.zone).toInstant().toEpochMilli())
+                    } else null
+                    nowAllowed = blockLifted(pkg, b.reason, policy, now, usage, uncounted)
+                    // A yes for this app answers the request; once it is used up the child can ask again.
+                    if (policy != null && PolicyEngine.grantRemainingMs(pkg, now, policy) != null) asker?.forget(pkg)
+                    if (ask == Ask.SENT && asker?.askedRecently(pkg) == false) ask = Ask.IDLE
+                }
+                delay(2_000)
             }
         }
         val brand = MaterialTheme.colorScheme.primary

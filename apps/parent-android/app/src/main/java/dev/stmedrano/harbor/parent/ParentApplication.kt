@@ -384,13 +384,13 @@ class ParentApplication : Application() {
         childControls = host
         host.start(lease)
         scope.launch { childRepository.desired.collectLatest { desired -> if (desired != null) host.apply(lease, desired) } }
-        // The child is usually in other apps, so controls cannot wait for Harbor to be opened: check once a minute. A
+        // The child is usually in other apps, so controls cannot wait for Harbor to be opened: check every 30 seconds. A
         // parent's change also sends a wake push (device.controls.changed) that syncs within seconds when it arrives.
         scope.launch {
             while (true) {
                 try { childRepository.binding.value?.let { childRepository.sync(it) } }
                 catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
-                delay(60_000L)
+                delay(30_000L)
             }
         }
         scope.launch {
@@ -423,7 +423,14 @@ class ParentApplication : Application() {
             { ControlsBridge.policy },
             { childControls?.state?.value?.appliedVersion ?: 0L },
             { ControlsAccess.isEnabled(this) },
-            { java.time.ZonedDateTime.now() })
+            { java.time.ZonedDateTime.now() },
+            {
+                val now = java.time.ZonedDateTime.now()
+                val usage = dev.stmedrano.harbor.parent.controls.UsageToday.read(this, now.toInstant().toEpochMilli(),
+                    now.toLocalDate().atStartOfDay(now.zone).toInstant().toEpochMilli())
+                dev.stmedrano.harbor.parent.controls.screenTimeOf(usage, now.toLocalDate(),
+                    dev.stmedrano.harbor.parent.controls.ExemptApps.uncounted(this), ControlsBridge.policy?.alwaysAllowed.orEmpty())
+            })
         childActivity = host
         host.start(lease)
         ControlsBridge.recorder = { event -> scope.launch { host.onControlEvent(lease, event) } }
@@ -438,7 +445,8 @@ class ParentApplication : Application() {
         scope.launch {
             while (true) {
                 try { host.supervise(lease) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
-                delay(5 * 60_000L)
+                // Each minute: the parent's view of time used stays within a minute of the phone's (sent only when it changed).
+                delay(60_000L)
             }
         }
     }
@@ -700,7 +708,11 @@ class ParentApplication : Application() {
             android.widget.Toast.makeText(this, "Your child is asking for more time. Open Controls to answer.", android.widget.Toast.LENGTH_LONG).show()
         }
     }
-    fun queueMessage(data: Map<String, String>) { announceAccessRequest(data); accountScope.launch {
+    fun queueMessage(data: Map<String, String>) {
+        // A parent answered a request (yes or no): the block screen offers asking again.
+        if (data["route"]?.let(dev.stmedrano.harbor.parent.notifications.ParentMessageParser::parseRoute)?.kind in
+            setOf("device.access.approved", "device.access.denied")) childAccess?.clear()
+        announceAccessRequest(data); accountScope.launch {
         profiles.state.first { it != ProfileState.Transitioning }
         notificationLease()?.let { profileNotifications.accept(data, it) }
     } }

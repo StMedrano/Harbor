@@ -22,6 +22,18 @@ const withEvent = (f: (e: ActivityEventV1) => void, index = 0) => {
   return r;
 };
 
+Deno.test("screen time is optional, names apps and minutes only, and is bounded", () => {
+  const withTime = (screenTime: unknown) => ({ ...report(), status: { ...report().status, screenTime } });
+  const ok = { date: "2026-10-20", totalMs: 7_380_000, apps: [{ packageName: "com.google.android.youtube", ms: 1_560_000 }] };
+  assert.ok(validateActivityReport(withTime(ok), now));
+  rejected(withTime({ ...ok, apps: [{ packageName: "com.google.android.youtube", ms: 1, title: "x" }] }));
+  rejected(withTime({ ...ok, date: "2026-02-30" }));
+  rejected(withTime({ ...ok, totalMs: 86_400_001 }));
+  rejected(withTime({ ...ok, apps: [ok.apps[0], ok.apps[0]] }));
+  rejected(withTime({ ...ok, apps: Array.from({ length: 51 }, (_, i) => ({ packageName: `com.app.n${i}`, ms: 1 })) }));
+  rejected({ ...report(), status: { ...report().status, note: "x" } });
+});
+
 Deno.test("shared fixture is valid and parses from its bytes", () => {
   assert.deepEqual(validateActivityReport(report(), now), fixture);
   assert.deepEqual(parseActivityReport(JSON.stringify(fixture), now), fixture);
@@ -89,6 +101,7 @@ Deno.test("read reply: available is complete; none and expired are empty", () =>
     state: "available",
     controlsOn: true,
     policyVersion: 4,
+    screenTime: { date: "2026-10-20", totalMs: 600000, apps: [{ packageName: "com.google.android.youtube", ms: 600000 }] },
     observedAt: "2026-10-20T18:00:00Z",
     receivedAt: "2026-10-20T18:00:01Z",
     events: report().events,
@@ -96,7 +109,9 @@ Deno.test("read reply: available is complete; none and expired are empty", () =>
   };
   assert.ok(validateActivityReadReply(available));
   assert.throws(() => validateActivityReadReply({ ...available, controlsOn: null }));
-  const none = { state: "none", controlsOn: null, policyVersion: null, observedAt: null, receivedAt: null, events: [], truncated: false };
+  assert.ok(validateActivityReadReply({ ...available, screenTime: null }));
+  assert.throws(() => validateActivityReadReply({ ...available, screenTime: { date: "x", totalMs: 0, apps: [] } }));
+  const none = { state: "none", controlsOn: null, policyVersion: null, screenTime: null, observedAt: null, receivedAt: null, events: [], truncated: false };
   assert.ok(validateActivityReadReply(none));
   assert.throws(() => validateActivityReadReply({ ...none, events: report().events }));
 });

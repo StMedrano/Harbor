@@ -27,7 +27,7 @@ const parent = {
   aal: "aal1" as const,
   amr: [],
 };
-const none = { state: "none" as const, controlsOn: null, policyVersion: null, observedAt: null, receivedAt: null, events: [], truncated: false };
+const none = { state: "none" as const, controlsOn: null, policyVersion: null, screenTime: null, observedAt: null, receivedAt: null, events: [], truncated: false };
 const window = { version: 1, from: "2026-10-20T05:00:00Z", to: "2026-10-21T05:00:00Z" };
 function deps(overrides: Partial<ActivityEndpointDependencies> = {}): ActivityEndpointDependencies {
   const ok = (sequence: number) => ({ confirmed: true as const, sequence, receivedAt: new Date(now).toISOString() });

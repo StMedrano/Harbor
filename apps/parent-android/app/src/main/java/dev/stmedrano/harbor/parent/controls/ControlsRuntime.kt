@@ -166,15 +166,21 @@ fun foregroundMs(transitions: List<Pair<Long, Boolean>>, fromMs: Long, toMs: Lon
     return total
 }
 
-/** Whether the rule that blocked [packageName] no longer applies: a parent's yes, a resume, or an unblock. */
-fun blockLifted(packageName: String, reason: BlockReason, policy: ControlsV1?, now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): Boolean {
+/**
+ * Whether the rule that blocked [packageName] no longer applies: a parent's yes, a resume, an unblock, or (with today's
+ * [usage]) a limit raised or removed, or extra time given.
+ */
+fun blockLifted(packageName: String, reason: BlockReason, policy: ControlsV1?, now: java.time.ZonedDateTime = java.time.ZonedDateTime.now(),
+    usage: VisibleUsage? = null, uncounted: Set<String> = emptySet()): Boolean {
     if (policy == null) return false // Not loaded yet: never claim a yes that may not exist.
     if (PolicyEngine.grantRemainingMs(packageName, now, policy) != null || packageName in policy.alwaysAllowed) return true
     return when (reason) {
         BlockReason.PAUSED -> !PolicyEngine.isPaused(now, policy)
         BlockReason.BEDTIME -> !PolicyEngine.isBedtime(now, policy)
         BlockReason.BLOCKED_APP -> packageName !in policy.blockedApps
-        BlockReason.LIMIT_REACHED -> false // Time used today does not shrink; only a yes or extra time reopens it.
+        // Time used today does not shrink, but a parent can raise or remove the limit or give extra time.
+        BlockReason.LIMIT_REACHED -> usage != null && PolicyEngine.decide(packageName, now, policy, usage.appMs(packageName), emptySet(),
+            if (packageName in policy.alwaysAllowed) 0L else usage.totalMs(uncounted + policy.alwaysAllowed)) == Decision.Allow
     }
 }
 

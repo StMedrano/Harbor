@@ -21,6 +21,8 @@ import kotlinx.serialization.Serializable
     /** The status the server last confirmed; null until the first confirmed report. */
     val reportedControlsOn: Boolean? = null,
     val reportedPolicyVersion: Long? = null,
+    /** The screen-time count the server last confirmed, so an unchanged count is not sent again. */
+    val reportedScreenTime: ScreenTime? = null,
     val lastConfirmedSequence: Long = 0,
     val receivedAt: String? = null,
     /** App sessions are read from usage events after this instant; an open session holds it at its start. */

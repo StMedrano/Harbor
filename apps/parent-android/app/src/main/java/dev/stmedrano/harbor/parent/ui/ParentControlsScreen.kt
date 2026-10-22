@@ -40,7 +40,7 @@ import java.time.format.DateTimeFormatter
 fun rememberParentControlsView(model: ParentControlsModel?, identity: ParentIdentity, deviceId: String, resumeTick: Int = 0): ControlsViewState? {
     if (model == null) return null
     LaunchedEffect(model, identity, deviceId, resumeTick) {
-        while (true) { model.load(identity, deviceId); delay(30_000) }
+        while (true) { model.load(identity, deviceId); delay(15_000) }
     }
     val scoped = model.state.collectAsState().value
     return scoped?.takeIf { it.scope == ParentControlsModel.Scope(identity, deviceId) }?.view
@@ -51,7 +51,7 @@ fun rememberParentAccessView(model: ParentAccessModel?, identity: ParentIdentity
     if (model == null) return null
     val pokes = model.refreshes.collectAsState().value
     LaunchedEffect(model, identity, deviceId, resumeTick, pokes) {
-        while (true) { model.load(identity, deviceId); delay(30_000) }
+        while (true) { model.load(identity, deviceId); delay(15_000) }
     }
     val scoped = model.state.collectAsState().value
     return scoped?.takeIf { it.scope == ParentAccessModel.Scope(identity, deviceId) }?.view
@@ -84,8 +84,9 @@ fun ruleOf(controls: ControlsV1, pkg: String): AppRule = when {
 
 /** Sets one app's rule, removing any other rule for it, so the result always satisfies "one rule per app". */
 fun withAppRule(controls: ControlsV1, pkg: String, rule: AppRule, minutes: Int = 60): ControlsV1 {
+    // A new rule for the app is the parent's latest word on it, so it also ends any earlier yes (grant) for that app.
     val cleared = controls.copy(blockedApps = controls.blockedApps - pkg, appLimits = controls.appLimits.filterNot { it.packageName == pkg },
-        alwaysAllowed = controls.alwaysAllowed - pkg)
+        alwaysAllowed = controls.alwaysAllowed - pkg, grants = controls.grants.filterNot { it.packageName == pkg })
     return when (rule) {
         AppRule.ALLOWED -> cleared
         AppRule.BLOCKED -> cleared.copy(blockedApps = cleared.blockedApps + pkg)
@@ -109,6 +110,9 @@ fun withDailyLimitMinutes(controls: ControlsV1, minutes: Int): ControlsV1 {
     val m = minutes.coerceIn(5, DAILY_MAX_MINUTES)
     return controls.copy(dailyLimit = controls.dailyLimit?.copy(minutes = m) ?: DailyLimit(m))
 }
+
+/** Pausing the phone is the parent's latest word: it also ends every earlier yes (grant). */
+fun withPauseNow(controls: ControlsV1): ControlsV1 = controls.copy(pause = ControlsPause(true, null), grants = emptyList())
 
 /** "Give 15 more min": extra time for [today] only, added to any extra already given today. */
 fun withExtraTime(controls: ControlsV1, today: LocalDate, minutes: Int = 15): ControlsV1 {
@@ -193,8 +197,9 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
     val today = LocalDate.now()
     val todaysActivity = activity?.takeIf { it.status == ActivityViewStatus.AVAILABLE && it.day == today }
     val timelineMs = todaysActivity?.totals.orEmpty().associate { it.packageName to it.ms }
-    val limitHit = todaysActivity?.events.orEmpty().filter { it.kind == ActivityKind.LIMIT_REACHED }.mapNotNull { it.packageName }.toSet()
-    val used = countedTodayMinutes(usage, c, timelineMs)
+    // The phone's own count (sent with its activity) is what it enforces with; without it, the larger of report and timeline.
+    val phoneTime = todaysActivity?.screenTime?.takeIf { it.date == today.toString() }
+    val used = phoneTime?.let { (it.totalMs / 60_000L).toInt() } ?: countedTodayMinutes(usage, c, timelineMs)
     val allowance = c.dailyLimit?.allowanceMinutes(today)
     val timeUp = allowance != null && used != null && used >= allowance
     val paused = PolicyEngine.isPaused(java.time.ZonedDateTime.now(), c)
@@ -259,8 +264,20 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (paused) HarborSecondaryButton({ change { it.copy(pause = ControlsPause(false, null)) } }, Modifier.weight(1f), enabled = enabled) { Text("Resume phone") }
-            else HarborDestructiveButton({ change { it.copy(pause = ControlsPause(true, null)) } }, Modifier.weight(1f), enabled = enabled) { Text("Pause phone now") }
+            else HarborDestructiveButton({ change(::withPauseNow) }, Modifier.weight(1f), enabled = enabled) { Text("Pause phone now") }
             HarborSecondaryButton({ change { withExtraTime(it, today) } }, Modifier.weight(1f), enabled = enabled && c.dailyLimit != null) { Text("Give 15 more min") }
+        }
+
+        val liveGrants = c.grants.filter { g -> runCatching { alertInstantMs(g.until) > System.currentTimeMillis() }.getOrDefault(false) }
+        if (liveGrants.isNotEmpty()) HarborPanel("Allowed right now") {
+            val names = usage?.apps.orEmpty().associate { it.packageName to it.label }
+            liveGrants.forEachIndexed { index, g ->
+                HarborRow(names[g.packageName] ?: g.packageName, divider = index > 0,
+                    subtitle = "Until ${runCatching { java.time.Instant.parse(g.until).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(clockFormat) }.getOrDefault(g.until)} (you said yes)",
+                    trailing = { TextButton({ change { it.copy(grants = it.grants.filterNot { x -> x.packageName == g.packageName }) } }, enabled = enabled) { Text("End now") } })
+            }
+            Text("Pausing the phone or changing an app's rule also ends its extra time.", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         HarborPanel("Schedules") {
@@ -288,16 +305,16 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
         HarborPanel("App limits") {
             Text("Hard stops. When an app's time is used up it locks until tomorrow.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val measured = todayMsByApp(usage, timelineMs)
+            val measured = todayMsByApp(usage, timelineMs) + phoneTime?.apps.orEmpty().associate { it.packageName to it.ms }
             val labels = usage?.apps.orEmpty().associate { it.packageName to it.label } + todaysActivity?.totals.orEmpty().associate { it.packageName to it.label }
-            val reported = (usage?.apps.orEmpty().map { it.packageName } + timelineMs.keys).distinct()
+            val reported = (usage?.apps.orEmpty().map { it.packageName } + timelineMs.keys + phoneTime?.apps.orEmpty().map { it.packageName }).distinct()
                 .map { AppEntry(it, labels[it] ?: it, ((measured[it] ?: 0L) / 60_000L).toInt()) }
                 .sortedWith(compareByDescending<AppEntry> { it.usedMinutes }.thenBy { it.label.lowercase() })
             val ruled = (c.blockedApps + c.appLimits.map { it.packageName } + c.alwaysAllowed).filter { pkg -> reported.none { it.pkg == pkg } }
             val apps = reported + ruled.map { AppEntry(it, it, 0) }
             if (apps.isEmpty()) Text("$childName's phone hasn't reported its apps yet.", style = MaterialTheme.typography.bodySmall)
             apps.forEachIndexed { index, app ->
-                val (line, alert) = appStatusLine(c, app.pkg, app.usedMinutes, timeUp && ruleOf(c, app.pkg) != AppRule.ALWAYS, app.pkg in limitHit)
+                val (line, alert) = appStatusLine(c, app.pkg, app.usedMinutes, timeUp && ruleOf(c, app.pkg) != AppRule.ALWAYS)
                 HarborRow(app.label, divider = index > 0, onClick = if (enabled) ({ sheetFor = app }) else null,
                     leading = { HarborAvatar(app.label, 34.dp) },
                     trailing = { OutlinedButton({ sheetFor = app }, enabled = enabled) { Text(ruleLabel(c, app.pkg)) } })

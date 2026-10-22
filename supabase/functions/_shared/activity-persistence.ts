@@ -84,6 +84,7 @@ export function createActivityPersistence(sql: Sql) {
       return {
         state: row.state,
         controlsOn: row.controls_on ?? null,
+        screenTime: row.screen_time ?? null,
         policyVersion: row.policy_version === null || row.policy_version === undefined ? null : sequence(row.policy_version),
         observedAt: row.observed_at ? seconds(row.observed_at) : null,
         receivedAt: row.received_at ? seconds(row.received_at) : null,

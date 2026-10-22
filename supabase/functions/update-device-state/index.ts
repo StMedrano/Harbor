@@ -82,8 +82,10 @@ export const defaultUpdateDeviceStateDeps: UpdateDeviceStateDeps = {
 };
 
 if (import.meta.main) {
+  // Pushes queued by this request (and any others due) are delivered right after it answers.
+  const { withPushDelivery } = await import("../_shared/push-now.ts");
   const handler = createUpdateDeviceStateHandler(defaultUpdateDeviceStateDeps);
-  serveHarbor(async (request) => {
+  serveHarbor(withPushDelivery(async (request) => {
     try {
       return await handler(request);
     } catch (error) { error = databaseError(error) ?? error;
@@ -94,5 +96,5 @@ if (import.meta.main) {
         headers: { "content-type": "application/json; charset=utf-8" },
       });
     }
-  });
+  }));
 }

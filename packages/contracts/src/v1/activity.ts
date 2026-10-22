@@ -37,7 +37,12 @@ export type ActivityEventV1 = {
   appLabel: string | null;
   reason: BlockReasonV1 | null;
 };
-export type ActivityStatusV1 = { controlsOn: boolean; policyVersion: number };
+/**
+ * Today's time on screen as the child phone counts it for its limits: the phone's local [date], the total that counts
+ * toward the daily limit, and the time of up to 50 apps. App names and minutes only. Optional: older phones omit it.
+ */
+export type ScreenTimeV1 = { date: string; totalMs: number; apps: { packageName: string; ms: number }[] };
+export type ActivityStatusV1 = { controlsOn: boolean; policyVersion: number; screenTime?: ScreenTimeV1 };
 export type ActivityReportV1 = {
   version: 1;
   epochId: string;
@@ -55,6 +60,8 @@ export type ActivityReadReplyV1 = {
   state: "available" | "none" | "expired";
   controlsOn: boolean | null;
   policyVersion: number | null;
+  /** The phone's latest screen-time count, or null when it has not sent one. */
+  screenTime: ScreenTimeV1 | null;
   observedAt: string | null;
   receivedAt: string | null;
   events: ActivityEventV1[];
@@ -133,7 +140,8 @@ export function validateActivityWriteReply(value: unknown): ActivityWriteReplyV1
   return structuredClone(value) as ActivityWriteReplyV1;
 }
 export function validateActivityReadReply(value: unknown): ActivityReadReplyV1 {
-  const r = record(value, ["state", "controlsOn", "policyVersion", "observedAt", "receivedAt", "events", "truncated"]);
+  const r = record(value, ["state", "controlsOn", "policyVersion", "screenTime", "observedAt", "receivedAt", "events", "truncated"]);
+  if (r.screenTime !== null) validateScreenTime(r.screenTime);
   demand(["available", "none", "expired"].includes(String(r.state)));
   demand(typeof r.truncated === "boolean");
   demand(Array.isArray(r.events) && r.events.length <= ACTIVITY_MAX_READ);
@@ -143,7 +151,7 @@ export function validateActivityReadReply(value: unknown): ActivityReadReplyV1 {
     instant(r.observedAt);
     instant(r.receivedAt);
   } else {
-    demand(r.controlsOn === null && r.policyVersion === null && r.observedAt === null && r.receivedAt === null);
+    demand(r.controlsOn === null && r.policyVersion === null && r.screenTime === null && r.observedAt === null && r.receivedAt === null);
     demand(r.events.length === 0 && r.truncated === false);
   }
   let previous = -Infinity;
@@ -179,8 +187,27 @@ export function validateActivityEvent(value: unknown): number {
   return at;
 }
 
+export const SCREEN_TIME_MAX_APPS = 50;
+const DAY_MS = 86_400_000;
+export function validateScreenTime(value: unknown): ScreenTimeV1 {
+  const t = record(value, ["date", "totalMs", "apps"]);
+  demand(typeof t.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(t.date));
+  demand(new Date(Date.parse(`${t.date}T00:00:00Z`)).toISOString().slice(0, 10) === t.date);
+  integer(t.totalMs, 0, DAY_MS);
+  demand(Array.isArray(t.apps) && t.apps.length <= SCREEN_TIME_MAX_APPS);
+  const seen = new Set<string>();
+  for (const item of t.apps) {
+    const a = record(item, ["packageName", "ms"]);
+    demand(!seen.has(appPackage(a.packageName)));
+    seen.add(a.packageName as string);
+    integer(a.ms, 0, DAY_MS);
+  }
+  return t as ScreenTimeV1;
+}
 function validateStatus(value: unknown): ActivityStatusV1 {
-  const s = record(value, ["controlsOn", "policyVersion"]);
+  const hasScreenTime = !!value && typeof value === "object" && Object.hasOwn(value, "screenTime");
+  const s = record(value, ["controlsOn", "policyVersion", ...(hasScreenTime ? ["screenTime"] : [])]);
+  if (hasScreenTime) validateScreenTime(s.screenTime);
   demand(typeof s.controlsOn === "boolean");
   integer(s.policyVersion);
   return s as ActivityStatusV1;

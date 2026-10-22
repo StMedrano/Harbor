@@ -14,7 +14,11 @@ import kotlinx.serialization.json.Json
 
 class ChildNotificationRenderer(private val context: Context) {
     private val manager get() = context.getSystemService(NotificationManager::class.java)
-    private fun channelFor(route: ParentRoute) = if (route.kind == CHECKIN_KIND) CHECKIN_CHANNEL else CHANNEL
+    private fun channelFor(route: ParentRoute) = when (route.kind) {
+        CHECKIN_KIND -> CHECKIN_CHANNEL
+        APPROVED_KIND, DENIED_KIND -> ANSWER_CHANNEL
+        else -> CHANNEL
+    }
     fun allowed(route: ParentRoute? = null) = manager.areNotificationsEnabled() &&
         manager.getNotificationChannel(if (route == null) CHANNEL else channelFor(route))?.importance != NotificationManager.IMPORTANCE_NONE
     /**
@@ -24,6 +28,9 @@ class ChildNotificationRenderer(private val context: Context) {
      */
     private fun ensureChannels() {
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Phone updates", NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel(ANSWER_CHANNEL, "Answers from your parent", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "When a parent says yes or no to more time"
+        })
         manager.createNotificationChannel(NotificationChannel(CHECKIN_CHANNEL, "Check-in requests", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "When a parent asks you to check in"
             setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
@@ -55,6 +62,7 @@ class ChildNotificationRenderer(private val context: Context) {
     companion object {
         private const val CHANNEL = "harbor-child-updates"
         private const val CHECKIN_CHANNEL = "harbor-child-checkins"
+        private const val ANSWER_CHANNEL = "harbor-child-answers"
         private const val CHECKIN_KIND = "device.checkin.requested"
         private const val APPROVED_KIND = "device.access.approved"
         private const val DENIED_KIND = "device.access.denied"

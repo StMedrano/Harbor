@@ -51,6 +51,8 @@ data class ActivityViewState(
     val truncated: Boolean = false,
     val receivedAtMs: Long? = null,
     val offline: Boolean = false,
+    /** The phone's own count of today's time on screen, from its latest report. */
+    val screenTime: ScreenTime? = null,
 )
 
 /** The [day] in the parent's zone, as an instant window the server accepts (at most 25 hours, across a DST change). */
@@ -117,7 +119,8 @@ class ParentActivityModel(private val api: ParentActivityApi, private val curren
             if (!live()) return
             mutable.value = Scoped(scope, when (reply.state) {
                 ActivityReadState.AVAILABLE -> ActivityViewState(ActivityViewStatus.AVAILABLE, day, reply.controlsOn, reply.events,
-                    appTotals(reply.events, alertInstantMs(from), alertInstantMs(to)), reply.truncated, reply.receivedAt?.let(::alertInstantMs))
+                    appTotals(reply.events, alertInstantMs(from), alertInstantMs(to)), reply.truncated, reply.receivedAt?.let(::alertInstantMs),
+                    screenTime = reply.screenTime)
                 ActivityReadState.NONE -> ActivityViewState(ActivityViewStatus.NONE, day)
                 ActivityReadState.EXPIRED -> ActivityViewState(ActivityViewStatus.EXPIRED, day)
             })

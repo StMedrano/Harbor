@@ -55,7 +55,7 @@ fun rememberChildControlsUi(graph: ParentApplication, lease: ProfileLease, resum
                         UsageToday.foregroundSinceMidnight(graph, limit.packageName, nowMs, midnight)) ?: 0L)
                 }
                 totalLeft = policy.dailyLimit?.let {
-                    val excluded = ExemptApps.resolve(graph) + policy.alwaysAllowed
+                    val excluded = ExemptApps.uncounted(graph) + policy.alwaysAllowed
                     PolicyEngine.totalRemainingMs(now, policy, UsageToday.totalSinceMidnight(graph, nowMs, midnight, excluded))
                 }
                 labels = (policy.blockedApps + policy.appLimits.map { it.packageName } + policy.alwaysAllowed + policy.grants.map { it.packageName }).associateWith { appLabel(graph, it) }

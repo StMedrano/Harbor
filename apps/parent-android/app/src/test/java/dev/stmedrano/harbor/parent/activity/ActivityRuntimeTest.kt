@@ -65,6 +65,22 @@ class ActivityRuntimeTest {
         assertEquals(setOf(ActivityKind.PAUSE_STARTED, ActivityKind.PROTECTION_OFF), off.map { it.kind }.toSet())
     }
 
+    @Test fun aChangedScreenTimeIsSentAndAnUnchangedOneIsNot() = runTest {
+        val store = MemoryStore()
+        val reports = mutableListOf<String>()
+        val reporter = ActivityReporter(store, { true }, { _, op, body ->
+            if (op == "get-device-activity-checkpoint") "{\"sequence\":0,\"epochId\":null}"
+            else { reports += body; val seq = Json.decodeFromString<ActivityReportV1>(body).sequence
+                "{\"confirmed\":true,\"sequence\":$seq,\"receivedAt\":\"2026-10-20T18:00:01Z\"}" }
+        }, { t0 + 3_600_000 })
+        val time = ScreenTime("2026-10-20", 3_600_000, listOf(AppTime("com.google.android.youtube", 3_600_000)))
+        reporter.flush(lease, ActivityStatusNow(true, 2, time))
+        reporter.flush(lease, ActivityStatusNow(true, 2, time))
+        reporter.flush(lease, ActivityStatusNow(true, 2, time.copy(totalMs = 3_660_000)))
+        assertEquals(2, reports.size)
+        assertEquals(time, Json.decodeFromString<ActivityReportV1>(reports[0]).status.screenTime)
+        assertEquals(3_660_000L, Json.decodeFromString<ActivityReportV1>(reports[1]).status.screenTime?.totalMs)
+    }
     private class MemoryStore : ActivityStore {
         var state: ActivityStoredState? = null
         override fun read(bindingId: String) = state?.takeIf { it.bindingId == bindingId }

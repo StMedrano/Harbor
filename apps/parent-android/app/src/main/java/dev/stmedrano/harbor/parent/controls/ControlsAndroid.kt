@@ -46,6 +46,21 @@ object ExemptApps {
         } catch (_: Exception) {}
         return out
     }
+
+    /**
+     * Apps whose time never counts toward the daily limit: the home screen, keyboards, System UI and Harbor itself (its
+     * block screen is on screen while an app is blocked). Phone, Messages and Settings are never blocked but do count,
+     * as they do in Digital Wellbeing.
+     */
+    fun uncounted(context: Context): Set<String> {
+        val app = context.applicationContext
+        val out = hashSetOf("android", "com.android.systemui", app.packageName)
+        out += try { resolvedHomePackages(app) } catch (_: Exception) { emptySet() }
+        try {
+            app.getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.forEach { out += it.packageName }
+        } catch (_: Exception) {}
+        return out
+    }
 }
 
 /** The phone's usage events between [fromMs] and [toMs], reduced to what time on screen needs: names, kinds and times. */

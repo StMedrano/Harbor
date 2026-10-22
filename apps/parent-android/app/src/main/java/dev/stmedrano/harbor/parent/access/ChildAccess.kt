@@ -21,5 +21,8 @@ class ChildAccessAsker(private val send: suspend (body: String) -> String, priva
         }
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { AskResult.FAILED }
+    /** The request for [packageName] was answered (a yes arrived, or the block ended): the child can ask again later. */
+    fun forget(packageName: String) { asked.remove(packageName) }
+    /** Any request was answered (yes or no push): the block screen offers asking again. */
     fun clear() = asked.clear()
 }

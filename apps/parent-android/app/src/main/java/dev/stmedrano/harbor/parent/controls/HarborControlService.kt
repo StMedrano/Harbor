@@ -25,6 +25,8 @@ import java.time.ZonedDateTime
 class HarborControlService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private var exempt: Set<String> = emptySet()
+    /** Never counted toward the daily limit (see [ExemptApps.uncounted]); the other exempt apps count but are never blocked. */
+    private var uncounted: Set<String> = emptySet()
     private var foreground: String? = null
     private val warned = HashMap<String, Int>()
     private var warnedDay: LocalDate? = null
@@ -39,6 +41,7 @@ class HarborControlService : AccessibilityService() {
 
     override fun onServiceConnected() {
         exempt = ExemptApps.resolve(this)
+        uncounted = ExemptApps.uncounted(this)
         // A pause or a new block arriving while an app is open applies to that app now, not at the next window change.
         ControlsBridge.onPolicyChanged = { handler.post { evaluate(); scanScreen() } }
         ControlsBridge.setConnected(true)
@@ -66,7 +69,7 @@ class HarborControlService : AccessibilityService() {
 
     private fun decide(pkg: String, now: ZonedDateTime, policy: ControlsV1, usage: VisibleUsage?): Decision {
         // Always-allowed ("Unlimited") apps neither count toward nor stop at the day's total screen time.
-        val total = if (policy.dailyLimit != null && pkg !in policy.alwaysAllowed) usage?.totalMs(exempt + policy.alwaysAllowed) ?: 0L else 0L
+        val total = if (policy.dailyLimit != null && pkg !in policy.alwaysAllowed) usage?.totalMs(uncounted + policy.alwaysAllowed) ?: 0L else 0L
         return PolicyEngine.decide(pkg, now, policy, usage?.appMs(pkg) ?: 0L, exempt, total)
     }
 
@@ -85,7 +88,7 @@ class HarborControlService : AccessibilityService() {
                 val grantLeft = PolicyEngine.grantRemainingMs(pkg, now, policy)
                 val appLeft = PolicyEngine.remainingMs(pkg, policy, usage?.appMs(pkg) ?: 0L).takeIf { grantLeft == null }
                 val totalLeft = (if (policy.dailyLimit != null && pkg !in policy.alwaysAllowed)
-                    PolicyEngine.totalRemainingMs(now, policy, usage?.totalMs(exempt + policy.alwaysAllowed) ?: 0L) else null)
+                    PolicyEngine.totalRemainingMs(now, policy, usage?.totalMs(uncounted + policy.alwaysAllowed) ?: 0L) else null)
                     .takeIf { grantLeft == null }
                 appLeft?.let { warnIfLow(pkg, it, now.toLocalDate()) }
                 totalLeft?.let { warnIfLow(TOTAL_KEY, it, now.toLocalDate()) }
@@ -111,13 +114,23 @@ class HarborControlService : AccessibilityService() {
                 usage.resumed?.takeIf { it != foreground && it !in exempt }?.let { foreground = it; evaluate(usage) }
                 for ((pkg, pausedAt) in usage.pictureInPicture) {
                     if (pkg in exempt || pkg == usage.resumed || reclaimed[pkg] == pausedAt) continue
-                    val decision = decide(pkg, now, policy, usage) as? Decision.Block ?: continue
+                    val decision = decide(pkg, now, policy, usage)
+                    if (decision !is Decision.Block) { warnPictureInPicture(pkg, now, policy, usage); continue }
                     reclaimed[pkg] = pausedAt
                     reclaim(pkg, decision, nowMs)
                 }
             }
         } catch (_: Exception) { /* The next scan tries again. */ }
         finally { handler.postDelayed(scan, SCAN_EVERY_MS) }
+    }
+
+    /** Time-left notices for an app playing in picture-in-picture, which is not "in front" and so not evaluated. */
+    private fun warnPictureInPicture(pkg: String, now: ZonedDateTime, policy: ControlsV1, usage: VisibleUsage) {
+        if (PolicyEngine.grantRemainingMs(pkg, now, policy) != null) return
+        PolicyEngine.remainingMs(pkg, policy, usage.appMs(pkg))?.let { warnIfLow(pkg, it, now.toLocalDate()) }
+        if (policy.dailyLimit != null && pkg !in policy.alwaysAllowed) {
+            PolicyEngine.totalRemainingMs(now, policy, usage.totalMs(uncounted + policy.alwaysAllowed))?.let { warnIfLow(TOTAL_KEY, it, now.toLocalDate()) }
+        }
     }
 
     /**
@@ -157,12 +170,16 @@ class HarborControlService : AccessibilityService() {
         if ((warned[pkg] ?: Int.MAX_VALUE) <= step) return
         warned[pkg] = step
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "App time limits", NotificationManager.IMPORTANCE_DEFAULT))
+        // High importance: the notice pops up over whatever is open, including a full-screen video.
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Time left", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "A few minutes before an app or the day's screen time runs out"
+        })
         val label = if (pkg == TOTAL_KEY) "screen time" else appLabel(this, pkg)
         val text = if (step == 1) "About 1 minute of $label left today." else "About 5 minutes of $label left today."
         try {
             manager.notify(pkg.hashCode(), NotificationCompat.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Harbor Family").setContentText(text)
+                .setPriority(NotificationCompat.PRIORITY_HIGH).setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true).build())
         } catch (_: SecurityException) { /* Notifications off: the block screen still explains when time runs out. */ }
     }
@@ -178,7 +195,7 @@ class HarborControlService : AccessibilityService() {
     }
 
     companion object {
-        private const val CHANNEL = "harbor-app-limits"
+        private const val CHANNEL = "harbor-time-left"
         private const val CHECK_EVERY_MS = 30_000L
         private const val SCAN_EVERY_MS = 5_000L
         private const val RECLAIM_DELAY_MS = 700L

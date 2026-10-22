@@ -12,20 +12,31 @@ import kotlinx.serialization.json.Json
 
 class ParentNotificationRenderer(private val context: Context) {
     private val manager get() = context.getSystemService(NotificationManager::class.java)
-    fun allowed(): Boolean = manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
-    fun build(hint: ParentHint): Notification {
+    /** Requests, possible concerns and controls turned off pop up; other updates stay quiet in the shade. */
+    private fun channelFor(hint: ParentHint?) = if (hint?.route?.kind in URGENT_KINDS) URGENT_CHANNEL else CHANNEL
+    private fun ensureChannels() {
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Family updates", NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel(URGENT_CHANNEL, "Requests and alerts", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "A child asking for more time, a possible concern, or app controls turned off"
+        })
+    }
+    fun allowed(hint: ParentHint? = null): Boolean { ensureChannels()
+        return manager.areNotificationsEnabled() && manager.getNotificationChannel(channelFor(hint))?.importance != NotificationManager.IMPORTANCE_NONE }
+    fun build(hint: ParentHint): Notification {
+        ensureChannels()
         val intent = Intent(context, MainActivity::class.java).setAction(TAP_ACTION)
             .putExtra("route", Json.encodeToString(hint.route)).putExtra("parentRegistrationId", hint.registrationId)
         val tap = PendingIntent.getActivity(context, hint.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return Notification.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Harbor update").setContentText(parentPushText(hint.route.kind))
+        return Notification.Builder(context, channelFor(hint)).setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(if (hint.route.kind == "device.access.requested") "Request from your child" else "Harbor update").setContentText(parentPushText(hint.route.kind))
             .setContentIntent(tap).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build()
     }
-    fun show(hint: ParentHint) { if (allowed()) manager.notify(hint.hashCode(), build(hint)) }
+    fun show(hint: ParentHint) { if (allowed(hint)) manager.notify(hint.hashCode(), build(hint)) }
     fun clear() = manager.cancelAll()
     companion object {
         private const val CHANNEL = "harbor-parent-updates"
+        private const val URGENT_CHANNEL = "harbor-parent-requests"
+        private val URGENT_KINDS = setOf("device.access.requested", "device.alert.created", "device.controls.off")
         const val TAP_ACTION = "dev.stmedrano.harbor.parent.NOTIFICATION"
         fun consumeTap(intent: Intent): ParentHint? {
             val extras = intent.extras

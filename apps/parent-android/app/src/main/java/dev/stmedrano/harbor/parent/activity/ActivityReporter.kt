@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 fun interface ActivityTransport { suspend fun send(lease: ProfileLease, operation: String, body: String): String }
 
 /** What the phone reports alongside its events: whether controls are being enforced and which policy version. */
-data class ActivityStatusNow(val controlsOn: Boolean, val policyVersion: Long)
+data class ActivityStatusNow(val controlsOn: Boolean, val policyVersion: Long, val screenTime: ScreenTime? = null)
 
 /**
  * Queues activity events and uploads them in order, the same way alerts are uploaded: at most one report is ever
@@ -100,13 +100,14 @@ class ActivityReporter(
         val oldest = observed - ACTIVITY_RETENTION_MS
         val usable = state.queue.filter { alertInstantMs(it.at) in oldest..observed }
         val due = usable.take(ACTIVITY_MAX_PER_REPORT)
-        val statusUnchanged = status.controlsOn == state.reportedControlsOn && status.policyVersion == state.reportedPolicyVersion
+        val statusUnchanged = status.controlsOn == state.reportedControlsOn && status.policyVersion == state.reportedPolicyVersion &&
+            status.screenTime == state.reportedScreenTime
         if (due.isEmpty() && statusUnchanged) {
             if (state.queue.any { alertInstantMs(it.at) < oldest }) store.update(lease.ownerId) { s -> s.copy(queue = s.queue.filter { alertInstantMs(it.at) >= oldest }) }
             return null
         }
         val report = validateActivityReport(ActivityReportV1(1, state.epochId, state.nextSequence, observedAt,
-            ActivityStatus(status.controlsOn, status.policyVersion), due), nowMs)
+            ActivityStatus(status.controlsOn, status.policyVersion, status.screenTime), due), nowMs)
         val body = encodeActivityReport(report)
         val pending = PendingActivity(report, body, sha256(body))
         val sentIds = due.map { it.id.lowercase() }.toSet()
@@ -124,7 +125,8 @@ class ActivityReporter(
         currentCoroutineContext().ensureActive(); requireChild(lease)
         store.update(lease.ownerId) { s ->
             if (s.pending == pending) s.copy(pending = null, lastConfirmedSequence = reply.sequence, receivedAt = reply.receivedAt,
-                reportedControlsOn = pending.report.status.controlsOn, reportedPolicyVersion = pending.report.status.policyVersion) else s
+                reportedControlsOn = pending.report.status.controlsOn, reportedPolicyVersion = pending.report.status.policyVersion,
+                reportedScreenTime = pending.report.status.screenTime) else s
         }
     }
     companion object {

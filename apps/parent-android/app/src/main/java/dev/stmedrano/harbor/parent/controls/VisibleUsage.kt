@@ -2,6 +2,21 @@ package dev.stmedrano.harbor.parent.controls
 
 import dev.stmedrano.harbor.parent.activity.AppTransition
 
+/**
+ * Today's count for the parent: total time that counts toward the daily limit and each app's time, floored to whole
+ * minutes so an unchanged minute is not sent again. Apps in [uncounted] (home screen, keyboards, System UI, Harbor)
+ * are left out of both; Unlimited apps are listed but not part of the total.
+ */
+fun screenTimeOf(usage: VisibleUsage, date: java.time.LocalDate, uncounted: Set<String>, alwaysAllowed: Collection<String>):
+    dev.stmedrano.harbor.parent.activity.ScreenTime {
+    fun minute(ms: Long) = (ms / 60_000L) * 60_000L
+    val apps = usage.intervals.keys.filter { it !in uncounted }.map { dev.stmedrano.harbor.parent.activity.AppTime(it, minute(usage.appMs(it))) }
+        .filter { it.ms > 0 }.sortedWith(compareByDescending<dev.stmedrano.harbor.parent.activity.AppTime> { it.ms }.thenBy { it.packageName })
+        .take(dev.stmedrano.harbor.parent.activity.SCREEN_TIME_MAX_APPS)
+    return dev.stmedrano.harbor.parent.activity.ScreenTime(date.toString(),
+        minute(usage.totalMs(uncounted + alwaysAllowed)).coerceAtMost(86_400_000L), apps)
+}
+
 /** The phone's own usage events that matter for time on screen. Names and times only. */
 enum class MarkKind { RESUMED, PAUSED, STOPPED, SCREEN_OFF }
 data class UsageMark(val atMs: Long, val packageName: String?, val kind: MarkKind)

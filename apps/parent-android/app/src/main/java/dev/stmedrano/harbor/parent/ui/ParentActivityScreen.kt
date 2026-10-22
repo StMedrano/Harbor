@@ -19,7 +19,7 @@ import java.time.format.DateTimeFormatter
 fun rememberParentActivityView(model: ParentActivityModel?, identity: ParentIdentity, deviceId: String, day: LocalDate, resumeTick: Int = 0): ActivityViewState? {
     if (model == null) return null
     LaunchedEffect(model, identity, deviceId, day, resumeTick) {
-        while (true) { model.load(identity, deviceId, day); delay(60_000) }
+        while (true) { model.load(identity, deviceId, day); delay(30_000) }
     }
     val scoped = model.state.collectAsState().value
     return scoped?.takeIf { it.scope == ParentActivityModel.Scope(identity, deviceId, day) }?.view

@@ -92,6 +92,8 @@ class ChildActivityHost(
     private val policyVersion: () -> Long,
     private val controlsOn: () -> Boolean,
     private val now: () -> ZonedDateTime,
+    /** Today's time on screen as the controls count it, sent with the status so the parent sees the phone's numbers. */
+    private val screenTime: () -> ScreenTime? = { null },
 ) {
     @Volatile private var active: ProfileLease? = null
     fun start(lease: ProfileLease) { if (lease.role == ProfileRole.CHILD) active = lease }
@@ -117,6 +119,7 @@ class ChildActivityHost(
         reporter.record(lease, events) { s ->
             stateChanges(s, nowZ, policy(), on).second.copy(sessionCursorMs = maxOf(nextCursor, s.sessionCursorMs ?: 0L))
         }
-        reporter.flush(lease, ActivityStatusNow(on, policyVersion()))
+        val time = try { screenTime() } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
+        reporter.flush(lease, ActivityStatusNow(on, policyVersion(), time))
     }
 }
