@@ -1,6 +1,12 @@
 package dev.stmedrano.harbor.parent.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +23,9 @@ import dev.stmedrano.harbor.parent.access.AccessViewState
 import dev.stmedrano.harbor.parent.access.AccessViewStatus
 import dev.stmedrano.harbor.parent.access.ParentAccessModel
 import dev.stmedrano.harbor.parent.access.accessRequestTitle
+import dev.stmedrano.harbor.parent.activity.ActivityKind
+import dev.stmedrano.harbor.parent.activity.ActivityViewState
+import dev.stmedrano.harbor.parent.activity.ActivityViewStatus
 import dev.stmedrano.harbor.parent.alerts.alertInstantMs
 import dev.stmedrano.harbor.parent.alerts.alertInstantString
 import dev.stmedrano.harbor.parent.auth.ParentIdentity
@@ -95,6 +104,12 @@ fun withDailyMinutes(controls: ControlsV1, deltaMinutes: Int): ControlsV1 {
     return controls.copy(dailyLimit = current.copy(minutes = (current.minutes + deltaMinutes).coerceIn(DAILY_STEP_MINUTES, DAILY_MAX_MINUTES)))
 }
 
+/** Sets the daily limit to [minutes] (5 minutes to 12 hours), keeping any extra time already given today. */
+fun withDailyLimitMinutes(controls: ControlsV1, minutes: Int): ControlsV1 {
+    val m = minutes.coerceIn(5, DAILY_MAX_MINUTES)
+    return controls.copy(dailyLimit = controls.dailyLimit?.copy(minutes = m) ?: DailyLimit(m))
+}
+
 /** "Give 15 more min": extra time for [today] only, added to any extra already given today. */
 fun withExtraTime(controls: ControlsV1, today: LocalDate, minutes: Int = 15): ControlsV1 {
     val limit = controls.dailyLimit ?: return controls
@@ -103,15 +118,25 @@ fun withExtraTime(controls: ControlsV1, today: LocalDate, minutes: Int = 15): Co
 }
 
 /** Today's screen time that counts toward the daily limit: every reported app except the Unlimited ones. */
-fun countedTodayMinutes(usage: UsageViewState?, controls: ControlsV1): Int? {
-    val apps = usage?.apps?.takeIf { it.isNotEmpty() } ?: return null
-    return (apps.filter { it.packageName !in controls.alwaysAllowed }.sumOf { it.foregroundMs ?: 0L } / 60_000L).toInt()
+fun countedTodayMinutes(usage: UsageViewState?, controls: ControlsV1, timelineMs: Map<String, Long> = emptyMap()): Int? {
+    val measured = todayMsByApp(usage, timelineMs)
+    if (measured.isEmpty()) return null
+    return (measured.filterKeys { it !in controls.alwaysAllowed }.values.sum() / 60_000L).toInt()
+}
+
+/**
+ * Today's time per app as the parent can see it: the larger of the hourly usage report and the activity timeline, so a
+ * report that has not caught up yet, or a session still being written, does not hide time the phone already counted.
+ */
+fun todayMsByApp(usage: UsageViewState?, timelineMs: Map<String, Long>): Map<String, Long> {
+    val reported = usage?.apps.orEmpty().associate { it.packageName to (it.foregroundMs ?: 0L) }
+    return (reported.keys + timelineMs.keys).associateWith { maxOf(reported[it] ?: 0L, timelineMs[it] ?: 0L) }
 }
 
 fun formatHm(minutes: Int): String = "${minutes / 60}h ${(minutes % 60).toString().padStart(2, '0')}m"
 
 /** What the app row says under the app's name, like the web app: its time today and what its rule does. */
-fun appStatusLine(controls: ControlsV1, pkg: String, usedMinutes: Int, timeUp: Boolean): Pair<String, Boolean> {
+fun appStatusLine(controls: ControlsV1, pkg: String, usedMinutes: Int, timeUp: Boolean, limitReached: Boolean = false): Pair<String, Boolean> {
     val today = if (usedMinutes > 0) "${usedMinutes}m today · " else ""
     return when (ruleOf(controls, pkg)) {
         AppRule.BLOCKED -> "Blocked" to true
@@ -120,7 +145,7 @@ fun appStatusLine(controls: ControlsV1, pkg: String, usedMinutes: Int, timeUp: B
             val limit = controls.appLimits.first { it.packageName == pkg }.minutesPerDay
             when {
                 timeUp -> "${today}locked, time's up" to true
-                usedMinutes >= limit -> "${usedMinutes}m today · limit reached" to true
+                usedMinutes >= limit || limitReached -> "${maxOf(usedMinutes, limit)}m today · limit reached" to true
                 else -> "${usedMinutes}m of ${limit}m today" to false
             }
         }
@@ -139,7 +164,6 @@ fun ruleLabel(controls: ControlsV1, pkg: String): String = when (ruleOf(controls
 private val clockFormat = DateTimeFormatter.ofPattern("h:mm a")
 private fun clock(value: String) = runCatching { LocalTime.parse(value).format(clockFormat) }.getOrDefault(value)
 private val clockChoices = (0 until 48).map { "%02d:%02d".format(it / 2, (it % 2) * 30) }
-private val limitChoices = listOf(15, 30, 45, 60, 90, 120)
 
 private data class AppEntry(val pkg: String, val label: String, val usedMinutes: Int)
 
@@ -152,7 +176,8 @@ private data class AppEntry(val pkg: String, val label: String, val usedMinutes:
 @Composable
 fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: UsageViewState?, controlsOn: Boolean?,
     onChange: (((ControlsV1) -> ControlsV1) -> Unit)?, onRefresh: (() -> Unit)?,
-    requests: AccessViewState? = null, onAnswer: ((AccessRequestItem, Boolean) -> Unit)? = null) {
+    requests: AccessViewState? = null, onAnswer: ((AccessRequestItem, Boolean) -> Unit)? = null,
+    activity: ActivityViewState? = null) {
     when (view.status) {
         ControlsViewStatus.ACCESS_LOST -> { HarborNote("You no longer have access to this phone's controls.", HarborTone.DANGER, emphasis = true); return }
         ControlsViewStatus.LOAD_FAILED -> {
@@ -166,11 +191,16 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
     val change = onChange ?: {}
     val enabled = onChange != null && !view.saving
     val today = LocalDate.now()
-    val used = countedTodayMinutes(usage, c)
+    val todaysActivity = activity?.takeIf { it.status == ActivityViewStatus.AVAILABLE && it.day == today }
+    val timelineMs = todaysActivity?.totals.orEmpty().associate { it.packageName to it.ms }
+    val limitHit = todaysActivity?.events.orEmpty().filter { it.kind == ActivityKind.LIMIT_REACHED }.mapNotNull { it.packageName }.toSet()
+    val used = countedTodayMinutes(usage, c, timelineMs)
     val allowance = c.dailyLimit?.allowanceMinutes(today)
     val timeUp = allowance != null && used != null && used >= allowance
     val paused = PolicyEngine.isPaused(java.time.ZonedDateTime.now(), c)
     var sheetFor by remember { mutableStateOf<AppEntry?>(null) }
+    var dailyPicker by remember { mutableStateOf(false) }
+    var appPicker by remember { mutableStateOf<AppEntry?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (controlsOn == false) HarborNote("App controls are off on $childName's phone, so these rules aren't working right now. " +
@@ -202,13 +232,8 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Daily limit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (c.dailyLimit == null) TextButton({ change { withDailyMinutes(it, 0) } }, enabled = enabled) { Text("Set a limit") }
-                    else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton({ change { withDailyMinutes(it, -DAILY_STEP_MINUTES) } }, Modifier.size(40.dp), enabled = enabled,
-                            contentPadding = PaddingValues(0.dp)) { Text("−") }
-                        Text(formatHm(c.dailyLimit.minutes), fontWeight = FontWeight.SemiBold)
-                        OutlinedButton({ change { withDailyMinutes(it, DAILY_STEP_MINUTES) } }, Modifier.size(40.dp), enabled = enabled,
-                            contentPadding = PaddingValues(0.dp)) { Text("+") }
+                    OutlinedButton({ dailyPicker = true }, enabled = enabled) {
+                        Text(c.dailyLimit?.let { formatHm(it.minutes) } ?: "Set a limit", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -263,12 +288,16 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
         HarborPanel("App limits") {
             Text("Hard stops. When an app's time is used up it locks until tomorrow.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val reported = usage?.apps.orEmpty().map { AppEntry(it.packageName, it.label ?: it.packageName, ((it.foregroundMs ?: 0L) / 60_000L).toInt()) }
+            val measured = todayMsByApp(usage, timelineMs)
+            val labels = usage?.apps.orEmpty().associate { it.packageName to it.label } + todaysActivity?.totals.orEmpty().associate { it.packageName to it.label }
+            val reported = (usage?.apps.orEmpty().map { it.packageName } + timelineMs.keys).distinct()
+                .map { AppEntry(it, labels[it] ?: it, ((measured[it] ?: 0L) / 60_000L).toInt()) }
+                .sortedWith(compareByDescending<AppEntry> { it.usedMinutes }.thenBy { it.label.lowercase() })
             val ruled = (c.blockedApps + c.appLimits.map { it.packageName } + c.alwaysAllowed).filter { pkg -> reported.none { it.pkg == pkg } }
             val apps = reported + ruled.map { AppEntry(it, it, 0) }
             if (apps.isEmpty()) Text("$childName's phone hasn't reported its apps yet.", style = MaterialTheme.typography.bodySmall)
             apps.forEachIndexed { index, app ->
-                val (line, alert) = appStatusLine(c, app.pkg, app.usedMinutes, timeUp && ruleOf(c, app.pkg) != AppRule.ALWAYS)
+                val (line, alert) = appStatusLine(c, app.pkg, app.usedMinutes, timeUp && ruleOf(c, app.pkg) != AppRule.ALWAYS, app.pkg in limitHit)
                 HarborRow(app.label, divider = index > 0, onClick = if (enabled) ({ sheetFor = app }) else null,
                     leading = { HarborAvatar(app.label, 34.dp) },
                     trailing = { OutlinedButton({ sheetFor = app }, enabled = enabled) { Text(ruleLabel(c, app.pkg)) } })
@@ -290,15 +319,15 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                 Spacer(Modifier.height(8.dp))
                 val current = ruleOf(c, app.pkg)
                 val minutes = c.appLimits.firstOrNull { it.packageName == app.pkg }?.minutesPerDay
-                val options = listOf(Triple("No limit", "Uses the daily time like other apps", (AppRule.ALLOWED to 0)),
-                    Triple("Unlimited", "Keeps working after daily time is up", (AppRule.ALWAYS to 0))) +
-                    limitChoices.map { Triple("$it min a day", "Locks when used up", AppRule.LIMITED to it) } +
-                    Triple("Blocked", "Can't be opened", AppRule.BLOCKED to 0)
+                val options = listOf(Triple("No limit", "Uses the daily time like other apps", AppRule.ALLOWED),
+                    Triple("Unlimited", "Keeps working after daily time is up", AppRule.ALWAYS),
+                    Triple(minutes?.let { "Time limit: ${formatHm(it)} a day" } ?: "Time limit…", "Choose how long a day; locks when used up", AppRule.LIMITED),
+                    Triple("Blocked", "Can't be opened", AppRule.BLOCKED))
                 options.forEach { (title, detail, pick) ->
-                    val selected = current == pick.first && (pick.first != AppRule.LIMITED || minutes == pick.second)
+                    val selected = current == pick
                     Row(Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton) {
                         sheetFor = null
-                        change { withAppRule(it, app.pkg, pick.first, pick.second) }
+                        if (pick == AppRule.LIMITED) appPicker = app else change { withAppRule(it, app.pkg, pick) }
                     }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(title, fontWeight = FontWeight.Medium)
@@ -306,6 +335,74 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                         }
                         RadioButton(selected, null)
                     }
+                }
+            }
+        }
+    }
+    if (dailyPicker) DurationPickerSheet("Daily limit for $childName", c.dailyLimit?.minutes ?: DAILY_DEFAULT_MINUTES, { dailyPicker = false }) { m ->
+        dailyPicker = false
+        change { withDailyLimitMinutes(it, m) }
+    }
+    appPicker?.let { app ->
+        DurationPickerSheet("${app.label} a day", c.appLimits.firstOrNull { it.packageName == app.pkg }?.minutesPerDay ?: 60, { appPicker = null }) { m ->
+            appPicker = null
+            change { withAppRule(it, app.pkg, AppRule.LIMITED, m) }
+        }
+    }
+}
+
+/** Hours 0–12 and minutes in 5-minute steps, as a scrolling picker. */
+private val pickerHours = (0..12).toList()
+private val pickerMinutes = (0..55 step 5).toList()
+
+/**
+ * Scroll to a time and tap Set: a daily limit or an app's limit, from 5 minutes to 12 hours. Two wheels (hours and
+ * minutes) like a clock picker; the highlighted row is the one chosen.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DurationPickerSheet(title: String, initialMinutes: Int, onDismiss: () -> Unit, onSet: (Int) -> Unit) {
+    val start = initialMinutes.coerceIn(5, DAILY_MAX_MINUTES)
+    var hours by remember { mutableStateOf(start / 60) }
+    var minutes by remember { mutableStateOf((start % 60) / 5 * 5) }
+    val total = (if (hours >= 12) 12 * 60 else hours * 60 + minutes).coerceAtLeast(5)
+    ModalBottomSheet(onDismiss) {
+        Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Wheel(pickerHours, hours, { "$it h" }, Modifier.weight(1f)) { hours = it }
+                Wheel(pickerMinutes, minutes, { "$it min" }, Modifier.weight(1f)) { minutes = it }
+            }
+            Text(if (hours >= 12) "12h 00m a day (the most)" else "${formatHm(total)} a day", style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HarborSecondaryButton(onDismiss, Modifier.weight(1f)) { Text("Cancel") }
+                HarborButton({ onSet(total) }, Modifier.weight(1f)) { Text("Set") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Wheel(values: List<Int>, selected: Int, label: (Int) -> String, modifier: Modifier, onSelect: (Int) -> Unit) {
+    val row = 44.dp
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = values.indexOf(selected).coerceAtLeast(0))
+    // The row nearest the middle of the wheel is the chosen one; padding of two rows lets the first and last reach it.
+    val centered by remember { derivedStateOf {
+        val info = state.layoutInfo
+        val middle = (info.viewportStartOffset + info.viewportEndOffset) / 2
+        info.visibleItemsInfo.minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - middle) }?.index ?: state.firstVisibleItemIndex
+    } }
+    LaunchedEffect(centered) { values.getOrNull(centered)?.let(onSelect) }
+    Box(modifier.height(row * 5), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().height(row).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp)))
+        LazyColumn(state = state, flingBehavior = rememberSnapFlingBehavior(state), contentPadding = PaddingValues(vertical = row * 2),
+            horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize()) {
+            items(values) { v ->
+                Box(Modifier.height(row).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(label(v), style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (v == values.getOrNull(centered)) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (v == values.getOrNull(centered)) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

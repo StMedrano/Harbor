@@ -100,6 +100,21 @@ class ParentControlsModelTest {
         assertEquals("40m today · locked, time's up" to true, appStatusLine(ControlsV1(), "a.b", 40, true))
         assertEquals("1h 05m", formatHm(65))
     }
+    @Test fun exactDailyLimitAndTheLargerOfReportAndTimeline() {
+        assertEquals(DailyLimit(95), withDailyLimitMinutes(ControlsV1(), 95).dailyLimit)
+        assertEquals(DailyLimit(5, "2026-10-22", 15), withDailyLimitMinutes(ControlsV1(dailyLimit = DailyLimit(60, "2026-10-22", 15)), 1).dailyLimit)
+        assertEquals(720, withDailyLimitMinutes(ControlsV1(), 2000).dailyLimit?.minutes)
+        val usage = dev.stmedrano.harbor.parent.usage.UsageViewState(dev.stmedrano.harbor.parent.usage.UsageViewStatus.MEASURED,
+            dev.stmedrano.harbor.parent.usage.UsageViewOrigin.PARENT_READ, apps = listOf(
+                dev.stmedrano.harbor.parent.usage.UsageAppRow("com.google.android.youtube", "YouTube", 13 * 60_000L),
+                dev.stmedrano.harbor.parent.usage.UsageAppRow("com.duolingo", "Duolingo", 20 * 60_000L)))
+        val timeline = mapOf("com.google.android.youtube" to 26 * 60_000L, "com.example.game" to 4 * 60_000L)
+        assertEquals(mapOf("com.google.android.youtube" to 26 * 60_000L, "com.duolingo" to 20 * 60_000L, "com.example.game" to 4 * 60_000L),
+            todayMsByApp(usage, timeline))
+        assertEquals(30, countedTodayMinutes(usage, ControlsV1(alwaysAllowed = listOf("com.duolingo")), timeline))
+        assertEquals("15m today · limit reached" to true,
+            appStatusLine(ControlsV1(appLimits = listOf(AppLimit("a.b", 15))), "a.b", 13, false, limitReached = true))
+    }
     @Test fun accessLossAndIdentityChangeHideData() = runTest {
         val api = FakeApi(DeviceControlsRead(decodeControls(raw), 1, 1))
         var who: ParentIdentity? = parentA

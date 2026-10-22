@@ -94,7 +94,7 @@ class BlockActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HarborMark(26.dp, onBrand, brand)
-                Text("Harbor", color = onBrand, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Harbor Family", color = onBrand, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.weight(1f))
             Box(contentAlignment = Alignment.BottomEnd) {
@@ -176,7 +176,10 @@ class BlockActivity : ComponentActivity() {
         fun intent(context: Context, packageName: String, label: String, reason: BlockReason, daily: Boolean = false): Intent =
             Intent(context, BlockActivity::class.java)
                 .putExtra(EXTRA_PACKAGE, packageName).putExtra(EXTRA_LABEL, label).putExtra(EXTRA_REASON, reason.name).putExtra(EXTRA_DAILY, daily)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                // NO_USER_ACTION: the covered app is not told the user is leaving it, so a video app does not switch to
+                // picture-in-picture and keep playing behind the block screen.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                    Intent.FLAG_ACTIVITY_NO_USER_ACTION)
 
         private fun appIcon(context: Context, packageName: String): ImageBitmap? = try {
             val drawable = context.packageManager.getApplicationIcon(packageName)

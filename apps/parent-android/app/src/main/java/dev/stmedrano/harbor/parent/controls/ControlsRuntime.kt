@@ -166,14 +166,6 @@ fun foregroundMs(transitions: List<Pair<Long, Boolean>>, fromMs: Long, toMs: Lon
     return total
 }
 
-/**
- * Today's foreground time across apps, from resume/pause transitions, leaving out [excluded] (the phone's exempt apps and
- * the always-allowed ones, which do not count toward the daily limit).
- */
-fun totalForegroundMs(transitions: List<dev.stmedrano.harbor.parent.activity.AppTransition>, fromMs: Long, toMs: Long, excluded: Set<String>): Long =
-    transitions.filter { it.packageName !in excluded }.groupBy { it.packageName }.values
-        .sumOf { app -> foregroundMs(app.map { it.atMs to it.resumed }, fromMs, toMs) }
-
 /** Whether the rule that blocked [packageName] no longer applies: a parent's yes, a resume, or an unblock. */
 fun blockLifted(packageName: String, reason: BlockReason, policy: ControlsV1?, now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): Boolean {
     if (policy == null) return false // Not loaded yet: never claim a yes that may not exist.
@@ -193,12 +185,12 @@ fun blockMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?, dai
     else -> blockReasonMessage(reason, appLabel, policy)
 }
 private fun blockReasonMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?): Pair<String, String> = when (reason) {
-    BlockReason.PAUSED -> "Your phone is paused" to
+    BlockReason.PAUSED -> "Your phone has been paused by Harbor Family" to
         (policy?.pause?.until?.let { "A parent paused your phone. It unlocks at ${localClock(it)}." }
             ?: "A parent paused your phone. It unlocks when they resume it.")
     BlockReason.BEDTIME -> "It's bedtime" to
         (policy?.bedtime?.let { "$appLabel is off until ${it.end}. Phone calls and texts still work." } ?: "$appLabel is off for now.")
-    BlockReason.BLOCKED_APP -> "$appLabel is blocked" to "A parent blocked this app. Ask them if you think it should be allowed."
+    BlockReason.BLOCKED_APP -> "$appLabel is blocked by Harbor Family" to "A parent blocked this app on your phone."
     BlockReason.LIMIT_REACHED -> "Time's up for $appLabel" to "You've used today's time for this app. It's available again tomorrow."
 }
 private fun localClock(instant: String): String = try {

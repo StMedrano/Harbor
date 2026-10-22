@@ -103,7 +103,7 @@ fun ParentChildPage(tab: ParentTab, child: ChildV1, device: DevicePublicV1?, dat
             ParentTab.ALERTS -> data.alerts?.let { ParentAlertsScreen(it, data.onRefreshAlerts) }
             ParentTab.CONTROLS -> data.controls?.let {
                 ParentControlsScreen(it, child.displayName, data.usage, data.activity?.controlsOn, data.onChangeControls, data.onRefreshControls,
-                    data.accessRequests, data.onAnswerAccess)
+                    data.accessRequests, data.onAnswerAccess, data.activity)
             }
             ParentTab.ACTIVITY -> {
                 data.activity?.let { ParentActivityScreen(it, data.activityToday, data.onActivityDay, data.onRefreshActivity) }

@@ -48,48 +48,43 @@ object ExemptApps {
     }
 }
 
-/** Time [packageName] has been in the foreground since local midnight, from the phone's own usage events. */
-object UsageToday {
-    fun foregroundSinceMidnight(context: Context, packageName: String, nowMs: Long, midnightMs: Long): Long = try {
-        val manager = context.getSystemService(UsageStatsManager::class.java) ?: return 0L
-        // Start a little before midnight so a session already running at midnight is seen and clipped to midnight.
-        val events = manager.queryEvents(midnightMs - 6 * 3_600_000L, nowMs) ?: return 0L
-        val transitions = ArrayList<Pair<Long, Boolean>>()
-        val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.packageName != packageName) continue
-            when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED -> transitions += event.timeStamp to true
-                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> transitions += event.timeStamp to false
-            }
-        }
-        foregroundMs(transitions, midnightMs, nowMs)
-    } catch (_: Exception) { 0L }
-}
-
-/** Today's screen time that counts toward the daily limit: every app except [excluded]. */
-fun UsageToday.totalSinceMidnight(context: Context, nowMs: Long, midnightMs: Long, excluded: Set<String>): Long =
-    totalForegroundMs(usageTransitions(context, midnightMs - 6 * 3_600_000L, nowMs), midnightMs, nowMs, excluded)
-
-/** Every app's resume/pause transitions in a window, for the activity timeline. Names and times only. */
-fun usageTransitions(context: Context, fromMs: Long, toMs: Long): List<dev.stmedrano.harbor.parent.activity.AppTransition> = try {
-    val manager = context.getSystemService(UsageStatsManager::class.java)
-    val events = manager?.queryEvents(fromMs, toMs)
-    val out = ArrayList<dev.stmedrano.harbor.parent.activity.AppTransition>()
+/** The phone's usage events between [fromMs] and [toMs], reduced to what time on screen needs: names, kinds and times. */
+fun usageMarks(context: Context, fromMs: Long, toMs: Long): List<UsageMark> = try {
+    val events = context.getSystemService(UsageStatsManager::class.java)?.queryEvents(fromMs, toMs)
+    val out = ArrayList<UsageMark>()
     if (events != null) {
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            val pkg = event.packageName ?: continue
-            when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED -> out += dev.stmedrano.harbor.parent.activity.AppTransition(event.timeStamp, pkg, true)
-                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> out += dev.stmedrano.harbor.parent.activity.AppTransition(event.timeStamp, pkg, false)
-            }
+            val kind = when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED -> MarkKind.RESUMED
+                UsageEvents.Event.ACTIVITY_PAUSED -> MarkKind.PAUSED
+                UsageEvents.Event.ACTIVITY_STOPPED -> MarkKind.STOPPED
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE, UsageEvents.Event.DEVICE_SHUTDOWN -> MarkKind.SCREEN_OFF
+                else -> null
+            } ?: continue
+            out += UsageMark(event.timeStamp, event.packageName, kind)
         }
     }
     out
 } catch (_: Exception) { emptyList() }
+
+/** Today's time on screen since local midnight, from the phone's own usage events (see [VisibleUsage]). */
+object UsageToday {
+    // Start well before midnight so an app already on screen at midnight is seen and clipped to midnight.
+    fun read(context: Context, nowMs: Long, midnightMs: Long): VisibleUsage =
+        VisibleUsage.of(usageMarks(context, midnightMs - 6 * 3_600_000L, nowMs), midnightMs, nowMs)
+    fun foregroundSinceMidnight(context: Context, packageName: String, nowMs: Long, midnightMs: Long): Long =
+        read(context, nowMs, midnightMs).appMs(packageName)
+}
+
+/** Today's screen time that counts toward the daily limit: every app except [excluded]. */
+fun UsageToday.totalSinceMidnight(context: Context, nowMs: Long, midnightMs: Long, excluded: Set<String>): Long =
+    read(context, nowMs, midnightMs).totalMs(excluded)
+
+/** Every app's time on screen in a window as start/end transitions, for the activity timeline. Names and times only. */
+fun usageTransitions(context: Context, fromMs: Long, toMs: Long): List<dev.stmedrano.harbor.parent.activity.AppTransition> =
+    VisibleUsage.of(usageMarks(context, fromMs, toMs), fromMs, toMs, openUntilEnd = false).transitions()
 
 fun appLabel(context: Context, packageName: String): String = try {
     val pm = context.packageManager
