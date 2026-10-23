@@ -112,8 +112,9 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     val navigationEnabled = !busy && !closing
     val accountForm = page == AccountPage.SIGN_IN || page == AccountPage.SIGN_UP
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        HarborBrand()
+        HarborLogo(HarborLogoVariant.LOCKUP, 150.dp, Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally))
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            HarborEyebrow(if (page == AccountPage.SIGN_IN || page == AccountPage.SIGN_UP) "Parent account" else "Account recovery")
             Text(when (page) {
                 AccountPage.SIGN_IN -> "Welcome back"
                 AccountPage.SIGN_UP -> "Create your account"
@@ -141,14 +142,13 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                         HarborPasswordField(signupConfirmation, { signupConfirmation = it }, "Confirm password", enabled)
                     }
                 }
-                Button(onClick = {
+                HarborButton(onClick = {
                     val secret = password
                     if (page == AccountPage.SIGN_IN) submit("Parent session verified.", ::openParentIfVerified) { it.signIn(email, secret) }
                     else submit("Check your email. Open the confirmation link on this device. Return to sign in after confirmation.") { it.beginSignup(email, secret) }
                 }, enabled = enabled && email.isNotBlank() && password.isNotBlank() &&
                     (page == AccountPage.SIGN_IN || password == signupConfirmation),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("auth-submit"),
-                    shape = MaterialTheme.shapes.medium) {
+                    modifier = Modifier.fillMaxWidth().testTag("auth-submit")) {
                     Text(if (page == AccountPage.SIGN_IN) "Sign in" else "Create account")
                 }
                 if (page == AccountPage.SIGN_IN) {
@@ -158,9 +158,8 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                 }
             } else if (page == AccountPage.RECOVERY) {
                 Text("Open the email link on this device. Keep Harbor installed until recovery is complete.", style = MaterialTheme.typography.bodySmall)
-                Button(onClick = { submit("If an account exists for that address, a recovery link is on its way. Open it on this device.") { it.beginRecovery(email) } },
-                    enabled = enabled && email.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = MaterialTheme.shapes.medium) { Text("Request recovery email") }
+                HarborButton(onClick = { submit("If an account exists for that address, a recovery link is on its way. Open it on this device.") { it.beginRecovery(email) } },
+                    enabled = enabled && email.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Request recovery email") }
             } else {
                 Text(if (recoveryReady) "Recovery verified. Choose a new password." else "Request and verify a fresh recovery link first.")
                 HarborPasswordField(newPassword, { newPassword = it }, "New password", enabled && recoveryReady)
@@ -176,14 +175,6 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
         }
     }
 }
-
-@Composable
-internal fun harborFieldColors() = OutlinedTextFieldDefaults.colors(
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-    focusedContainerColor = MaterialTheme.colorScheme.surface,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-)
 
 @Composable
 private fun HarborPasswordField(value: String, onChange: (String) -> Unit, label: String, enabled: Boolean) {

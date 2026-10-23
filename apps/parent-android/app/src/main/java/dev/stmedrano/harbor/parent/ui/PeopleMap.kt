@@ -38,8 +38,9 @@ data class MapPerson(val id: String, val name: String, val latitude: Double, val
 fun PeopleMap(people: List<MapPerson>, modifier: Modifier = Modifier) {
     if (people.isEmpty()) return
     val loader = remember { OsmTileLoader() }
-    val land = MaterialTheme.colorScheme.surfaceVariant
-    BoxWithConstraints(modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(16.dp))) {
+    val c = harbor
+    val land = c.land
+    BoxWithConstraints(modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(20.dp))) {
         val density = LocalDensity.current
         val width = with(density) { maxWidth.toPx() }.toDouble()
         val height = with(density) { maxHeight.toPx() }.toDouble()
@@ -78,14 +79,16 @@ fun PeopleMap(people: List<MapPerson>, modifier: Modifier = Modifier) {
         }
         people.forEach { person ->
             val (x, y) = MapMath.toViewport(person.latitude, person.longitude, center.first, center.second, zoom, width, height)
-            val half = with(density) { 15.dp.toPx() }
+            val half = with(density) { 19.dp.toPx() }
             if (x > -half && x < width + half && y > -half && y < height + half) {
-                val tint = if (person.stale) MaterialTheme.colorScheme.onSurfaceVariant else person.color
-                Box(Modifier.offset { IntOffset((x - half).roundToInt(), (y - half).roundToInt()) }.size(30.dp)
-                    .background(Color.White, CircleShape).padding(2.dp).background(tint, CircleShape)
-                    .then(if (person.self) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                // Design system map pins: the person's crew colour in a cream ring with deep-water initials; an old place is greyed.
+                val fill = if (person.stale) c.s2 else person.color
+                Box(Modifier.offset { IntOffset((x - half).roundToInt(), (y - half).roundToInt()) }.size(38.dp)
+                    .then(if (person.self) Modifier.border(2.dp, c.brand, CircleShape).padding(2.dp) else Modifier)
+                    .background(c.pinRing, CircleShape).padding(3.dp).background(fill, CircleShape)
                     .semantics { contentDescription = person.description }, contentAlignment = Alignment.Center) {
-                    Text(person.name.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.labelLarge)
+                    Text(person.name.take(1).uppercase(), color = if (person.stale) c.ink2 else c.onColor, style = MaterialTheme.typography.labelMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 }
             }
         }

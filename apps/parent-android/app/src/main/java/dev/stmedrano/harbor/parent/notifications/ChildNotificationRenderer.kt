@@ -43,7 +43,7 @@ class ChildNotificationRenderer(private val context: Context) {
         val intent = Intent(context, MainActivity::class.java).setAction(TAP_ACTION).putExtra("route", Json.encodeToString(route))
         val tap = PendingIntent.getActivity(context, route.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val checkIn = route.kind == CHECKIN_KIND
-        return Notification.Builder(context, channelFor(route)).setSmallIcon(android.R.drawable.ic_dialog_info)
+        return Notification.Builder(context, channelFor(route)).setSmallIcon(dev.stmedrano.harbor.parent.R.drawable.ic_stat_harbor)
             .setContentTitle(when (route.kind) { CHECKIN_KIND -> "Check in"; APPROVED_KIND -> "Your parent said yes"; DENIED_KIND -> "Your parent said no"; else -> "Harbor update" })
             .setContentText(when (route.kind) {
                 CHECKIN_KIND -> "A parent asked you to check in. Open Harbor to answer."

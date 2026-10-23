@@ -7,8 +7,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,24 +17,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.ParentApplication
 import dev.stmedrano.harbor.parent.access.AccessReason
 import dev.stmedrano.harbor.parent.access.AskResult
 import dev.stmedrano.harbor.parent.access.askButtonText
 import dev.stmedrano.harbor.parent.activity.BlockReason
+import dev.stmedrano.harbor.parent.ui.HarborBrand
+import dev.stmedrano.harbor.parent.ui.HarborButton
+import dev.stmedrano.harbor.parent.ui.HarborCard
+import dev.stmedrano.harbor.parent.ui.HarborGlyph
+import dev.stmedrano.harbor.parent.ui.HarborIcon
+import dev.stmedrano.harbor.parent.ui.HarborLogo
+import dev.stmedrano.harbor.parent.ui.HarborLogoVariant
+import dev.stmedrano.harbor.parent.ui.HarborOutlinedButton
 import dev.stmedrano.harbor.parent.ui.HarborTheme
+import dev.stmedrano.harbor.parent.ui.harbor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -100,71 +99,63 @@ class BlockActivity : ComponentActivity() {
                 delay(2_000)
             }
         }
-        val brand = MaterialTheme.colorScheme.primary
-        val onBrand = MaterialTheme.colorScheme.onPrimary
-        Column(Modifier.fillMaxSize().background(brand).systemBarsPadding().padding(horizontal = 24.dp, vertical = 20.dp),
+        val c = harbor
+        // Harbor's own screen in the design system: deep water, the brand, the covered app's icon with an amber lock.
+        Column(Modifier.fillMaxSize().background(c.s).systemBarsPadding().padding(horizontal = 22.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HarborMark(26.dp, onBrand, brand)
-                Text("Harbor Family", color = onBrand, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
+            HarborBrand(modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.weight(1f))
             Box(contentAlignment = Alignment.BottomEnd) {
                 if (icon != null) Image(icon, null, Modifier.size(84.dp).clip(RoundedCornerShape(22.dp)))
-                else HarborMark(84.dp, onBrand, brand)
-                Box(Modifier.offset(8.dp, 8.dp).size(34.dp).clip(CircleShape).background(BEACON), contentAlignment = Alignment.Center) {
-                    LockGlyph(brand)
+                else HarborLogo(HarborLogoVariant.ICON, 84.dp, ground = c.s2, tile = true, decorative = true)
+                Box(Modifier.offset(8.dp, 8.dp).size(38.dp).clip(CircleShape).background(c.s).padding(3.dp).clip(CircleShape).background(c.warn),
+                    contentAlignment = Alignment.Center) {
+                    HarborIcon(HarborGlyph.LOCK, c.onColor, Modifier.size(18.dp), strokeWidth = 2.2f)
                 }
             }
             Spacer(Modifier.height(28.dp))
-            Text(title, color = onBrand, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text(title, color = c.ink, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
             Spacer(Modifier.height(10.dp))
-            Text(body, color = onBrand.copy(alpha = 0.85f), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            Text(body, color = c.ink2, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
             Spacer(Modifier.weight(1f))
-            Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    when {
-                        nowAllowed -> {
-                            Text("Your parent said yes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("${b.label} is open to you now.", style = MaterialTheme.typography.bodyMedium)
-                            Button({ openApp(b.packageName) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Open ${b.label}") }
-                        }
-                        b.packageName == null || asker == null -> Text("Ask a parent if you think you need this app.",
-                            style = MaterialTheme.typography.bodyMedium)
-                        ask == Ask.SENT -> {
-                            Text("Asked", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Your parent got a notification. You'll get one too when they answer.", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        ask == Ask.LIMITED -> {
-                            Text("You've asked a lot this hour", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Try again a bit later.", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        else -> {
-                            Text("Need it for something?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(if (ask == Ask.FAILED) "That didn't send. Check your connection and try again."
-                                else "Your parent gets a notification and can say yes or no.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (ask == Ask.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                            Button({
-                                ask = Ask.SENDING
-                                scope.launch {
-                                    ask = when (asker.ask(reason, b.packageName, b.label)) {
-                                        AskResult.SENT -> Ask.SENT; AskResult.LIMITED -> Ask.LIMITED; AskResult.FAILED -> Ask.FAILED
-                                    }
+            HarborCard {
+                when {
+                    nowAllowed -> {
+                        Text("Your parent said yes", style = MaterialTheme.typography.titleMedium)
+                        Text("${b.label} is open to you now.", style = MaterialTheme.typography.bodyMedium, color = c.ink2)
+                        HarborButton({ openApp(b.packageName) }, Modifier.fillMaxWidth()) { Text("Open ${b.label}") }
+                    }
+                    b.packageName == null || asker == null -> Text("Ask a parent if you think you need this app.",
+                        style = MaterialTheme.typography.bodyMedium, color = c.ink2)
+                    ask == Ask.SENT -> {
+                        Text("Asked", style = MaterialTheme.typography.titleMedium)
+                        Text("Your parent got a notification. You'll get one too when they answer.", style = MaterialTheme.typography.bodyMedium,
+                            color = c.ink2)
+                    }
+                    ask == Ask.LIMITED -> {
+                        Text("You've asked a lot this hour", style = MaterialTheme.typography.titleMedium)
+                        Text("Try again a bit later.", style = MaterialTheme.typography.bodyMedium, color = c.ink2)
+                    }
+                    else -> {
+                        Text("Need it for something?", style = MaterialTheme.typography.titleMedium)
+                        Text(if (ask == Ask.FAILED) "That didn't send. Check your connection and try again."
+                            else "Your parent gets a notification and can say yes or no.",
+                            style = MaterialTheme.typography.bodyMedium, color = if (ask == Ask.FAILED) c.dan else c.ink2)
+                        HarborButton({
+                            ask = Ask.SENDING
+                            scope.launch {
+                                ask = when (asker.ask(reason, b.packageName, b.label)) {
+                                    AskResult.SENT -> Ask.SENT; AskResult.LIMITED -> Ask.LIMITED; AskResult.FAILED -> Ask.FAILED
                                 }
-                            }, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = ask != Ask.SENDING) {
-                                if (ask == Ask.SENDING) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                else Text(askButtonText(reason, b.label))
                             }
-                        }
+                        }, Modifier.fillMaxWidth(), loading = ask == Ask.SENDING) { Text(askButtonText(reason, b.label)) }
                     }
                 }
             }
             Spacer(Modifier.height(12.dp))
-            OutlinedButton(::goHome, Modifier.fillMaxWidth().heightIn(min = 48.dp), border = BorderStroke(1.5.dp, onBrand.copy(alpha = 0.6f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = onBrand)) { Text("Go to home screen") }
+            HarborOutlinedButton(::goHome, Modifier.fillMaxWidth()) { Text("Go to home screen") }
             Spacer(Modifier.height(10.dp))
-            Text("Calls and texts always work.", color = onBrand.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
+            Text("Calls and texts always work.", color = c.ink3, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -184,7 +175,6 @@ class BlockActivity : ComponentActivity() {
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_REASON = "reason"
         private const val EXTRA_DAILY = "daily"
-        private val BEACON = Color(0xFFE9A23B)
         fun intent(context: Context, packageName: String, label: String, reason: BlockReason, daily: Boolean = false): Intent =
             Intent(context, BlockActivity::class.java)
                 .putExtra(EXTRA_PACKAGE, packageName).putExtra(EXTRA_LABEL, label).putExtra(EXTRA_REASON, reason.name).putExtra(EXTRA_DAILY, daily)
@@ -200,34 +190,5 @@ class BlockActivity : ComponentActivity() {
             drawable.draw(android.graphics.Canvas(bitmap))
             bitmap.asImageBitmap()
         } catch (_: Exception) { null }
-    }
-}
-
-/** The Harbor mark (a home outline with a Beacon light) at any size. */
-@Composable
-private fun HarborMark(size: Dp, container: Color, ink: Color) {
-    Canvas(Modifier.size(size)) {
-        val unit = this.size.width / 32f
-        drawRoundRect(container, cornerRadius = CornerRadius(8f * unit))
-        val house = Path().apply {
-            moveTo(8f * unit, 15f * unit); lineTo(16f * unit, 8f * unit)
-            lineTo(24f * unit, 15f * unit); lineTo(24f * unit, 24f * unit)
-            lineTo(8f * unit, 24f * unit); close()
-        }
-        drawPath(house, ink, style = Stroke(2.4f * unit, join = StrokeJoin.Round))
-        drawCircle(Color(0xFFE9A23B), 2.6f * unit, Offset(16f * unit, 18f * unit))
-    }
-}
-
-/** A small padlock drawn in [ink], for the badge on the blocked app's icon. */
-@Composable
-private fun LockGlyph(ink: Color) {
-    Canvas(Modifier.size(18.dp)) {
-        val u = this.size.width / 24f
-        drawRoundRect(ink, topLeft = Offset(5f * u, 10.5f * u), size = androidx.compose.ui.geometry.Size(14f * u, 10f * u),
-            cornerRadius = CornerRadius(2.5f * u))
-        val shackle = Path().apply { moveTo(8f * u, 10.5f * u); lineTo(8f * u, 7.5f * u)
-            cubicTo(8f * u, 2.5f * u, 16f * u, 2.5f * u, 16f * u, 7.5f * u); lineTo(16f * u, 10.5f * u) }
-        drawPath(shackle, ink, style = Stroke(2.2f * u))
     }
 }

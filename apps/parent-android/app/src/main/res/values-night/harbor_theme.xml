@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="harbor_window">#0B2027</color>
+
+    <style name="Theme.Harbor" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/harbor_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

@@ -31,8 +31,9 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
     if (openDoc != null) { LegalScreen(openDoc) { legalDoc = null }; return }
     val current = tab ?: localTab
     val selectTab: (String) -> Unit = { name -> if (onSelectTab != null) { onSelectTab(name) } else { localTab = name } }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Your phone", style = MaterialTheme.typography.headlineSmall)
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        val (eyebrow, title) = childHeader(current)
+        HarborScreenHeader(eyebrow, title ?: rememberGreeting(GreetingAudience.CHILD))
         if (tab == null) HarborTabs(childTabs(checkIn != null, familyMap != null).map { title -> HarborTab(title, current == title) { localTab = title } })
         when (current) {
             "Today" -> {
@@ -84,6 +85,15 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
             }
         }
     }
+}
+
+/** Each child tab's eyebrow and title; Today opens with a greeting instead (null title). */
+fun childHeader(tab: String): Pair<String, String?> = when (tab) {
+    CHECK_IN_TAB -> "Your parents asked" to "Share my check-in"
+    FAMILY_MAP_TAB -> "Your family" to "Family map"
+    "Apps" -> "Your apps" to "Your apps today"
+    "About" -> "What your parents see" to "About Harbor on your phone"
+    else -> "Today" to null
 }
 
 const val CHECK_IN_TAB = "Check in"

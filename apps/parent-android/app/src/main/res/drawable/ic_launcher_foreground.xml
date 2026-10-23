@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Harbor Family app icon (design system harbor-app-icon-night.svg): the cream shield with the lighthouse cut out,
+     the amber lamp and the wave, on the navy tile in ic_launcher_background. The 64-unit tile fills the 72dp visible area. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="18" android:translateY="18" android:scaleX="1.125" android:scaleY="1.125">
+        <group android:pivotX="32" android:pivotY="32.5" android:scaleX="0.9" android:scaleY="0.9">
+            <path android:fillColor="#F4F0E7" android:pathData="M32 4 56 11.5V33C56 47 46 56 32 61 18 56 8 47 8 33V11.5Z" />
+            <path android:fillColor="#0B2027" android:pathData="M26.5 51 28.5 26h7l2 25z" />
+            <path android:fillColor="#0B2027" android:pathData="M26.2 18h11.6L32 12z" />
+            <path android:fillColor="#F2BD68"
+                android:pathData="M28.7 18h6.6a1.2 1.2 0 0 1 1.2 1.2v4.6a1.2 1.2 0 0 1 -1.2 1.2h-6.6a1.2 1.2 0 0 1 -1.2 -1.2v-4.6a1.2 1.2 0 0 1 1.2 -1.2z" />
+            <path android:strokeColor="#1F6B5C" android:strokeWidth="3.8" android:strokeLineCap="round"
+                android:pathData="M12.5 49c6 -4.5 12 2 19.5 -1s12.5 -4 19.5 -1" />
+        </group>
+    </group>
+</vector>

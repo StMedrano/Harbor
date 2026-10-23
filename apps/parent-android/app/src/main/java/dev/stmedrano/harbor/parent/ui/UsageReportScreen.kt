@@ -39,8 +39,8 @@ private fun dayLabel(localDate: String): String = runCatching {
 /** Decorative app tile: first letter on a family colour, as in the design system's rows. Hidden from TalkBack because the row already names the app. */
 @Composable
 private fun AppTile(name: String, color: Color) {
-    Box(Modifier.size(34.dp).background(color, RoundedCornerShape(9.dp)).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
-        Text(name.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.labelLarge)
+    Box(Modifier.size(36.dp).background(color, RoundedCornerShape(10.dp)).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        Text(name.take(1).uppercase(), color = harbor.onColor, style = MaterialTheme.typography.labelLarge)
     }
 }
 

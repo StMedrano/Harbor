@@ -585,6 +585,7 @@ class ParentApplication : Application() {
     }
     override fun onCreate() {
         super.onCreate()
+        dev.stmedrano.harbor.parent.ui.HarborAppearanceStore.load(this)
         accountScope.launch {
             profiles.restore()
         }
@@ -698,15 +699,17 @@ class ParentApplication : Application() {
         if (lease.role == ProfileRole.PARENT || childNotificationStore.optedBinding() == childRepository.binding.value)
             ParentNotificationJob.enqueue(this@ParentApplication, lease, owner, null)
     } }
-    /** A child's request while this app is open: a toast now, and an open Controls tab reloads its requests. */
+    /** A child's request while this app is open: a Harbor toast now (Open goes to Controls), and an open Controls tab reloads its requests. */
     private fun announceAccessRequest(data: Map<String, String>) {
         if (dev.stmedrano.harbor.parent.notifications.ParentMessageParser.parse(data)?.route?.kind != ACCESS_REQUESTED_KIND) return
         parentAccessModel?.poke()
         val process = android.app.ActivityManager.RunningAppProcessInfo().also(android.app.ActivityManager::getMyMemoryState)
         if (process.importance != android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) return
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(this, "Your child is asking for more time. Open Controls to answer.", android.widget.Toast.LENGTH_LONG).show()
-        }
+        // Requests are not problems: an info toast, never amber or coral. The request itself stays under Controls > Requests.
+        dev.stmedrano.harbor.parent.ui.HarborToasts.show(dev.stmedrano.harbor.parent.ui.HarborToastMessage(
+            dev.stmedrano.harbor.parent.ui.HarborToastTone.INFO, "Your child is asking for more time", "Answer it under Controls", "Open") {
+            mutableRequestedTab.value = dev.stmedrano.harbor.parent.ui.ParentTab.CONTROLS
+        })
     }
     fun queueMessage(data: Map<String, String>) {
         // A parent answered a request (yes or no): the block screen offers asking again.

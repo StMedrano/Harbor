@@ -77,13 +77,13 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
         val online = !family.cached && family.failure == null && !family.loading && !control.busy
         val index = snapshot.children.indexOfFirst { it.id == control.selectedChildId }
         val child = snapshot.children.getOrNull(index)
-        ChildChips(snapshot.children, control.selectedChildId, model::selectChild, { sheet = "child"; error = null }, addEnabled = online)
+        KidSwitcher(snapshot.children, control.selectedChildId, model::selectChild, { sheet = "child"; error = null }, addEnabled = online)
         if (family.cached) HarborNote("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(snapshot.fetchedAt)}. Connect to make changes.", HarborTone.WARN)
         if (child == null) {
-            Text(tab.label, style = MaterialTheme.typography.headlineSmall)
-            HarborPanel("No children yet") {
-                Text("Add a child, then pair their phone.")
-                HarborButton({ sheet = "child"; error = null }, Modifier.fillMaxWidth(), enabled = online) { Text("Add child") }
+            ParentTabHeader(tab, subtitle = snapshot.family.name)
+            HarborCard {
+                HarborEmptyState("No children yet", art = HarborArt.ANCHOR, body = "Add a child, then pair their phone.",
+                    action = "Add child", onAction = { sheet = "child"; error = null }, actionEnabled = online)
             }
         } else {
             val phone = activeDevice(snapshot.devices, child.id)

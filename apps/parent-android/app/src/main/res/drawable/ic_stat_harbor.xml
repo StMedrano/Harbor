@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification icon: the Harbor shield with the lighthouse cut out (design system harbor-favicon.svg), white on transparent. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="64" android:viewportHeight="64">
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M32 4 56 11.5V33C56 47 46 56 32 61 18 56 8 47 8 33V11.5Z M26.5 51 28.5 26h7l2 25z M26.2 18h11.6L32 12z M27.5 18h9v7h-9z" />
+</vector>

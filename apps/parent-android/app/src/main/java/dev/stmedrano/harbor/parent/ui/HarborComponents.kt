@@ -1,10 +1,14 @@
 package dev.stmedrano.harbor.parent.ui
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
@@ -12,149 +16,192 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-/** The Harbor mark (a home outline with a Beacon light) beside the "Harbor Family" wordmark in the Harbor colour. */
+/** The app bar's brand (design system `Brand`): the shield icon beside the name in brand colour. */
 @Composable
-fun HarborBrand() {
-    val brand = MaterialTheme.colorScheme.primary
-    val onBrand = MaterialTheme.colorScheme.onPrimary
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Canvas(Modifier.size(30.dp)) {
-            val unit = size.width / 32f
-            drawRoundRect(brand, cornerRadius = CornerRadius(8f * unit))
-            val house = Path().apply {
-                moveTo(8f * unit, 15f * unit); lineTo(16f * unit, 8f * unit)
-                lineTo(24f * unit, 15f * unit); lineTo(24f * unit, 24f * unit)
-                lineTo(8f * unit, 24f * unit); close()
-            }
-            drawPath(house, onBrand, style = Stroke(2.4f * unit, join = StrokeJoin.Round))
-            drawCircle(Color(0xFFE9A23B), 2.6f * unit, Offset(16f * unit, 18f * unit))
+fun HarborBrand(name: String = "Harbor Family", modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        HarborLogo(HarborLogoVariant.ICON, 26.dp, decorative = true)
+        Text(name, style = HarborType.wordmark, color = harbor.brand)
+    }
+}
+
+/** Design system `AppBar`: the brand on deep water over a hairline, with one optional action at the end. */
+@Composable
+fun HarborAppBar(action: (@Composable () -> Unit)? = null) {
+    Column(Modifier.fillMaxWidth().background(harbor.s)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 22.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HarborBrand(modifier = Modifier.weight(1f))
+            action?.invoke()
         }
-        Text("Harbor Family", style = MaterialTheme.typography.titleLarge, color = brand)
+        HorizontalDivider(color = harbor.line)
+    }
+}
+
+/** The uppercase kicker above a screen title, in sea glass. */
+@Composable
+fun HarborEyebrow(text: String, modifier: Modifier = Modifier, color: Color = harbor.acc) =
+    Text(text.uppercase(), modifier, style = HarborType.eyebrow, color = color)
+
+/**
+ * Design system `ScreenHeader`: an eyebrow, a title in Harbor's voice, and a subtitle that says whose data it is and how
+ * fresh ("Leo's Pixel 8", "Updated just now"). Sentence case, no exclamation marks.
+ */
+@Composable
+fun HarborScreenHeader(eyebrow: String?, title: String, modifier: Modifier = Modifier, subtitle: String? = null) {
+    Column(modifier.fillMaxWidth()) {
+        if (eyebrow != null) HarborEyebrow(eyebrow)
+        Text(title, Modifier.padding(top = if (eyebrow != null) 8.dp else 0.dp, bottom = 4.dp).semantics { heading() },
+            style = MaterialTheme.typography.headlineMedium, color = harbor.ink)
+        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = harbor.ink2)
     }
 }
 
 data class HarborTab(val label: String, val selected: Boolean, val onClick: () -> Unit)
 
-/** Segmented control (design system `Segmented`): tinted track, raised selected pill. */
+/** Segmented control (design system `Segmented`): a harbor-surface track; the selected option is tinted sea glass. */
 @Composable
 fun HarborTabs(tabs: List<HarborTab>, modifier: Modifier = Modifier) {
-    val track = RoundedCornerShape(10.dp)
-    val pill = RoundedCornerShape(8.dp)
-    Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, track).padding(3.dp)) {
+    val item = RoundedCornerShape(10.dp)
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(harbor.s2).border(1.dp, harbor.line, RoundedCornerShape(12.dp))
+        .padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         tabs.forEach { tab ->
-            Box(Modifier.weight(1f).heightIn(min = 44.dp)
-                .then(if (tab.selected) Modifier.shadow(1.dp, pill) else Modifier)
-                .clip(pill)
-                .background(if (tab.selected) MaterialTheme.colorScheme.surface else Color.Transparent)
+            Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(item)
+                .background(if (tab.selected) harbor.accs else Color.Transparent)
                 .selectable(selected = tab.selected, role = Role.Tab, onClick = tab.onClick)
-                .padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                Text(tab.label, style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (tab.selected) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (tab.selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                .padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                Text(tab.label, style = MaterialTheme.typography.labelMedium, color = if (tab.selected) harbor.acc else harbor.ink2,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
 }
 
-/** Round initial. Give it a family colour (see [HarborKid]); white initials, as in the design system. */
+/** A round initial in a crew colour (see [HarborKid]); deep-water initials. The colour identifies the person, never a status. */
 @Composable
-fun HarborAvatar(name: String, size: Dp = 30.dp, color: Color = MaterialTheme.colorScheme.primary) {
-    Surface(shape = CircleShape, color = color, contentColor = Color.White, modifier = Modifier.size(size)) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(name.take(1).uppercase(), style = MaterialTheme.typography.labelMedium, fontSize = if (size >= 40.dp) 17.sp else 13.sp)
+fun HarborAvatar(name: String, size: Dp = 36.dp, color: Color = HarborKid.color(0)) {
+    Box(Modifier.size(size).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+        Text(name.trim().take(1).uppercase(), color = harbor.onColor, fontWeight = FontWeight.Bold,
+            fontSize = if (size >= 40.dp) 15.sp else if (size >= 34.dp) 13.sp else 12.sp)
+    }
+}
+
+/** Design system `Button` variants: primary (sea glass, the one main action), secondary (sea-glass outline), outline (quiet), danger (coral). */
+enum class HarborButtonVariant { PRIMARY, SECONDARY, OUTLINE, DANGER }
+
+/**
+ * One button of the design system: 48dp tall (36dp [small], inside cards only), 12dp corners, a press that settles at
+ * 96%. Disabled buttons fade instead of changing colour. [loading] shows a spinner and blocks repeat taps.
+ */
+@Composable
+fun HarborActionButton(onClick: () -> Unit, variant: HarborButtonVariant, modifier: Modifier = Modifier, enabled: Boolean = true,
+    small: Boolean = false, loading: Boolean = false, content: @Composable RowScope.() -> Unit) {
+    val c = harbor
+    val (container, ink, border) = when (variant) {
+        HarborButtonVariant.PRIMARY -> Triple(c.brand, c.bi, null)
+        HarborButtonVariant.SECONDARY -> Triple(Color.Transparent, c.acc, BorderStroke(1.dp, c.acc))
+        HarborButtonVariant.OUTLINE -> Triple(Color.Transparent, c.ink2, BorderStroke(1.dp, c.line))
+        HarborButtonVariant.DANGER -> Triple(c.dan, c.onDan, null)
+    }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) 0.96f else 1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "press")
+    val active = enabled && !loading
+    Button(onClick, modifier.heightIn(min = if (small) 36.dp else 48.dp).graphicsLayer { scaleX = press; scaleY = press }
+        .alpha(if (enabled || loading) 1f else 0.45f),
+        enabled = active, shape = if (small) MaterialTheme.shapes.small else MaterialTheme.shapes.medium, border = border,
+        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = ink,
+            disabledContainerColor = container, disabledContentColor = ink),
+        contentPadding = if (small) PaddingValues(horizontal = 14.dp, vertical = 8.dp) else PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+        interactionSource = interaction) {
+        CompositionLocalProvider(LocalTextStyle provides if (small) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge) {
+            if (loading) CircularProgressIndicator(Modifier.size(16.dp), color = ink, strokeWidth = 2.dp)
+            else content()
         }
     }
 }
 
-/** Primary action: Harbor fill, 12dp corners, at least 48dp tall. */
+/** Primary action: sea glass, the one main action of a section. */
 @Composable
-fun HarborButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    Button(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.buttonColors(
-            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)),
-        content = content)
+fun HarborButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, small: Boolean = false, loading: Boolean = false,
+    content: @Composable RowScope.() -> Unit) = HarborActionButton(onClick, HarborButtonVariant.PRIMARY, modifier, enabled, small, loading, content)
 
-/** Secondary action: the raised-surface fill with ink text (design system `Button` secondary). */
+/** Secondary action: sea-glass outline and text. */
 @Composable
-fun HarborSecondaryButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    Button(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)),
-        content = content)
+fun HarborSecondaryButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, small: Boolean = false,
+    content: @Composable RowScope.() -> Unit) = HarborActionButton(onClick, HarborButtonVariant.SECONDARY, modifier, enabled, small, content = content)
 
-/** Outline action: 1.5dp line border, ink text. */
+/** Quiet action: a hairline outline with muted text, such as Decline or Sync now. */
 @Composable
-fun HarborOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    OutlinedButton(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 1f else 0.5f)),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface,
-            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)),
-        content = content)
+fun HarborOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, small: Boolean = false,
+    content: @Composable RowScope.() -> Unit) = HarborActionButton(onClick, HarborButtonVariant.OUTLINE, modifier, enabled, small, content = content)
 
-/** Destructive action (for example revoking a device): Flare outline and text, never filled, so it is hard to hit by accident. */
+/** Destructive action (for example removing a phone): coral, used only where the result is serious. */
 @Composable
-fun HarborDestructiveButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    OutlinedButton(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error.copy(alpha = if (enabled) 1f else 0.5f)),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error,
-            disabledContentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-        content = content)
+fun HarborDestructiveButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, small: Boolean = false,
+    content: @Composable RowScope.() -> Unit) = HarborActionButton(onClick, HarborButtonVariant.DANGER, modifier, enabled, small, content = content)
 
-/** Web `.panel`: raised surface, 14dp corners, no border. */
+/**
+ * Design system `Card`: harbor surface with a hairline border and 18dp corners. An optional status [tag] (with a word,
+ * never colour alone) and a heading sit above the content. [border] lets an urgent event mark its own card.
+ */
 @Composable
-fun HarborCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+fun HarborCard(modifier: Modifier = Modifier, title: String? = null, tag: String? = null, tagTone: HarborTagTone = HarborTagTone.NEUTRAL,
+    border: Color = harbor.line, content: @Composable ColumnScope.() -> Unit) {
+    Surface(shape = MaterialTheme.shapes.large, color = harbor.s2, contentColor = harbor.ink, border = BorderStroke(1.dp, border),
+        modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (tag != null || title != null) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (tag != null) HarborTag(tag, tagTone)
+                if (title != null) Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+            }
+            content()
+        }
     }
 }
 
-/** A section label (13sp semibold, secondary ink) above a [HarborCard]. */
+/** A titled card: the heading names what the card holds ("Daily screen time", "Notifications"). */
 @Composable
-fun HarborPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        HarborCard(content = content)
-    }
-}
+fun HarborPanel(title: String, content: @Composable ColumnScope.() -> Unit) = HarborCard(title = title, content = content)
 
 enum class HarborTone { INFO, WARN, DANGER }
 
 /**
- * Notes and banners. INFO is the calm Kelp callout, WARN is Beacon (caution, such as stale data) and DANGER is Flare
- * (errors, loss of access). The tone is always carried by the words too, never by colour alone.
+ * Notes and banners. INFO is the calm sea-glass note, WARN is amber (review, stale data), DANGER is the coral banner
+ * (errors, loss of access). The words always carry the tone too; colour is never the only signal.
  */
 @Composable
 fun HarborNote(tone: HarborTone = HarborTone.INFO, modifier: Modifier = Modifier, emphasis: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
-    val scheme = MaterialTheme.colorScheme
+    val c = harbor
     val (container, ink) = when (tone) {
-        HarborTone.INFO -> scheme.primaryContainer to scheme.onSurfaceVariant
-        HarborTone.WARN -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-        HarborTone.DANGER -> scheme.errorContainer to scheme.onErrorContainer
+        HarborTone.INFO -> c.accs to c.ink2
+        HarborTone.WARN -> c.warns to c.warni
+        HarborTone.DANGER -> c.dans to c.dan
     }
-    Surface(shape = MaterialTheme.shapes.large, color = container, contentColor = ink, modifier = modifier.fillMaxWidth()) {
+    Surface(shape = MaterialTheme.shapes.large, color = container, contentColor = ink, modifier = modifier.fillMaxWidth(),
+        border = if (tone == HarborTone.DANGER) BorderStroke(1.dp, c.dan) else null) {
         CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 13.sp, fontWeight = if (emphasis) FontWeight.SemiBold else FontWeight.Normal)) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
+            fontWeight = if (emphasis || tone == HarborTone.DANGER) FontWeight.SemiBold else FontWeight.Normal)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
         }
     }
 }
@@ -163,66 +210,128 @@ fun HarborNote(tone: HarborTone = HarborTone.INFO, modifier: Modifier = Modifier
 fun HarborNote(text: String, tone: HarborTone = HarborTone.INFO, modifier: Modifier = Modifier, emphasis: Boolean = false) =
     HarborNote(tone, modifier, emphasis) { Text(text) }
 
+/** HIGH = URGENT (coral), MEDIUM = REVIEW (amber), LOW = an update (sea glass), NEUTRAL = muted. */
 enum class HarborTagTone { NEUTRAL, HIGH, MEDIUM, LOW }
 
-/** Small pill label such as "Active". */
+/** Uppercase status tag (design system `Tag`): a word in its tone, such as REVIEW or ACTIVE. */
 @Composable
-fun HarborTag(text: String, tone: HarborTagTone = HarborTagTone.NEUTRAL) {
-    val scheme = MaterialTheme.colorScheme
-    val (container, ink) = when (tone) {
-        HarborTagTone.NEUTRAL -> scheme.surface to scheme.onSurfaceVariant
-        HarborTagTone.HIGH -> scheme.errorContainer to scheme.error
-        HarborTagTone.MEDIUM -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-        HarborTagTone.LOW -> scheme.primaryContainer to scheme.secondary
+fun HarborTag(text: String, tone: HarborTagTone = HarborTagTone.NEUTRAL, modifier: Modifier = Modifier) {
+    val c = harbor
+    val ink = when (tone) {
+        HarborTagTone.NEUTRAL -> c.ink2
+        HarborTagTone.HIGH -> c.dan
+        HarborTagTone.MEDIUM -> c.warni
+        HarborTagTone.LOW -> c.acc
     }
-    Surface(shape = CircleShape, color = container, contentColor = ink) {
-        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+    Text(text.uppercase(), modifier, style = HarborType.tag, color = ink)
+}
+
+/** Unread count (design system `Badge`): hidden at 0, 99+ above 99. */
+@Composable
+fun HarborBadge(count: Int, modifier: Modifier = Modifier) {
+    if (count <= 0) return
+    Box(modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(CircleShape).background(harbor.dan).padding(horizontal = 5.dp)
+        .clearAndSetSemantics { contentDescription = "$count new" }, contentAlignment = Alignment.Center) {
+        Text(if (count > 99) "99+" else "$count", color = harbor.onDan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 /**
- * One row of a panel: title over a secondary line, optional leading and trailing content, at least 44dp tall.
- * Rows after the first draw a hairline above themselves, as in the design system.
+ * One row of a card (design system `Row`): a bold title over a small secondary line, optional leading and trailing
+ * content. Rows after the first draw a hairline above themselves.
  */
 @Composable
 fun HarborRow(title: String, modifier: Modifier = Modifier, subtitle: String? = null, divider: Boolean = false,
     onClick: (() -> Unit)? = null, leading: (@Composable () -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
     Column(modifier.fillMaxWidth()) {
-        if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Row(Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (divider) HorizontalDivider(color = harbor.line)
+        Row(Modifier.fillMaxWidth().heightIn(min = if (onClick != null) 48.dp else 44.dp)
+            .then(if (onClick != null) Modifier.clip(MaterialTheme.shapes.small).clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             leading?.invoke()
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = harbor.ink)
+                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
             }
             trailing?.invoke()
         }
     }
 }
 
-data class HarborNavItem(val label: String, val glyph: HarborGlyph, val selected: Boolean, val onClick: () -> Unit)
+/** A trailing arrow for rows that open another page. */
+@Composable
+fun HarborChevron() = HarborIcon(HarborGlyph.CHEVRON, harbor.ink3, Modifier.size(20.dp))
 
-/** Bottom navigation (design system `TabBar`): hairline top border, 24dp line icon over an 11.5sp label; the active icon is heavier and lifts slightly. */
+/** Design system `Chip`: a pill that toggles; pressed chips are tinted sea glass. */
+@Composable
+fun HarborChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val c = harbor
+    Box(modifier.heightIn(min = 40.dp).alpha(if (enabled) 1f else 0.45f).clip(CircleShape)
+        .background(if (selected) c.accs else Color.Transparent)
+        .border(1.dp, if (selected) c.acc else c.line, CircleShape)
+        .selectable(selected = selected, enabled = enabled, role = Role.Checkbox, onClick = onClick)
+        .padding(horizontal = 14.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) c.acc else c.ink2)
+    }
+}
+
+/** Design system `Switch`: sea glass when on, a hairline track when off. */
+@Composable
+fun HarborSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val c = harbor
+    Switch(checked, onCheckedChange, modifier, enabled = enabled, colors = SwitchDefaults.colors(
+        checkedThumbColor = c.s, checkedTrackColor = c.acc, checkedBorderColor = c.acc,
+        uncheckedThumbColor = c.ink, uncheckedTrackColor = c.line, uncheckedBorderColor = c.line,
+        disabledCheckedThumbColor = c.s, disabledCheckedTrackColor = c.acc.copy(alpha = 0.45f),
+        disabledUncheckedThumbColor = c.ink.copy(alpha = 0.45f), disabledUncheckedTrackColor = c.line.copy(alpha = 0.45f)))
+}
+
+/** A meter (design system `ProgressBar`): an 8dp sea-glass fill on deep water, amber once over the limit. */
+@Composable
+fun HarborMeter(fraction: Float, modifier: Modifier = Modifier, over: Boolean = false) {
+    val c = harbor
+    Box(modifier.fillMaxWidth().height(8.dp).clip(MaterialTheme.shapes.extraSmall).background(c.s)) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).clip(MaterialTheme.shapes.extraSmall)
+            .background(if (over) c.warn else c.acc))
+    }
+}
+
+/** Field colours for text inputs: harbor surface, a hairline border, brand when focused. */
+@Composable
+internal fun harborFieldColors() = harbor.let { c ->
+    OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = c.s2, unfocusedContainerColor = c.s2, disabledContainerColor = c.s2.copy(alpha = 0.5f),
+        focusedBorderColor = c.brand, unfocusedBorderColor = c.line, disabledBorderColor = c.line.copy(alpha = 0.5f),
+        focusedLabelColor = c.acc, unfocusedLabelColor = c.ink2, cursorColor = c.brand,
+        focusedTextColor = c.ink, unfocusedTextColor = c.ink, errorBorderColor = c.dan, errorLabelColor = c.dan,
+    )
+}
+
+data class HarborNavItem(val label: String, val glyph: HarborGlyph, val selected: Boolean, val badge: Int = 0, val onClick: () -> Unit)
+
+/**
+ * Bottom navigation (design system `TabBar`, floating dock): a rounded harbor-surface dock lifted off the bottom edge.
+ * Each tab is Harbor's line icon over a 10sp label; the current tab sits in a sea-glass tint with a heavier stroke.
+ */
 @Composable
 fun HarborBottomBar(items: List<HarborNavItem>) {
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 4.dp)) {
+    val c = harbor
+    Surface(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 14.dp), shape = MaterialTheme.shapes.extraLarge,
+        color = c.s2, border = BorderStroke(1.dp, c.line)) {
+        Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             items.forEach { item ->
-                val tint = if (item.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                val lift = animateFloatAsState(if (item.selected) 1f else 0f, label = "tabLift").value
-                Column(Modifier.weight(1f).heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp))
-                    .selectable(selected = item.selected, role = Role.Tab, onClick = item.onClick).padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
-                    HarborIcon(item.glyph, tint, Modifier.graphicsLayer {
-                        translationY = -2.dp.toPx() * lift
-                        scaleX = 1f + 0.08f * lift
-                        scaleY = 1f + 0.08f * lift
-                    }, strokeWidth = if (item.selected) 2.3f else 1.8f)
-                    Text(item.label, color = tint, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                val tint = if (item.selected) c.acc else c.ink2
+                Column(Modifier.weight(1f).heightIn(min = 52.dp).clip(MaterialTheme.shapes.medium)
+                    .background(if (item.selected) c.accs else Color.Transparent)
+                    .selectable(selected = item.selected, role = Role.Tab, onClick = item.onClick).padding(horizontal = 2.dp, vertical = 7.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
+                    Box {
+                        HarborIcon(item.glyph, tint, Modifier.size(22.dp), strokeWidth = if (item.selected) 2.3f else 1.8f)
+                        if (item.badge > 0) HarborBadge(item.badge, Modifier.align(Alignment.TopStart).offset(x = 15.dp, y = (-5).dp))
+                    }
+                    Text(item.label, color = tint, style = HarborType.nav,
+                        fontWeight = if (item.selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
                 }
             }
         }

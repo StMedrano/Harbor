@@ -225,28 +225,25 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(c.pause.until?.let { "$childName's phone is paused until ${formatTimestamp(it)}" } ?: "$childName's phone is paused",
                     modifier = Modifier.weight(1f))
-                HarborDestructiveButton({ change { it.copy(pause = ControlsPause(false, null)) } }, enabled = enabled) { Text("Resume") }
+                HarborButton({ change { it.copy(pause = ControlsPause(false, null)) } }, enabled = enabled, small = true) { Text("Resume") }
             }
         }
 
-        HarborCard {
+        HarborCard(title = "Daily screen time") {
             Row(verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
-                    Text("Used today", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(used?.let(::formatHm) ?: "—", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Used today", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                    Text(used?.let(::formatHm) ?: "—", style = HarborMetricStyle, color = harbor.ink)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Daily limit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton({ dailyPicker = true }, enabled = enabled) {
-                        Text(c.dailyLimit?.let { formatHm(it.minutes) } ?: "Set a limit", fontWeight = FontWeight.SemiBold)
+                    Text("Daily limit", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                    HarborSecondaryButton({ dailyPicker = true }, enabled = enabled, small = true) {
+                        Text(c.dailyLimit?.let { formatHm(it.minutes) } ?: "Set a limit")
                     }
                 }
             }
             if (allowance != null) {
-                LinearProgressIndicator({ if (used == null) 0f else (used.toFloat() / allowance).coerceIn(0f, 1f) },
-                    Modifier.fillMaxWidth().height(10.dp),
-                    color = if (timeUp) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.outline)
+                HarborMeter(if (used == null) 0f else used.toFloat() / allowance, over = timeUp)
                 val extra = c.dailyLimit?.takeIf { it.extraDate == today.toString() && it.extraMinutes > 0 }?.extraMinutes
                 Text(when {
                     used == null -> "Today's time shows once the phone reports its usage."
@@ -256,15 +253,17 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                     fontWeight = if (timeUp) FontWeight.SemiBold else FontWeight.Normal)
                 TextButton({ change { it.copy(dailyLimit = null) } }, enabled = enabled, contentPadding = PaddingValues(0.dp)) { Text("Turn off daily limit") }
             } else Text("No daily limit. Apps can be used as long as their own rules allow.", style = MaterialTheme.typography.bodySmall)
+            Text("When time is up, only apps set to Unlimited work.", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
         }
-        if (timeUp) HarborNote(HarborTone.DANGER) {
+        // Time being up is something to review (amber), not an emergency.
+        if (timeUp) HarborNote(HarborTone.WARN) {
             Text("Time's up. $childName's apps are locked.", fontWeight = FontWeight.SemiBold)
             Text("Only Unlimited apps work until midnight. Calls and texts always work.")
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (paused) HarborSecondaryButton({ change { it.copy(pause = ControlsPause(false, null)) } }, Modifier.weight(1f), enabled = enabled) { Text("Resume phone") }
-            else HarborDestructiveButton({ change(::withPauseNow) }, Modifier.weight(1f), enabled = enabled) { Text("Pause phone now") }
+            else HarborButton({ change(::withPauseNow) }, Modifier.weight(1f), enabled = enabled) { Text("Pause phone now") }
             HarborSecondaryButton({ change { withExtraTime(it, today) } }, Modifier.weight(1f), enabled = enabled && c.dailyLimit != null) { Text("Give 15 more min") }
         }
 
@@ -283,7 +282,7 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
         HarborPanel("Schedules") {
             val bed = c.bedtime ?: ControlsBedtime(false, "21:00", "07:00", Weekday.entries)
             HarborRow("Bedtime", subtitle = "${clock(bed.start)} – ${clock(bed.end)} · ${daysText(bed.days)} · phone locks", trailing = {
-                Switch(bed.enabled, { on -> change { it.copy(bedtime = bed.copy(enabled = on, days = bed.days.ifEmpty { Weekday.entries })) } },
+                HarborSwitch(bed.enabled, { on -> change { it.copy(bedtime = bed.copy(enabled = on, days = bed.days.ifEmpty { Weekday.entries })) } },
                     enabled = enabled)
             })
             if (bed.enabled) {
@@ -293,10 +292,10 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
                 }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Weekday.entries.forEach { day ->
-                        FilterChip(day in bed.days, {
+                        HarborChip(day.name.take(1) + day.name.drop(1).take(2).lowercase(), day in bed.days, {
                             val days = if (day in bed.days) bed.days - day else Weekday.entries.filter { it in bed.days || it == day }
                             change { it.copy(bedtime = bed.copy(days = days, enabled = days.isNotEmpty())) }
-                        }, label = { Text(day.name.take(1) + day.name.drop(1).take(2).lowercase()) }, enabled = enabled)
+                        }, enabled = enabled)
                     }
                 }
             }
@@ -316,10 +315,10 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
             apps.forEachIndexed { index, app ->
                 val (line, alert) = appStatusLine(c, app.pkg, app.usedMinutes, timeUp && ruleOf(c, app.pkg) != AppRule.ALWAYS)
                 HarborRow(app.label, divider = index > 0, onClick = if (enabled) ({ sheetFor = app }) else null,
-                    leading = { HarborAvatar(app.label, 34.dp) },
-                    trailing = { OutlinedButton({ sheetFor = app }, enabled = enabled) { Text(ruleLabel(c, app.pkg)) } })
-                Text(line, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 46.dp),
-                    color = if (alert) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    leading = { HarborAvatar(app.label, 36.dp, HarborKid.color(app.pkg.hashCode())) },
+                    trailing = { HarborOutlinedButton({ sheetFor = app }, enabled = enabled, small = true) { Text(ruleLabel(c, app.pkg)) } })
+                Text(line, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 50.dp),
+                    color = if (alert) harbor.warni else harbor.ink2,
                     fontWeight = if (alert) FontWeight.SemiBold else FontWeight.Normal)
             }
             Text("Phone calls, texts, Settings and Harbor always work.", style = MaterialTheme.typography.bodySmall,
@@ -432,28 +431,37 @@ private fun RequestsPanel(r: AccessViewState, childName: String, onAnswer: ((Acc
     val now = System.currentTimeMillis()
     val answered = r.requests.filter { it.status != "pending" }.take(3)
     if (r.pending.isEmpty() && answered.isEmpty() && r.problem == null) return
+    // Design system `RequestCard`: a request is not a problem, so it carries no amber or coral; the grant is named on the button.
     HarborPanel("Requests") {
         r.problem?.let { HarborNote(it, HarborTone.WARN) }
-        if (r.pending.isEmpty()) Text("No requests waiting.", style = MaterialTheme.typography.bodySmall)
+        if (r.pending.isEmpty()) Text("No requests waiting.", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
         r.pending.forEachIndexed { index, item ->
-            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-            Text(accessRequestTitle(item), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            Text("$childName asked ${askedAgo(item.requestedAt, now)}", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (index > 0) HorizontalDivider(color = harbor.line)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                HarborAvatar(childName, 36.dp, HarborKid.color(0))
+                Column(Modifier.weight(1f)) {
+                    Text(accessRequestTitle(item), style = MaterialTheme.typography.titleMedium)
+                    Text("$childName asked ${askedAgo(item.requestedAt, now)}", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                }
+                HarborTag("Request", HarborTagTone.LOW)
+            }
             val busy = r.answering != null || onAnswer == null
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HarborButton({ onAnswer?.invoke(item, true) }, Modifier.weight(1f), enabled = !busy) {
-                    Text(if (r.answering == item.requestId) "Sending…" else "Allow 15 min")
+                HarborButton({ onAnswer?.invoke(item, true) }, Modifier.weight(1f), enabled = !busy, loading = r.answering == item.requestId) {
+                    Text("Allow 15 min")
                 }
-                HarborSecondaryButton({ onAnswer?.invoke(item, false) }, Modifier.weight(1f), enabled = !busy) { Text("Deny") }
+                HarborOutlinedButton({ onAnswer?.invoke(item, false) }, Modifier.weight(1f), enabled = !busy) { Text("Deny") }
             }
         }
         if (answered.isNotEmpty()) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            HorizontalDivider(color = harbor.line)
             answered.forEach { item ->
                 val outcome = when (item.status) { "approved" -> "Allowed 15 min"; "denied" -> "Said no"; else -> "Not answered in time" }
-                Text("$outcome · ${accessRequestTitle(item)} · ${askedAgo(item.requestedAt, now)}", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HarborIcon(if (item.status == "approved") HarborGlyph.CHECK else HarborGlyph.HOURGLASS, harbor.ink2, Modifier.size(16.dp))
+                    Text("$outcome · ${accessRequestTitle(item)} · ${askedAgo(item.requestedAt, now)}", style = MaterialTheme.typography.bodySmall,
+                        color = harbor.ink2)
+                }
             }
         }
     }
@@ -469,7 +477,7 @@ private fun daysText(days: List<Weekday>): String = when (days.toSet()) {
 private fun ChoiceMenu(label: String, choices: List<String>, show: (String) -> String, enabled: Boolean, onChoose: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton({ open = true }, enabled = enabled) { Text(label) }
+        HarborOutlinedButton({ open = true }, enabled = enabled, small = true) { Text(label) }
         DropdownMenu(open, { open = false }) {
             choices.forEach { choice -> DropdownMenuItem({ Text(show(choice)) }, { open = false; onChoose(choice) }) }
         }

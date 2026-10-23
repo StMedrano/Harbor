@@ -42,8 +42,9 @@ fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, m
     val loader = remember { OsmTileLoader() }
     val primary = if (accent == Color.Unspecified) MaterialTheme.colorScheme.primary else accent
     val ink = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else primary
-    val land = MaterialTheme.colorScheme.surfaceVariant
-    BoxWithConstraints(modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(16.dp)).semantics { contentDescription = description }) {
+    val land = harbor.land
+    val ring = harbor.pinRing
+    BoxWithConstraints(modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(20.dp)).semantics { contentDescription = description }) {
         val density = LocalDensity.current
         val width = with(density) { maxWidth.toPx() }.toDouble()
         val height = with(density) { maxHeight.toPx() }.toDouble()
@@ -86,7 +87,7 @@ fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, m
             }
             val here = at(latest)
             drawCircle(ink.copy(alpha = 0.16f), radius = MapMath.accuracyRadiusPx(latest.accuracyM, latest.latitude, zoom).toFloat(), center = here)
-            drawCircle(Color.White, radius = 14.dp.toPx(), center = here)
+            drawCircle(ring, radius = 14.dp.toPx(), center = here)
             drawCircle(ink, radius = 11.dp.toPx(), center = here)
         }
         Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

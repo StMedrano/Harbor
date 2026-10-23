@@ -178,7 +178,7 @@ class HarborControlService : AccessibilityService() {
         val text = if (step == 1) "About 1 minute of $label left today." else "About 5 minutes of $label left today."
         try {
             manager.notify(pkg.hashCode(), NotificationCompat.Builder(this, CHANNEL)
-                .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Harbor Family").setContentText(text)
+                .setSmallIcon(dev.stmedrano.harbor.parent.R.drawable.ic_stat_harbor).setContentTitle("Harbor Family").setContentText(text)
                 .setPriority(NotificationCompat.PRIORITY_HIGH).setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true).build())
         } catch (_: SecurityException) { /* Notifications off: the block screen still explains when time runs out. */ }

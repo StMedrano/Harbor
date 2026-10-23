@@ -68,13 +68,13 @@ fun ParentSharingPanel(ui: ParentSharingUi) {
             else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val sharing = state.mySharing != null
                 HarborRow("Share my location", subtitle = if (sharing) "Sharing as ${state.mySharing?.label}" else "Children see it while Harbor is open",
-                    trailing = { Switch(sharing, ui.onShareChange, Modifier.semantics { contentDescription = "Share my location" },
+                    trailing = { HarborSwitch(sharing, ui.onShareChange, Modifier.semantics { contentDescription = "Share my location" },
                         enabled = !state.busy && (sharing || validFamilyMapLabel(ui.label))) })
                 if (!sharing) OutlinedTextField(ui.label, ui.onLabel, Modifier.fillMaxWidth(), label = { Text("Name on the map") }, singleLine = true,
                     isError = !validFamilyMapLabel(ui.label), supportingText = { if (!validFamilyMapLabel(ui.label)) Text("Use 1 to 40 characters.") },
                     shape = MaterialTheme.shapes.medium, colors = harborFieldColors())
                 HarborRow("Children can see the family map", divider = true,
-                    trailing = { Switch(state.childrenCanView, ui.onChildrenCanViewChange, Modifier.semantics { contentDescription = "Children can see the family map" }, enabled = !state.busy) })
+                    trailing = { HarborSwitch(state.childrenCanView, ui.onChildrenCanViewChange, Modifier.semantics { contentDescription = "Children can see the family map" }, enabled = !state.busy) })
                 ui.placeProblem?.let { HarborNote(it, HarborTone.WARN) }
                 when (state.problem) {
                     FamilyMapProblem.COULD_NOT_SAVE -> HarborNote("Could not save that change. Try again.", HarborTone.DANGER)

@@ -16,9 +16,12 @@ fun PairingSheet(state: PairingState, expired: Boolean, error: String?, onRenew:
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (state.loading) CircularProgressIndicator()
             state.code?.let { code ->
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (expired) "Code expired" else code.code, Modifier.padding(16.dp), style = if (expired) MaterialTheme.typography.titleMedium else HarborCodeStyle,
-                        color = if (expired) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                // Design system `PairingCode`: the six digits grouped 3 + 3 on deep water; an expired code says so in amber.
+                Surface(shape = MaterialTheme.shapes.medium, color = harbor.s, border = androidx.compose.foundation.BorderStroke(1.dp, harbor.line),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(if (expired) "Code expired" else code.code.chunked(3).joinToString(" "), Modifier.padding(horizontal = 8.dp, vertical = 14.dp),
+                        style = if (expired) MaterialTheme.typography.titleMedium else HarborCodeStyle,
+                        color = if (expired) harbor.warni else harbor.ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
                 Text("Expires ${code.expiresAt}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

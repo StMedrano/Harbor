@@ -57,7 +57,7 @@ class LocationForegroundService : Service() {
             })
             val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             return Notification.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setSmallIcon(dev.stmedrano.harbor.parent.R.drawable.ic_stat_harbor)
                 .setContentTitle("Harbor Family is sharing this phone's location")
                 .setContentText("Your parents can see where this phone is.")
                 .setOngoing(true).setContentIntent(open).setCategory(Notification.CATEGORY_SERVICE).build()

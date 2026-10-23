@@ -17,14 +17,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/** Synthetic names only. The parent app has four pages and a child switcher, like the web app. */
+/** Synthetic names only. The parent app has five pages and a child switcher, like the web app. */
 class ParentTabsUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val stamp = "2026-01-01T00:00:00Z"
     private val kids = listOf(ChildV1(1, "a", "family", "Sam", stamp, stamp), ChildV1(1, "b", "family", "Jo", stamp, stamp))
     private fun phone(status: String = "active") = DevicePublicV1(1, "phone", "family", "a", "Phone", "standard", status, null, stamp, stamp)
 
-    @Test fun bottomBarHasTheFourPagesAndSwitchingMarksOne() {
+    @Test fun bottomBarHasTheFivePagesAndSwitchingMarksOne() {
         compose.setContent { HarborTheme {
             var tab by remember { mutableStateOf(ParentTab.MAP) }
             HarborBottomBar(parentNavItems(tab) { tab = it })
@@ -33,7 +33,7 @@ class ParentTabsUiTest {
         compose.onNodeWithText("Alerts").performClick()
         compose.onNodeWithText("Alerts").assertIsSelected()
         compose.onNodeWithText("Map").assertIsNotSelected()
-        compose.onNodeWithText("Controls").assertDoesNotExist()
+        for (page in listOf("Controls", "Activity", "Family")) compose.onNodeWithText(page).assertIsNotSelected()
         compose.onNodeWithText("Settings").assertDoesNotExist()
     }
 
@@ -41,12 +41,14 @@ class ParentTabsUiTest {
         var picked = "a"
         var added = 0
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
-            ChildChips(kids, picked, { picked = it }, { added++ })
+            KidSwitcher(kids, picked, { picked = it }, { added++ })
         } } }
-        compose.onNode(hasText("Sam") and isSelectable()).assertIsSelected()
-        compose.onNode(hasText("Jo") and isSelectable()).performClick()
+        // Avatars show initials; each is named for TalkBack and the selected child's name shows beside the stack.
+        compose.onNode(hasContentDescription("Sam") and isSelectable()).assertIsSelected()
+        compose.onNodeWithText("Sam").assertExists()
+        compose.onNode(hasContentDescription("Jo") and isSelectable()).performClick()
         assertEquals("b", picked)
-        compose.onNodeWithText("+ Add child").performClick()
+        compose.onNodeWithContentDescription("Add child").performClick()
         assertEquals(1, added)
     }
 
@@ -55,7 +57,7 @@ class ParentTabsUiTest {
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
             ParentChildPage(ParentTab.MAP, kids[0], null, ParentChildData(), Color.Unspecified) { paired++ }
         } } }
-        compose.onNodeWithText("Map").assertExists()
+        compose.onNodeWithText("FAMILY OVERVIEW").assertExists()
         compose.onNodeWithText("No phone yet").assertExists()
         compose.onNodeWithText("Pair device").performClick()
         assertEquals(1, paired)

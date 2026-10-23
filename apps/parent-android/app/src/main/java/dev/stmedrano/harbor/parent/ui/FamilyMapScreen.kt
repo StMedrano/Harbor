@@ -55,7 +55,7 @@ internal fun mapPeople(people: List<FamilyMapPerson>, nowMs: Long): List<MapPers
     return people.mapNotNull { p ->
         val fix = p.fix ?: return@mapNotNull null
         val seen = locationInstantMs(fix.at)
-        val color = if (p.kind == PersonKind.PARENT) Color(0xFF1F6F5C) else HarborKid.color(kids.indexOf(p))
+        val color = if (p.kind == PersonKind.PARENT) HarborParentColor else HarborKid.color(kids.indexOf(p))
         MapPerson(p.id, p.name, fix.latitude, fix.longitude, color, nowMs - seen > FAMILY_MAP_STALE_MS, p.self,
             "${if (p.self) "You" else p.name}, ${locationAgeLabel(nowMs - seen)}")
     }
@@ -81,7 +81,7 @@ fun FamilyMapScreen(ui: ChildFamilyMapUi) {
                         val fix = person.fix
                         HarborRow(if (person.self) "${person.name} (you)" else person.name, divider = index > 0,
                             subtitle = if (fix == null) "No place yet" else "Seen ${locationAgeLabel(now - locationInstantMs(fix.at))}",
-                            leading = { HarborAvatar(person.name, 36.dp, if (person.kind == PersonKind.PARENT) MaterialTheme.colorScheme.secondary
+                            leading = { HarborAvatar(person.name, 36.dp, if (person.kind == PersonKind.PARENT) HarborParentColor
                                 else HarborKid.color(state.people.filter { it.kind == PersonKind.CHILD }.indexOf(person))) },
                             trailing = { if (person.kind == PersonKind.PARENT) HarborTag("Parent") })
                     }

@@ -27,7 +27,7 @@ class ParentNotificationRenderer(private val context: Context) {
         val intent = Intent(context, MainActivity::class.java).setAction(TAP_ACTION)
             .putExtra("route", Json.encodeToString(hint.route)).putExtra("parentRegistrationId", hint.registrationId)
         val tap = PendingIntent.getActivity(context, hint.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return Notification.Builder(context, channelFor(hint)).setSmallIcon(android.R.drawable.ic_dialog_info)
+        return Notification.Builder(context, channelFor(hint)).setSmallIcon(dev.stmedrano.harbor.parent.R.drawable.ic_stat_harbor)
             .setContentTitle(if (hint.route.kind == "device.access.requested") "Request from your child" else "Harbor update").setContentText(parentPushText(hint.route.kind))
             .setContentIntent(tap).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build()
     }

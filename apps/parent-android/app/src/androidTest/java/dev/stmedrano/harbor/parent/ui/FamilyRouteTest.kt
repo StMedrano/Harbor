@@ -31,16 +31,16 @@ class FamilyRouteTest {
 
     @After fun cleanup() { database?.close(); context.deleteDatabase(databaseName) }
 
-    @Test fun pairingDialogUsesVercelSurface() {
+    @Test fun pairingDialogUsesTheDaybreakCardSurface() {
         compose.setContent { HarborTheme(dark = false) {
             PairingSheet(PairingState("child", PairingCode("123456", "2099-01-01T00:10:00Z")), false, null, {}, {}, {})
         } }
         val pixels = compose.onNode(isDialog()).captureToImage().toPixelMap()
         var surfacePixels = 0
         for (x in 0 until pixels.width) for (y in 0 until pixels.height) {
-            if (pixels[x, y] == Color(0xFFFBF8F2)) surfacePixels++
+            if (pixels[x, y] == Daybreak.s2) surfacePixels++
         }
-        assertTrue("Dialog should use the existing Vercel light surface", surfacePixels > pixels.width * pixels.height / 2)
+        assertTrue("Dialog should use the Daybreak harbor surface", surfacePixels > pixels.width * pixels.height / 2)
     }
 
     @Test fun largeTextPairingRequiresFreshReadAndBackReturnsToFamily() {
@@ -90,7 +90,7 @@ class FamilyRouteTest {
         compose.waitUntil(10000) { !model.state.value.busy && model.state.value.selectedChildId == child.id }
         compose.onNodeWithText("Pair device").performScrollTo().assertIsDisplayed().performClick()
         compose.waitUntil(10000) { model.pairing.state.value.code != null }
-        compose.onNodeWithText("123456").assertExists()
+        compose.onNodeWithText("123 456").assertExists() // grouped 3 + 3
         assertFalse(model.pairing.state.value.enrolled)
         compose.onNodeWithText("Enrollment confirmed", substring = true).assertDoesNotExist()
         enrolled.set(true)

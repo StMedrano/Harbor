@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night Harbor deep water: the app icon tile. -->
+    <color name="ic_launcher_background">#0B2027</color>
+    <!-- The screen colour shown before Compose draws: Daybreak white by day, deep water at night (values-night). -->
+    <color name="harbor_window">#FFFFFF</color>
+
+    <style name="Theme.Harbor" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/harbor_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

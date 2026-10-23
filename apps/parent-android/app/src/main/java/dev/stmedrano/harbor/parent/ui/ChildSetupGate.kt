@@ -66,24 +66,23 @@ fun ChildSetupGate(steps: List<SetupStep>, onTurnOn: (SetupStepId) -> Unit, onOp
     val done = steps.count { it.on }
     val complete = setupComplete(steps)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Set up this phone", style = MaterialTheme.typography.headlineSmall)
-        Text("Turn these on to finish. What Harbor shares, and what it never does, is explained below.",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        HarborScreenHeader("Almost ready", "Set up this phone",
+            subtitle = "Turn these on to finish. What Harbor shares, and what it never does, is explained below.")
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            LinearProgressIndicator(progress = { if (steps.isEmpty()) 0f else done.toFloat() / steps.size },
-                modifier = Modifier.weight(1f).semantics { contentDescription = "Permissions turned on" },
-                color = MaterialTheme.colorScheme.secondary, trackColor = MaterialTheme.colorScheme.outline)
+            HarborMeter(if (steps.isEmpty()) 0f else done.toFloat() / steps.size,
+                Modifier.weight(1f).semantics { contentDescription = "Permissions turned on" })
             Text("$done of ${steps.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         HarborCard {
             steps.forEachIndexed { index, step ->
                 HarborRow(step.title, subtitle = step.why, divider = index > 0,
                     leading = {
-                        Surface(shape = CircleShape, color = if (step.on) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceContainerHighest,
-                            border = if (step.on) null else androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.onSurfaceVariant),
+                        // Design system check-in step dots: filled sea glass when done, a hairline ring while waiting.
+                        Surface(shape = CircleShape, color = if (step.on) harbor.acc else harbor.s2,
+                            border = if (step.on) null else androidx.compose.foundation.BorderStroke(2.dp, harbor.line),
                             modifier = Modifier.size(26.dp)) {
                             if (step.on) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("✓", color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.labelMedium)
+                                HarborIcon(HarborGlyph.TOAST_SUCCESS, harbor.s, Modifier.size(16.dp), strokeWidth = 2.6f)
                             }
                         }
                     },

@@ -31,8 +31,8 @@ fun rememberParentAlertsView(model: ParentAlertsModel?, identity: ParentIdentity
 fun ParentAlertsScreen(view: AlertsViewState, onRefresh: (() -> Unit)? = null) {
     HarborPanel("Message alerts") {
         when (view.status) {
-            AlertsViewStatus.NONE -> Text("No alerts yet.")
-            AlertsViewStatus.EXPIRED -> Text("No alerts in the last 30 days.")
+            AlertsViewStatus.NONE -> HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE)
+            AlertsViewStatus.EXPIRED -> HarborEmptyState("No alerts in the last 30 days.", art = HarborArt.CALM)
             AlertsViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this device's alerts.", HarborTone.DANGER, emphasis = true)
             AlertsViewStatus.LOAD_FAILED -> HarborNote("Alerts could not be loaded. Check your connection and try again.", HarborTone.DANGER, emphasis = true)
             AlertsViewStatus.AVAILABLE -> AvailableAlerts(view)
@@ -48,24 +48,35 @@ private fun AvailableAlerts(view: AlertsViewState) {
     if (view.notificationAccess == false) HarborNote("Notification access is off on this phone, so chat-app alerts are not arriving.", HarborTone.WARN)
     if (view.smsPermission == false) HarborNote("SMS permission is off on this phone, so text-message alerts are not arriving.", HarborTone.WARN)
     if (view.alerts.isEmpty()) {
-        Text("No alerts yet.")
+        HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE)
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        view.alerts.forEach { alert -> AlertRow(alert) }
+        view.alerts.forEachIndexed { index, alert ->
+            if (index > 0) HorizontalDivider(color = harbor.line)
+            AlertRow(alert)
+        }
     }
+}
+
+/** Urgent (coral) for a possible risk to someone's safety; every other flag is for review (amber). Always with the word. */
+private fun alertTone(category: AlertCategory) = when (category) {
+    AlertCategory.SELF_HARM, AlertCategory.VIOLENCE_THREAT -> HarborTagTone.HIGH
+    else -> HarborTagTone.MEDIUM
 }
 
 @Composable
 private fun AlertRow(alert: MessageAlert) {
     val contact = if (alert.savedContact) "a saved contact" else "someone not in contacts"
+    val tone = alertTone(alert.category)
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Alert: ${alertCategoryLabel(alert.category)}" },
     ) {
-        Text(alertCategoryLabel(alert.category), style = MaterialTheme.typography.titleSmall)
+        HarborTag(if (tone == HarborTagTone.HIGH) "Urgent" else "Review", tone)
+        Text(alertCategoryLabel(alert.category), style = MaterialTheme.typography.titleMedium)
         Text("${alert.appLabel} · ${formatTimestamp(alert.at)} · from $contact", style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            color = harbor.ink3)
         alertGuidance(alert.category)?.let { guidance -> HarborNote(guidance, HarborTone.DANGER, emphasis = true) }
     }
 }
