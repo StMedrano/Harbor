@@ -26,6 +26,7 @@ Pushes are high-priority FCM data messages. They reach Harbor when it is closed 
 - 2026-10-21 (0.23): migration `20261021180000_device_access_requests`; functions `request-device-access` (signed child op, in both child allowlists), `get-access-requests`, `decide-access-request`; `update-device-state` v8 and `get-device-controls` v3 accept `grants`. Cron `harbor-access-request-retention`, revoke cleanup trigger, RLS on, no client grants or execute.
 - 2026-10-22 (0.24): phone-only changes, nothing new on the server.
 - 2026-10-22 (0.25): migration `20261022160000_push_delivery_and_screen_time` (`private.harbor_due_notifications`, `private.harbor_retire_notifications`, a `screen_time` column on `private.device_activity_status`, stored by `harbor_store_device_activity` and returned by `harbor_get_device_activity`; service role only). Functions that queue pushes now deliver due ones right after they answer: `device-sync` v6, `update-device-state` v9, `request-device-access` v2, `decide-access-request` v2, `report-device-activity` v2. `get-device-activity` v2 returns `screenTime`, so a 0.24 parent app can no longer read Activity: install 0.25 on both phones. The backlog queued while nothing delivered was retired (194 `device.state.changed` superseded, the rest expired). Observed on dev: a `device.controls.changed` push sent at 17:36 UTC, and `device.access.requested` and `device.access.denied` pushes sent at 19:36 and 19:37 UTC (outbox status only; whether they showed on the phones is step 1 and 2 below).
+- 2026-10-23 (0.26 to 0.28): phone-only changes (the Harbor Family design system and the fixes below), nothing new on the server.
 
 ## 0.25 fixes (2026-10-22)
 
@@ -41,7 +42,29 @@ From the real-phone run on 0.24:
 - **Parent and phone showed different totals.** The parent now shows the count the phone enforces (sent about once a minute), not a recount from the timeline.
 - **Faster sync.** Rule changes wake the phone by push within seconds; without a push the phone checks every 30 seconds (was 60). The parent's Controls tab refreshes every 15 seconds and Activity every 30 seconds.
 
-## Still to verify on real phones (0.25)
+## Results on 0.27 (2026-10-23)
+
+Passed on real phones: steps 1 to 10, 13 to 18 and 20 of the list below. Step 16 also showed Unlimited apps blocked during bedtime, which is the design: Unlimited means no time limit, not exempt from pause or bedtime. Not reported: 21 (two parents) and 22 (revocation).
+
+- **Step 11 failed in part.** After YouTube's limit was removed, the block screen stayed up and said "Your parent said yes" until the child tapped **Open YouTube**.
+- **Step 12, layout.** Totals matched. The parent asked for screen time above the detailed activity, and for the timeline to be shorter with a way to see all of it.
+- **Step 19 failed in part.** Protection off showed on the timeline and in Controls, but no notification reached the parent. The server sent the push (outbox `device.controls.off`, status `sent` at 17:32:44 UTC).
+- **Message alerts.** An RCS message did not raise an alert. The child phone has sent no alert report since 2026-10-20 and the server holds no alerts for it, so nothing was captured: the message did not match a rule, or Messages posted no notification for it.
+
+## 0.28 fixes (2026-10-23)
+
+- **Push dropped while the parent app started.** A push that wakes a closed parent app arrives while the app re-registers its push token, which clears the saved registration until the server confirms it. The push was judged during that gap and thrown away (the server log shows two re-registrations 10 and 13 seconds after the protection-off push). The app now waits for a registration in progress and then checks the push against the settled registration. Sign-out and switching accounts still clear the registration, so a push for an old account is still refused. This applied to every parent push, not only protection off.
+- **The block screen lifts by itself after a rule change.** When a limit is removed or raised, an app is unblocked, or a pause or bedtime ends, the block screen opens the app by itself. At most once a minute per app, so a disagreement with enforcement cannot bounce between the app and the block screen; after that it shows "<app> is allowed again" with **Open**. A block screen the child already left just closes. A parent's yes still shows "Your parent said yes" with **Open**.
+- **Activity tab.** Screen time comes first, then **Detailed activity**. The timeline shows the newest 5 entries and **Show more (N earlier)** for the whole day (**Show less** folds it again).
+- **Message alerts.** If Android drops Harbor's notification-listener connection (seen after app updates on some phones), Harbor asks Android to connect it again, checked every 5 minutes while the child profile runs.
+
+## Still to verify on real phones (0.28)
+
+Install build 0.28 (versionCode 28) on both phones, then repeat steps 11, 12 (new layout), 19, 21 and 22 of the list below, and this alert check:
+
+- **Message alert from RCS.** Alerts flag specific phrases only, never ordinary messages. From another phone, send the child an RCS message (Google Messages shows "RCS message" in the text box) that says "everyone hates you", while the child does not have that conversation open (an open conversation posts no notification, so nothing can be seen). Within a minute the parent's Alerts tab shows a Bullying alert from Messages, and the parent gets a pop-up "Harbor flagged a possible concern. Open to review." The alert carries no message text.
+
+## Real-phone checklist (from 0.25)
 
 Install build 0.25 (versionCode 25) on both phones. On the child phone, Harbor notifications must be allowed (Android's notification permission and Harbor's own switch). Already verified on 2026-10-22 and not repeated: disclosure, accessibility access, the Controls tab, the block screen, a blocked video app, the pause screen, pause with picture-in-picture, the daily limit picker, and a first ask and allow. Record only whether each step passed. "Within a minute" unless a step says otherwise.
 

@@ -146,8 +146,9 @@ fun ParentChildPage(tab: ParentTab, child: ChildV1, device: DevicePublicV1?, dat
                     data.accessRequests, data.onAnswerAccess, data.activity)
             }
             ParentTab.ACTIVITY -> {
-                data.activity?.let { ParentActivityScreen(it, data.activityToday, data.onActivityDay, data.onRefreshActivity) }
+                // Screen time first, then the detailed activity behind it.
                 data.usage?.let { UsageReportScreen(it, data.onRefreshUsage) }
+                data.activity?.let { ParentActivityScreen(it, data.activityToday, data.onActivityDay, data.onRefreshActivity) }
             }
             ParentTab.FAMILY -> Unit
         }

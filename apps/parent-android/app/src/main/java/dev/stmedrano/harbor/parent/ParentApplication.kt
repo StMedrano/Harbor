@@ -367,6 +367,7 @@ class ParentApplication : Application() {
         }
         scope.launch {
             while (true) {
+                dev.stmedrano.harbor.parent.alerts.HarborNotificationListener.ensureBound(this@ParentApplication)
                 try { host.supervise(lease) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { /* Next pass retries. */ }
                 delay(5 * 60_000L)
             }

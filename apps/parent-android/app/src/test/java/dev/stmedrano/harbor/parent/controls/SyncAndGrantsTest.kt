@@ -50,6 +50,16 @@ class SyncAndGrantsTest {
         assertTrue(blockLifted(yt, BlockReason.LIMIT_REACHED, daily.copy(dailyLimit = DailyLimit(15, "2026-10-22", 15)), noon, usage))
     }
 
+    // 0.27 field test: removing the limit showed "Your parent said yes" and waited for a tap instead of lifting.
+    @Test fun aRuleChangeOpensTheAppByItselfOnceAMinuteAndAYesIsAnnounced() {
+        val now = 1_000_000L
+        assertEquals(BlockLift.NONE, blockLift(false, false, null, now))
+        assertEquals(BlockLift.ANNOUNCE_YES, blockLift(true, true, null, now))
+        assertEquals(BlockLift.OPEN, blockLift(true, false, null, now))
+        assertEquals(BlockLift.OFFER_OPEN, blockLift(true, false, now - 59_000L, now))
+        assertEquals(BlockLift.OPEN, blockLift(true, false, now - 60_000L, now))
+    }
+
     @Test fun theChildCanAskAgainOnceARequestIsAnswered() = runTest {
         var now = 0L
         val asker = ChildAccessAsker({ """{"requestId":"8a1f3c2e-5b7d-4e9a-9c1b-2d3e4f5a6b7c","status":"pending","requestedAt":"2026-10-22T15:00:00Z"}""" }) { now }

@@ -141,6 +141,42 @@ class ParentNotificationsTest {
         assertNull(store.marker(parent))
     }
 
+    // 0.27 field test: "Protection off" was sent, but the closed parent app re-registered its token on start and dropped it.
+    @Test fun aPushArrivingWhileAppStartReRegistersStillRenders() = runTest {
+        var rendered = 0
+        var gate: CompletableDeferred<Unit>? = null
+        val api = object : Api() {
+            override suspend fun register(installationId: String, token: String): ParentRegistrationReply {
+                gate?.await(); return super.register(installationId, token)
+            }
+        }
+        val notifications = notifications(api, Tokens(), ParentRegistrationStore(Values()) { "installation" }, render = { rendered++ })
+        notifications.enable()
+        val answer = CompletableDeferred<Unit>(); gate = answer
+        val sync = async { notifications.enable(parent) }
+        runCurrent()
+        val push = async { notifications.onMessage(envelope()) }
+        runCurrent()
+        answer.complete(Unit)
+        sync.await()
+        assertTrue(push.await())
+        assertEquals(1, rendered)
+    }
+
+    @Test fun aReRegistrationDuringTheFamilyRefreshDoesNotDropThePush() = runTest {
+        var rendered = 0
+        val refreshing = CompletableDeferred<Boolean>()
+        val notifications = notifications(Api(), Tokens(), ParentRegistrationStore(Values()) { "installation" },
+            refresh = { refreshing.await() }, render = { rendered++ })
+        notifications.enable()
+        val push = async { notifications.onMessage(envelope()) }
+        runCurrent()
+        notifications.enable(parent)
+        refreshing.complete(true)
+        assertTrue(push.await())
+        assertEquals(1, rendered)
+    }
+
     @Test fun receiptEvidenceRequiresAuthorizedCurrentMessageAndIsClearedWithBinding() = runTest {
         var accessible = false
         val notifications = notifications(Api(), Tokens(), ParentRegistrationStore(Values()) { "installation" }, refresh = { accessible })

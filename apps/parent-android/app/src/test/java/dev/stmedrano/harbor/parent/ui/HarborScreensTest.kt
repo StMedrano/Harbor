@@ -50,6 +50,15 @@ class HarborScreensTest {
         assertEquals("5:00 PM", items.first().time)
     }
 
+    @Test fun theTimelineShowsTheNewestFiveUntilShowMore() {
+        val events = (0L until 8L).map { ActivityEvent("e$it", ActivityKind.APP_SESSION, at(it * 10), at(it * 10 + 5), "a.b", "YouTube", null) }
+        val items = activityTimeline(events, ZoneOffset.UTC)
+        assertEquals(items.take(5), timelinePreview(items, expanded = false))
+        assertEquals("4:10 PM", timelinePreview(items, expanded = false).first().time) // newest first
+        assertEquals(items, timelinePreview(items, expanded = true))
+        assertEquals(items.take(3), timelinePreview(items.take(3), expanded = false))
+    }
+
     @Test fun everyChildTabHasAnEyebrowAndOnlyTodayGreets() {
         assertEquals("Today" to null, childHeader("Today"))
         assertEquals("Your parents asked" to "Share my check-in", childHeader(CHECK_IN_TAB))

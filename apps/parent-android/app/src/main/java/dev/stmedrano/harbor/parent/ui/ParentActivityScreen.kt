@@ -5,7 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +46,7 @@ private val dayLabel = DateTimeFormatter.ofPattern("EEE, MMM d")
 @Composable
 fun ParentActivityScreen(view: ActivityViewState, today: LocalDate, onDay: (LocalDate) -> Unit, onRefresh: (() -> Unit)?) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Detailed activity", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
         DaySwitcher(view.day, today, onDay)
         when (view.status) {
             ActivityViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this phone's activity.", HarborTone.DANGER, emphasis = true)
@@ -72,9 +75,14 @@ fun ParentActivityScreen(view: ActivityViewState, today: LocalDate, onDay: (Loca
                     }
                 }
                 HarborPanel("Timeline") {
-                    if (view.events.isEmpty()) HarborEmptyState("No activity this day.", art = HarborArt.CALM)
-                    else HarborTimeline(activityTimeline(view.events, ZoneId.systemDefault()))
-                    if (view.truncated) Text("Showing the first 500 entries for this day.", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                    val items = activityTimeline(view.events, ZoneId.systemDefault())
+                    var expanded by rememberSaveable(view.day) { mutableStateOf(false) }
+                    if (items.isEmpty()) HarborEmptyState("No activity this day.", art = HarborArt.CALM)
+                    else HarborTimeline(timelinePreview(items, expanded))
+                    if (items.size > TIMELINE_PREVIEW) HarborSecondaryButton({ expanded = !expanded }, Modifier.fillMaxWidth(), small = true) {
+                        Text(if (expanded) "Show less" else "Show more (${items.size - TIMELINE_PREVIEW} earlier)")
+                    }
+                    if (view.truncated && expanded) Text("Showing the first 500 entries for this day.", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
                 }
             }
         }
@@ -111,6 +119,13 @@ fun activityDayFigure(view: ActivityViewState): Pair<String?, String> {
 }
 
 /** The day newest first: app time in sea glass, and the moments a rule stepped in (blocks, limits, pause, bedtime) in amber. */
+/** How many of the newest timeline entries show before the parent taps Show more. */
+const val TIMELINE_PREVIEW = 5
+
+/** The day's newest entries in short; the whole day once the parent asks for it. */
+fun timelinePreview(items: List<HarborTimelineItem>, expanded: Boolean): List<HarborTimelineItem> =
+    if (expanded) items else items.take(TIMELINE_PREVIEW)
+
 fun activityTimeline(events: List<ActivityEvent>, zone: ZoneId): List<HarborTimelineItem> = events.asReversed().map { e ->
     HarborTimelineItem(Instant.ofEpochMilli(alertInstantMs(e.at)).atZone(zone).format(clock), activityLine(e), review = e.kind != ActivityKind.APP_SESSION)
 }

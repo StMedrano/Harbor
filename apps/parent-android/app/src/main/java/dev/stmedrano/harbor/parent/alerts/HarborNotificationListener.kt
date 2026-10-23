@@ -1,6 +1,8 @@
 package dev.stmedrano.harbor.parent.alerts
 
 import android.app.Notification
+import android.content.ComponentName
+import android.content.Context
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -43,6 +45,21 @@ class HarborNotificationListener : NotificationListenerService() {
     private fun newestChatMessage(extras: Bundle): Pair<String?, String?>? {
         val last = try { extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.lastOrNull() as? Bundle } catch (_: Exception) { null } ?: return null
         return last.getCharSequence("text")?.toString() to last.getCharSequence("sender")?.toString()
+    }
+
+    override fun onListenerConnected() { connected = true }
+
+    // Android can drop the binding (seen after app updates on some phones) and does not always bind it again by itself.
+    override fun onListenerDisconnected() { connected = false; ensureBound(this) }
+
+    companion object {
+        @Volatile private var connected = false
+
+        /** Asks Android to bind the listener again when Notification Access is on but it is not connected; otherwise nothing. */
+        fun ensureBound(context: Context) {
+            if (connected || !AlertPermission(context).isNotificationAccessGranted()) return
+            try { requestRebind(ComponentName(context, HarborNotificationListener::class.java)) } catch (_: Exception) { /* Retried on the next check. */ }
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {

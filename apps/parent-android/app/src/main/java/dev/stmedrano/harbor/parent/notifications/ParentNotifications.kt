@@ -92,14 +92,20 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
             if (current(identity, ticket)) mutableState.value = ParentNotificationState(message = if (removed) "Registration removed." else "Local registration cleared. Backend cleanup is unconfirmed.")
         }
     }
+    /**
+     * A push that wakes a closed app arrives while app start re-registers the token, which clears the marker until the
+     * server confirms. Each check first waits out a registration in progress and then judges the push against the
+     * registration that settled, not against the one at arrival; sign-out and account switch still clear the marker.
+     */
     suspend fun onMessage(data: Map<String, String>): Boolean {
         val hint = ParentMessageParser.parse(data) ?: return false
         val identity = currentIdentity() ?: return false
-        val ticket = synchronized(lock) { generation }
-        if (!allowed(identity, ticket, hint) || synchronized(lock) { hint in seen }) return false
+        settle()
+        if (!allowed(identity, hint) || synchronized(lock) { hint in seen }) return false
         if (!refreshed(hint)) return false
+        settle()
         return synchronized(lock) {
-            if (!allowed(identity, ticket, hint) || hint in seen || !permissionAllowed()) false
+            if (!allowed(identity, hint) || hint in seen || !permissionAllowed()) false
             else { render(hint); seen.add(hint); if (seen.size > 100) seen.remove(seen.first())
                 mutableState.value = state.value.copy(receipt = ParentReceipt(hint.registrationId, hint.route, System.currentTimeMillis()))
                 true }
@@ -107,14 +113,15 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
     }
     suspend fun onTap(hint: ParentHint): Boolean {
         val identity = currentIdentity() ?: return false
-        val ticket = synchronized(lock) { generation }
-        return allowed(identity, ticket, hint) && refreshed(hint) && allowed(identity, ticket, hint)
+        settle()
+        return allowed(identity, hint) && refreshed(hint) && allowed(identity, hint)
     }
+    private suspend fun settle() { withTimeoutOrNull(20000) { operations.withLock { } } }
     private suspend fun refreshed(hint: ParentHint) = try {
         withTimeoutOrNull(10000) { refresh(hint) } == true
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { false }
-    private fun allowed(identity: ParentIdentity, ticket: Long, hint: ParentHint) = current(identity, ticket) &&
+    private fun allowed(identity: ParentIdentity, hint: ParentHint) = currentIdentity() == identity &&
         hint.route.familyId != null && hint.route.familyId == currentFamily() && store.marker(identity)?.registrationId == hint.registrationId
     private fun current(identity: ParentIdentity, ticket: Long) = synchronized(lock) { generation == ticket && currentIdentity() == identity }
     private fun failed(identity: ParentIdentity, ticket: Long) = synchronized(lock) {

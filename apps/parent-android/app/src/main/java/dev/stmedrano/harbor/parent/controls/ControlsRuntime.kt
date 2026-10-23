@@ -184,6 +184,22 @@ fun blockLifted(packageName: String, reason: BlockReason, policy: ControlsV1?, n
     }
 }
 
+/** What the block screen does once a block no longer applies. */
+enum class BlockLift { NONE, ANNOUNCE_YES, OPEN, OFFER_OPEN }
+
+/**
+ * A parent's yes is announced, with Open, because the child asked and is waiting for the answer. A rule change (limit
+ * removed, app unblocked, pause or bedtime over) lifts the screen by itself and opens the app. That happens at most once
+ * a minute per app, so a lift the enforcement does not agree with cannot bounce between the app and this screen; after
+ * that the screen offers Open instead.
+ */
+fun blockLift(lifted: Boolean, granted: Boolean, lastAutoOpenMs: Long?, nowMs: Long): BlockLift = when {
+    !lifted -> BlockLift.NONE
+    granted -> BlockLift.ANNOUNCE_YES
+    lastAutoOpenMs != null && nowMs - lastAutoOpenMs in 0 until 60_000 -> BlockLift.OFFER_OPEN
+    else -> BlockLift.OPEN
+}
+
 /** The words the child sees on the block screen. Plain and specific; never a fake system message. */
 fun blockMessage(reason: BlockReason, appLabel: String, policy: ControlsV1?, daily: Boolean = false): Pair<String, String> = when {
     daily -> "Time's up for today" to

@@ -77,10 +77,10 @@ class BlockActivity : ComponentActivity() {
         val reason = AccessReason.of(b.reason, b.daily)
         val (title, body) = blockMessage(b.reason, b.label, ControlsBridge.policy, b.daily)
         var ask by remember { mutableStateOf(if (b.packageName != null && asker?.askedRecently(b.packageName) == true) Ask.SENT else Ask.IDLE) }
-        var nowAllowed by remember { mutableStateOf(false) }
+        var lift by remember { mutableStateOf(BlockLift.NONE) }
         val scope = rememberCoroutineScope()
         val icon = remember(b.packageName) { b.packageName?.let { appIcon(this, it) } }
-        // A parent's yes (or a resume or unblock) reaches this phone as new controls; offer to open the app when it does.
+        // A parent's yes, or a rule change (resume, unblock, limit removed), reaches this phone as new controls.
         LaunchedEffect(b) {
             val uncounted = ExemptApps.uncounted(this@BlockActivity)
             while (true) {
@@ -91,10 +91,18 @@ class BlockActivity : ComponentActivity() {
                     val usage = if (b.reason == BlockReason.LIMIT_REACHED) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         UsageToday.read(this@BlockActivity, now.toInstant().toEpochMilli(), now.toLocalDate().atStartOfDay(now.zone).toInstant().toEpochMilli())
                     } else null
-                    nowAllowed = blockLifted(pkg, b.reason, policy, now, usage, uncounted)
+                    val granted = policy != null && PolicyEngine.grantRemainingMs(pkg, now, policy) != null
                     // A yes for this app answers the request; once it is used up the child can ask again.
-                    if (policy != null && PolicyEngine.grantRemainingMs(pkg, now, policy) != null) asker?.forget(pkg)
+                    if (granted) asker?.forget(pkg)
                     if (ask == Ask.SENT && asker?.askedRecently(pkg) == false) ask = Ask.IDLE
+                    lift = blockLift(blockLifted(pkg, b.reason, policy, now, usage, uncounted), granted, autoOpened[pkg], System.currentTimeMillis())
+                    if (lift == BlockLift.OPEN) {
+                        // Only open over a screen the child is looking at; a block screen left behind just closes.
+                        if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                            autoOpened[pkg] = System.currentTimeMillis(); openApp(pkg)
+                        } else finish()
+                        break
+                    }
                 }
                 delay(2_000)
             }
@@ -120,9 +128,14 @@ class BlockActivity : ComponentActivity() {
             Spacer(Modifier.weight(1f))
             HarborCard {
                 when {
-                    nowAllowed -> {
+                    lift == BlockLift.ANNOUNCE_YES -> {
                         Text("Your parent said yes", style = MaterialTheme.typography.titleMedium)
                         Text("${b.label} is open to you now.", style = MaterialTheme.typography.bodyMedium, color = c.ink2)
+                        HarborButton({ openApp(b.packageName) }, Modifier.fillMaxWidth()) { Text("Open ${b.label}") }
+                    }
+                    lift != BlockLift.NONE -> {
+                        Text("${b.label} is allowed again", style = MaterialTheme.typography.titleMedium)
+                        Text("Your parent changed the rules.", style = MaterialTheme.typography.bodyMedium, color = c.ink2)
                         HarborButton({ openApp(b.packageName) }, Modifier.fillMaxWidth()) { Text("Open ${b.label}") }
                     }
                     b.packageName == null || asker == null -> Text("Ask a parent if you think you need this app.",
@@ -174,6 +187,8 @@ class BlockActivity : ComponentActivity() {
         private const val EXTRA_PACKAGE = "package"
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_REASON = "reason"
+        /** When a rule change last opened each app from this screen (see [blockLift]). */
+        private val autoOpened = java.util.concurrent.ConcurrentHashMap<String, Long>()
         private const val EXTRA_DAILY = "daily"
         fun intent(context: Context, packageName: String, label: String, reason: BlockReason, daily: Boolean = false): Intent =
             Intent(context, BlockActivity::class.java)
