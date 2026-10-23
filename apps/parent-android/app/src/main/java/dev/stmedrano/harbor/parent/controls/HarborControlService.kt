@@ -14,9 +14,10 @@ import java.time.LocalDate
 import java.time.ZonedDateTime
 
 /**
- * Enforces app controls. It listens only for "a different window came to the front" and reads only that window's
- * package name; it is configured so it cannot read window content (see res/xml/harbor_control_service.xml). When the
- * policy says an app may not be used now, it covers the app with Harbor's block screen explaining why.
+ * Enforces app controls. It listens only for "a different window came to the front" and reads that window's package
+ * name; for the phone's app installer it also reads the screen's class name, to tell when an app is being removed
+ * ([UninstallGuard]). It is configured so it cannot read window content (see res/xml/harbor_control_service.xml). When
+ * the policy says an app may not be used now, it covers the app with Harbor's block screen explaining why.
  *
  * Every few seconds it also checks the phone's own usage events: an app brought back from picture-in-picture does not
  * always announce a new window, and a video in picture-in-picture keeps playing over other apps. Time limits count the
@@ -25,6 +26,7 @@ import java.time.ZonedDateTime
 class HarborControlService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private var exempt: Set<String> = emptySet()
+    private var removal = RemovalScreens()
     /** Never counted toward the daily limit (see [ExemptApps.uncounted]); the other exempt apps count but are never blocked. */
     private var uncounted: Set<String> = emptySet()
     private var foreground: String? = null
@@ -41,6 +43,7 @@ class HarborControlService : AccessibilityService() {
 
     override fun onServiceConnected() {
         exempt = ExemptApps.resolve(this)
+        removal = removalScreens(this)
         uncounted = ExemptApps.uncounted(this)
         // A pause or a new block arriving while an app is open applies to that app now, not at the next window change.
         ControlsBridge.onPolicyChanged = { handler.post { evaluate(); scanScreen() } }
@@ -51,6 +54,8 @@ class HarborControlService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
+        // Android's "uninstall this app?" screen. The screen's class name is read for the app installers only.
+        if (removal.isRemoval(pkg) { event.className?.toString() }) { guardRemoval(pkg); return }
         // The keyboard and system overlays come and go above the app; they do not change which app is in use.
         if (pkg in exempt && pkg != packageName && pkg != "com.android.settings" && !isHome(pkg)) return
         foreground = pkg
@@ -160,6 +165,19 @@ class HarborControlService : AccessibilityService() {
         if ((lastBlockRecorded[pkg] ?: 0L) + 60_000L <= nowMs) {
             lastBlockRecorded[pkg] = nowMs
             ControlsBridge.record(ControlEvent(ActivityKind.BLOCKED_OPEN, nowMs, pkg, label, reason))
+        }
+    }
+
+    /** Removing an app needs a parent's OK ([UninstallGuard]): Harbor's block screen covers the confirmation. */
+    private fun guardRemoval(installer: String) {
+        val now = ZonedDateTime.now()
+        if (!UninstallGuard.covers(installer, now, ControlsBridge.policy)) return
+        val nowMs = now.toInstant().toEpochMilli()
+        try { startActivity(BlockActivity.intent(this, installer, UninstallGuard.LABEL, BlockReason.BLOCKED_APP, removal = true)) }
+        catch (_: Exception) { performGlobalAction(GLOBAL_ACTION_BACK) }
+        if ((lastBlockRecorded[installer] ?: 0L) + 60_000L <= nowMs) {
+            lastBlockRecorded[installer] = nowMs
+            ControlsBridge.record(ControlEvent(ActivityKind.BLOCKED_OPEN, nowMs, installer, UninstallGuard.LABEL, BlockReason.BLOCKED_APP))
         }
     }
 

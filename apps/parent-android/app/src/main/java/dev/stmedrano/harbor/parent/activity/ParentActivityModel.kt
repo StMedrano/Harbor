@@ -79,7 +79,8 @@ fun activityLine(e: ActivityEvent): String {
             val minutes = maxOf(1L, (alertInstantMs(e.endAt!!) - alertInstantMs(e.at)) / 60_000L)
             "$app · $minutes min"
         }
-        ActivityKind.BLOCKED_OPEN -> when (e.reason) {
+        ActivityKind.BLOCKED_OPEN -> if (dev.stmedrano.harbor.parent.controls.UninstallGuard.isRemoval(e.packageName, e.appLabel))
+            "Tried to remove an app (needs your OK)" else when (e.reason) {
             BlockReason.PAUSED -> "Tried to open $app while the phone was paused"
             BlockReason.BEDTIME -> "Tried to open $app during bedtime"
             BlockReason.LIMIT_REACHED -> "Tried to open $app after its time ran out"

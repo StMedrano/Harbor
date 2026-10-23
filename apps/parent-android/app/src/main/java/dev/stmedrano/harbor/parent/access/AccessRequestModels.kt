@@ -2,6 +2,7 @@ package dev.stmedrano.harbor.parent.access
 
 import dev.stmedrano.harbor.parent.activity.BlockReason
 import dev.stmedrano.harbor.parent.alerts.alertInstantMs
+import dev.stmedrano.harbor.parent.controls.UninstallGuard
 import dev.stmedrano.harbor.parent.controls.isPackageName
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -75,7 +76,9 @@ fun decodeAccessRequests(raw: String): List<AccessRequestItem> {
 fun accessRequestTitle(item: AccessRequestItem): String = when (item.reason) {
     AccessReason.LIMIT_REACHED -> "15 more minutes of ${item.appLabel}"
     AccessReason.TIME_UP -> "15 more minutes of ${item.appLabel} (time's up today)"
-    AccessReason.BLOCKED_APP -> "Use ${item.appLabel} (blocked)"
+    // Harbor can't tell which app the child wants to remove, so the parent is told it could be Harbor.
+    AccessReason.BLOCKED_APP -> if (UninstallGuard.isRemoval(item.packageName, item.appLabel)) "Remove an app (it could be Harbor)"
+        else "Use ${item.appLabel} (blocked)"
     AccessReason.PAUSED -> "Use ${item.appLabel} while the phone is paused"
     AccessReason.BEDTIME -> "Use ${item.appLabel} at bedtime"
 }

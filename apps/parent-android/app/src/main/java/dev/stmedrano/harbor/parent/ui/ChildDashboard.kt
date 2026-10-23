@@ -118,7 +118,7 @@ fun ChildTransparency(location: Boolean, usage: Boolean, alerts: Boolean, contro
     val can = buildList {
         if (location) add("Where this phone is, how accurate that is and when it was sent. Harbor keeps places for 30 days.")
         if (usage) add("How long you use this phone each day, and which apps.")
-        if (controls) add("Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work.")
+        if (controls) add("Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work. Removing an app needs their OK.")
         if (alerts) add("When a notification is flagged: the app, the time and the kind of concern.")
         if (checkIn) add("Your answer when a parent asks you to check in, with this phone's last known place.")
     }

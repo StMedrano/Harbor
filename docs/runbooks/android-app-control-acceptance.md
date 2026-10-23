@@ -26,7 +26,7 @@ Pushes are high-priority FCM data messages. They reach Harbor when it is closed 
 - 2026-10-21 (0.23): migration `20261021180000_device_access_requests`; functions `request-device-access` (signed child op, in both child allowlists), `get-access-requests`, `decide-access-request`; `update-device-state` v8 and `get-device-controls` v3 accept `grants`. Cron `harbor-access-request-retention`, revoke cleanup trigger, RLS on, no client grants or execute.
 - 2026-10-22 (0.24): phone-only changes, nothing new on the server.
 - 2026-10-22 (0.25): migration `20261022160000_push_delivery_and_screen_time` (`private.harbor_due_notifications`, `private.harbor_retire_notifications`, a `screen_time` column on `private.device_activity_status`, stored by `harbor_store_device_activity` and returned by `harbor_get_device_activity`; service role only). Functions that queue pushes now deliver due ones right after they answer: `device-sync` v6, `update-device-state` v9, `request-device-access` v2, `decide-access-request` v2, `report-device-activity` v2. `get-device-activity` v2 returns `screenTime`, so a 0.24 parent app can no longer read Activity: install 0.25 on both phones. The backlog queued while nothing delivered was retired (194 `device.state.changed` superseded, the rest expired). Observed on dev: a `device.controls.changed` push sent at 17:36 UTC, and `device.access.requested` and `device.access.denied` pushes sent at 19:36 and 19:37 UTC (outbox status only; whether they showed on the phones is step 1 and 2 below).
-- 2026-10-23 (0.26 to 0.28): phone-only changes (the Harbor Family design system and the fixes below), nothing new on the server.
+- 2026-10-23 (0.26 to 0.29): phone-only changes (the Harbor Family design system, the fixes and the removal guard below), nothing new on the server.
 
 ## 0.25 fixes (2026-10-22)
 
@@ -58,9 +58,21 @@ Passed on real phones: steps 1 to 10, 13 to 18 and 20 of the list below. Step 16
 - **Activity tab.** Screen time comes first, then **Detailed activity**. The timeline shows the newest 5 entries and **Show more (N earlier)** for the whole day (**Show less** folds it again).
 - **Message alerts.** If Android drops Harbor's notification-listener connection (seen after app updates on some phones), Harbor asks Android to connect it again, checked every 5 minutes while the child profile runs.
 
-## Still to verify on real phones (0.28)
+## 0.29: removing an app needs a parent (2026-10-23)
 
-Install build 0.28 (versionCode 28) on both phones, then repeat steps 11, 12 (new layout), 19, 21 and 22 of the list below, and this alert check:
+While app controls run, Android's "Do you want to uninstall this app?" screen is covered by Harbor's block screen: "Ask a parent to remove apps", with **Ask to remove an app**. The parent's request reads "Remove an app (it could be Harbor)"; **Allow 15 min** lets the child remove apps for 15 minutes (it shows under **Allowed right now** as "Removing apps", with **End now**), and the timeline shows "Tried to remove an app (needs your OK)". This covers removal from the home screen, from Settings > Apps and from any other app that uses Android's confirmation. Installing apps is not affected.
+
+How it knows: the uninstall confirmation is a screen of the phone's app installer. For the installer only, the controls service reads the class name of the screen that came to the front (for example `UninstallerActivity`), never what it shows, so it cannot tell which app is being removed and asks a parent for any app. The installer that handles "remove this package" is looked up on the phone (manifest `<queries>` for `DELETE` and `UNINSTALL_PACKAGE`), so a phone maker's own installer is covered too. The service's description in Settings > Accessibility, the child's Controls panel and About page say that removing an app needs a parent.
+
+Not covered (the parent's notification "App controls were turned off" covers the first three): turning off Harbor's accessibility service, Force stop, safe mode, a factory reset, and removal from a computer with developer tools. Removal from inside the Play Store uses the Play Store's own screen, but Harbor installed from App Distribution is not managed by the Play Store.
+
+## Still to verify on real phones (0.29)
+
+Install build 0.29 (versionCode 29) on both phones, then:
+
+- **Removal guard.** On the child phone, long-press Harbor (then another app) on the home screen and choose Uninstall: Harbor's "Ask a parent to remove apps" covers the confirmation each time. Do the same from Settings > Apps > Harbor > Uninstall. Tap **Ask to remove an app**; the parent gets the request "Remove an app (it could be Harbor)". **Deny**: nothing is removed. Ask again and **Allow 15 min**: the child sees "Your parent said yes" and **Continue**, and an app can be removed. After 15 minutes (or **End now** on the parent), the confirmation is covered again. Installing an app is not blocked.
+
+Then repeat steps 11, 12 (new layout), 19, 21 and 22 of the list below, and this alert check:
 
 - **Message alert from RCS.** Alerts flag specific phrases only, never ordinary messages. From another phone, send the child an RCS message (Google Messages shows "RCS message" in the text box) that says "everyone hates you", while the child does not have that conversation open (an open conversation posts no notification, so nothing can be seen). Within a minute the parent's Alerts tab shows a Bullying alert from Messages, and the parent gets a pop-up "Harbor flagged a possible concern. Open to review." The alert carries no message text.
 

@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="harbor_control_service_description">Lets Harbor apply the app rules your parent set: blocked apps, daily time limits, pause and bedtime. Harbor only sees which app is open, never what is on the screen. Only your parents can change the rules.</string>
+    <string name="harbor_control_service_description">Lets Harbor apply the app rules your parent set: blocked apps, daily time limits, pause and bedtime, and asking a parent before an app is removed. Harbor only sees which app is open, never what is on the screen. Only your parents can change the rules.</string>
 </resources>

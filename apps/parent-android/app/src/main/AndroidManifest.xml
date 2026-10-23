@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <queries>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <!-- Which app installer shows "uninstall this app?", so app controls can ask a parent first (UninstallGuard). -->
+        <intent><action android:name="android.intent.action.DELETE" /><data android:scheme="package" /></intent>
+        <intent><action android:name="android.intent.action.UNINSTALL_PACKAGE" /><data android:scheme="package" /></intent>
     </queries>
     <application android:name=".ParentApplication" android:allowBackup="false" android:fullBackupContent="@xml/backup_rules" android:dataExtractionRules="@xml/data_extraction_rules" android:usesCleartextTraffic="false" android:label="Harbor Family" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.Harbor">
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
@@ -55,7 +58,7 @@
                 <data android:scheme="harbor-parent" android:host="auth" android:path="/callback" />
             </intent-filter>
         </activity>
-        <!-- App controls. Only the system can bind this service (it requires the system bind permission). It is configured to see which app is in front and nothing else: it cannot read window content (res/xml/harbor_control_service.xml). -->
+        <!-- App controls. Only the system can bind this service (it requires the system bind permission). It is configured to see which app is in front (and, for the app installer, whether its screen is removing an app) and nothing else: it cannot read window content (res/xml/harbor_control_service.xml). -->
         <service android:name=".controls.HarborControlService" android:label="Harbor app controls" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

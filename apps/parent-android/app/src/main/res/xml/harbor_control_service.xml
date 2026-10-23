@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Harbor app controls: only "a different window came to the front" events, only the package name.
+<!-- Harbor app controls: only "a different window came to the front" events, only the package name (and, for the
+     phone's app installer, the screen's class name, to know when an app is being removed).
      canRetrieveWindowContent is false, so Android never gives this service the text or layout of any screen. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged"

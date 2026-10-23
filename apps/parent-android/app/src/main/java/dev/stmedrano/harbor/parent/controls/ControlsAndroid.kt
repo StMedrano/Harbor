@@ -44,6 +44,8 @@ object ExemptApps {
         try {
             app.getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.forEach { out += it.packageName }
         } catch (_: Exception) {}
+        // The installer is never blocked as an app; removing an app is guarded on its own (UninstallGuard).
+        out += removalScreens(app).installers
         return out
     }
 
@@ -61,6 +63,16 @@ object ExemptApps {
         } catch (_: Exception) {}
         return out
     }
+}
+
+/** The apps and screens that handle "remove this package" on this phone (declared in the manifest's queries). */
+fun removalScreens(context: Context): RemovalScreens {
+    val pm = context.packageManager
+    val found = listOf(Intent.ACTION_DELETE, Intent.ACTION_UNINSTALL_PACKAGE).flatMap { action ->
+        try { pm.queryIntentActivities(Intent(action, android.net.Uri.parse("package:${context.packageName}")), 0) }
+        catch (_: Exception) { emptyList() }
+    }.map { it.activityInfo }
+    return RemovalScreens(UninstallGuard.INSTALLERS + found.map { it.packageName }, found.map { it.name }.toSet())
 }
 
 /** The phone's usage events between [fromMs] and [toMs], reduced to what time on screen needs: names, kinds and times. */

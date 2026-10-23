@@ -271,7 +271,8 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
         if (liveGrants.isNotEmpty()) HarborPanel("Allowed right now") {
             val names = usage?.apps.orEmpty().associate { it.packageName to it.label }
             liveGrants.forEachIndexed { index, g ->
-                HarborRow(names[g.packageName] ?: g.packageName, divider = index > 0,
+                HarborRow(names[g.packageName] ?: if (dev.stmedrano.harbor.parent.controls.UninstallGuard.isRemoval(g.packageName, null)) "Removing apps"
+                    else g.packageName, divider = index > 0,
                     subtitle = "Until ${runCatching { java.time.Instant.parse(g.until).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(clockFormat) }.getOrDefault(g.until)} (you said yes)",
                     trailing = { TextButton({ change { it.copy(grants = it.grants.filterNot { x -> x.packageName == g.packageName }) } }, enabled = enabled) { Text("End now") } })
             }

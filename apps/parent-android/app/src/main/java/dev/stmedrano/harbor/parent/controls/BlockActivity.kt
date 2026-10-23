@@ -45,7 +45,8 @@ import kotlinx.coroutines.launch
  * system dialog or another app, and it is kept out of the recent-apps list.
  */
 class BlockActivity : ComponentActivity() {
-    private data class Blocked(val packageName: String?, val label: String, val reason: BlockReason, val daily: Boolean)
+    /** [removal]: covering Android's "uninstall this app?" screen ([UninstallGuard]); [packageName] is then the installer. */
+    private data class Blocked(val packageName: String?, val label: String, val reason: BlockReason, val daily: Boolean, val removal: Boolean = false)
     private var blocked by mutableStateOf(Blocked(null, "This app", BlockReason.BLOCKED_APP, false))
 
     private fun read(intent: Intent) = Blocked(
@@ -53,6 +54,7 @@ class BlockActivity : ComponentActivity() {
         intent.getStringExtra(EXTRA_LABEL)?.take(64) ?: "This app",
         intent.getStringExtra(EXTRA_REASON)?.let { runCatching { BlockReason.valueOf(it) }.getOrNull() } ?: BlockReason.BLOCKED_APP,
         intent.getBooleanExtra(EXTRA_DAILY, false),
+        intent.getBooleanExtra(EXTRA_REMOVAL, false),
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,11 +77,12 @@ class BlockActivity : ComponentActivity() {
         val graph = application as ParentApplication
         val asker = graph.childAccessAsker
         val reason = AccessReason.of(b.reason, b.daily)
-        val (title, body) = blockMessage(b.reason, b.label, ControlsBridge.policy, b.daily)
+        val (title, body) = if (b.removal) UninstallGuard.message else blockMessage(b.reason, b.label, ControlsBridge.policy, b.daily)
         var ask by remember { mutableStateOf(if (b.packageName != null && asker?.askedRecently(b.packageName) == true) Ask.SENT else Ask.IDLE) }
         var lift by remember { mutableStateOf(BlockLift.NONE) }
         val scope = rememberCoroutineScope()
-        val icon = remember(b.packageName) { b.packageName?.let { appIcon(this, it) } }
+        // Removing an app shows Harbor's mark: the installer's icon would not say which app it is.
+        val icon = remember(b.packageName) { b.packageName?.takeUnless { b.removal }?.let { appIcon(this, it) } }
         // A parent's yes, or a rule change (resume, unblock, limit removed), reaches this phone as new controls.
         LaunchedEffect(b) {
             val uncounted = ExemptApps.uncounted(this@BlockActivity)
@@ -95,7 +98,9 @@ class BlockActivity : ComponentActivity() {
                     // A yes for this app answers the request; once it is used up the child can ask again.
                     if (granted) asker?.forget(pkg)
                     if (ask == Ask.SENT && asker?.askedRecently(pkg) == false) ask = Ask.IDLE
-                    lift = blockLift(blockLifted(pkg, b.reason, policy, now, usage, uncounted), granted, autoOpened[pkg], System.currentTimeMillis())
+                    // Removing apps opens only with a parent's yes; no rule change lifts it.
+                    val lifted = if (b.removal) granted else blockLifted(pkg, b.reason, policy, now, usage, uncounted)
+                    lift = blockLift(lifted, granted, autoOpened[pkg], System.currentTimeMillis())
                     if (lift == BlockLift.OPEN) {
                         // Only open over a screen the child is looking at; a block screen left behind just closes.
                         if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
@@ -128,6 +133,11 @@ class BlockActivity : ComponentActivity() {
             Spacer(Modifier.weight(1f))
             HarborCard {
                 when {
+                    lift == BlockLift.ANNOUNCE_YES && b.removal -> {
+                        Text("Your parent said yes", style = MaterialTheme.typography.titleMedium)
+                        Text("You can remove apps for the next 15 minutes.", style = MaterialTheme.typography.bodyMedium, color = c.ink2)
+                        HarborButton(::finish, Modifier.fillMaxWidth()) { Text("Continue") }
+                    }
                     lift == BlockLift.ANNOUNCE_YES -> {
                         Text("Your parent said yes", style = MaterialTheme.typography.titleMedium)
                         Text("${b.label} is open to you now.", style = MaterialTheme.typography.bodyMedium, color = c.ink2)
@@ -161,7 +171,9 @@ class BlockActivity : ComponentActivity() {
                                     AskResult.SENT -> Ask.SENT; AskResult.LIMITED -> Ask.LIMITED; AskResult.FAILED -> Ask.FAILED
                                 }
                             }
-                        }, Modifier.fillMaxWidth(), loading = ask == Ask.SENDING) { Text(askButtonText(reason, b.label)) }
+                        }, Modifier.fillMaxWidth(), loading = ask == Ask.SENDING) {
+                            Text(if (b.removal) "Ask to remove an app" else askButtonText(reason, b.label))
+                        }
                     }
                 }
             }
@@ -190,9 +202,11 @@ class BlockActivity : ComponentActivity() {
         /** When a rule change last opened each app from this screen (see [blockLift]). */
         private val autoOpened = java.util.concurrent.ConcurrentHashMap<String, Long>()
         private const val EXTRA_DAILY = "daily"
-        fun intent(context: Context, packageName: String, label: String, reason: BlockReason, daily: Boolean = false): Intent =
+        private const val EXTRA_REMOVAL = "removal"
+        fun intent(context: Context, packageName: String, label: String, reason: BlockReason, daily: Boolean = false, removal: Boolean = false): Intent =
             Intent(context, BlockActivity::class.java)
                 .putExtra(EXTRA_PACKAGE, packageName).putExtra(EXTRA_LABEL, label).putExtra(EXTRA_REASON, reason.name).putExtra(EXTRA_DAILY, daily)
+                .putExtra(EXTRA_REMOVAL, removal)
                 // NO_USER_ACTION: the covered app is not told the user is leaving it, so a video app does not switch to
                 // picture-in-picture and keep playing behind the block screen.
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION or
