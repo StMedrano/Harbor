@@ -26,12 +26,12 @@ data class ChildUsageUi(
 fun UsageStatusSection(ui: ChildUsageUi) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (!ui.consent) {
-            HarborStatus("Screen time not shared yet", ok = false)
+            HarborStatus("Screen time not shared yet", ok = false, glyph = HarborGlyph.TODAY)
             HarborButton(ui.onStart, Modifier.fillMaxWidth()) { Text("Start sharing screen time") }
         } else if (!ui.permissionGranted) {
-            HarborStatus("Usage access off", ok = false)
+            HarborStatus("Usage access off", ok = false, glyph = HarborGlyph.TODAY)
             HarborButton(ui.onOpenSettings, Modifier.fillMaxWidth()) { Text("Open Usage Access settings") }
             HarborOutlinedButton(ui.onCheckAgain, Modifier.fillMaxWidth()) { Text("Check again") }
-        } else HarborStatus("Sharing screen time", ok = true)
+        } else HarborStatus("Sharing screen time", ok = true, glyph = HarborGlyph.TODAY)
     }
 }

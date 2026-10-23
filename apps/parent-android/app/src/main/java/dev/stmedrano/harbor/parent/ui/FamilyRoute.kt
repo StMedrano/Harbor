@@ -132,7 +132,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     when (sheet) {
         "family" -> AlertDialog(onDismissRequest = { if (!control.busy) sheet = null }, title = { Text("Create family", style = MaterialTheme.typography.titleMedium) },
             text = { Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Family name") }, enabled = !control.busy, shape = MaterialTheme.shapes.medium, colors = harborFieldColors())
+                HarborField(name, { name = it }, "Family name", enabled = !control.busy)
                 error?.let { HarborNote(it, HarborTone.DANGER, emphasis = true) } } },
             confirmButton = { TextButton({ scope.launch { if (request { model.createFamily(identity, name) }) { sheet = null; name = "" } } }, enabled = !control.busy && name.isNotBlank()) { Text("Create / retry") } },
             dismissButton = { TextButton({ scope.launch { if (request { model.cancelFamily(identity) }) { sheet = null; name = "" } } }, enabled = !control.busy) { Text("Cancel request") } })

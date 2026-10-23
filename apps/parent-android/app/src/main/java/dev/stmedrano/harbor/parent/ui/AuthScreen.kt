@@ -131,9 +131,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
             Text(message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (page != AccountPage.RESET) {
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true,
-                    enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth())
+                HarborField(email, { email = it }, "Email", enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
             }
             if (accountForm) {
                 key(page) {
@@ -179,13 +177,14 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
 @Composable
 private fun HarborPasswordField(value: String, onChange: (String) -> Unit, label: String, enabled: Boolean) {
     var visible by remember(label) { mutableStateOf(false) }
-    OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, enabled = enabled,
+    // Design system `PasswordField`: a real Show / Hide button, the rule in the hint before anyone gets it wrong.
+    HarborField(value, onChange, label, enabled = enabled,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        trailingIcon = {
+        trailing = {
             TextButton(onClick = { visible = !visible }, enabled = enabled,
                 modifier = Modifier.semantics { contentDescription = "${if (visible) "Hide" else "Show"} ${label.lowercase()}" }) {
-                Text(if (visible) "Hide" else "Show")
+                Text(if (visible) "Hide" else "Show", color = harbor.acc)
             }
-        }, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth())
+        })
 }

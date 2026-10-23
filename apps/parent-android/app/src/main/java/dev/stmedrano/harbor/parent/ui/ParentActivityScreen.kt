@@ -1,6 +1,15 @@
 package dev.stmedrano.harbor.parent.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import dev.stmedrano.harbor.parent.usage.formatUsageDuration
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,41 +43,76 @@ private val dayLabel = DateTimeFormatter.ofPattern("EEE, MMM d")
  */
 @Composable
 fun ParentActivityScreen(view: ActivityViewState, today: LocalDate, onDay: (LocalDate) -> Unit, onRefresh: (() -> Unit)?) {
-    HarborPanel("Activity") {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            TextButton({ onDay(view.day.minusDays(1)) }, enabled = view.day > today.minusDays(29)) { Text("‹ Earlier") }
-            Text(if (view.day == today) "Today" else view.day.format(dayLabel), style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f))
-            TextButton({ onDay(view.day.plusDays(1)) }, enabled = view.day < today) { Text("Later ›") }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DaySwitcher(view.day, today, onDay)
         when (view.status) {
             ActivityViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this phone's activity.", HarborTone.DANGER, emphasis = true)
             ActivityViewStatus.LOAD_FAILED -> HarborNote("Harbor couldn't load activity. Check your connection.", HarborTone.WARN)
-            ActivityViewStatus.NONE -> Text("The phone hasn't reported any activity yet.")
-            ActivityViewStatus.EXPIRED -> Text("Activity older than 30 days is deleted.")
+            ActivityViewStatus.NONE -> HarborCard { HarborEmptyState("The phone hasn't reported any activity yet.", art = HarborArt.BUOY) }
+            ActivityViewStatus.EXPIRED -> HarborCard { HarborEmptyState("Activity older than 30 days is deleted.", art = HarborArt.CALM) }
             ActivityViewStatus.AVAILABLE -> {
                 if (view.offline) HarborNote("Showing what was last loaded. Couldn't refresh.", HarborTone.WARN)
                 if (view.controlsOn == false) HarborNote("App controls are off on the phone.", HarborTone.DANGER, emphasis = true)
-                if (view.totals.isNotEmpty()) {
-                    Text("Time by app", style = MaterialTheme.typography.titleSmall)
-                    view.totals.take(8).forEach { t -> Text("${t.label}: ${formatMinutes(t.ms)}") }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                }
-                if (view.events.isEmpty()) Text("No activity this day.")
-                val zone = ZoneId.systemDefault()
-                view.events.asReversed().forEach { e ->
-                    Row(Modifier.fillMaxWidth()) {
-                        Text(Instant.ofEpochMilli(alertInstantMs(e.at)).atZone(zone).format(clock), style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.width(72.dp))
-                        Text(activityLine(e), modifier = Modifier.weight(1f))
+                val (figure, figureLabel) = activityDayFigure(view)
+                HarborStatRow(figure to figureLabel, view.events.count { it.kind == ActivityKind.BLOCKED_OPEN }.toString() to "Blocked opens")
+                if (view.totals.isNotEmpty()) HarborPanel("Time by app") {
+                    val longest = view.totals.maxOf { it.ms }.coerceAtLeast(1L)
+                    view.totals.take(8).forEachIndexed { index, t ->
+                        if (index > 0) HorizontalDivider(color = harbor.line)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            HarborAvatar(t.label, 36.dp, HarborKid.color(t.packageName.hashCode()))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row {
+                                    Text(t.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                    Text(formatMinutes(t.ms), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = harbor.ink2)
+                                }
+                                HarborMeter(t.ms.toFloat() / longest, Modifier.height(6.dp))
+                            }
+                        }
                     }
                 }
-                if (view.truncated) Text("Showing the first 500 entries for this day.", style = MaterialTheme.typography.bodySmall)
+                HarborPanel("Timeline") {
+                    if (view.events.isEmpty()) HarborEmptyState("No activity this day.", art = HarborArt.CALM)
+                    else HarborTimeline(activityTimeline(view.events, ZoneId.systemDefault()))
+                    if (view.truncated) Text("Showing the first 500 entries for this day.", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                }
             }
         }
-        Text("Harbor sees which apps were open and when, never what was on the screen.", style = MaterialTheme.typography.bodySmall)
-        if (onRefresh != null && view.status != ActivityViewStatus.ACCESS_LOST) HarborSecondaryButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh activity") }
+        Text("Harbor sees which apps were open and when, never what was on the screen.", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+        if (onRefresh != null && view.status != ActivityViewStatus.ACCESS_LOST) HarborOutlinedButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh activity") }
     }
+}
+
+/** The day shown, with chevrons to step back up to 30 days and forward to today. */
+@Composable
+private fun DaySwitcher(day: LocalDate, today: LocalDate, onDay: (LocalDate) -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(harbor.s2).border(1.dp, harbor.line, MaterialTheme.shapes.medium),
+        verticalAlignment = Alignment.CenterVertically) {
+        IconButton({ onDay(day.minusDays(1)) }, Modifier.semantics { contentDescription = "Earlier day" }, enabled = day > today.minusDays(29)) {
+            HarborIcon(HarborGlyph.CHEVRON, harbor.acc, Modifier.size(20.dp).graphicsLayer { scaleX = -1f })
+        }
+        Text(if (day == today) "Today" else day.format(dayLabel), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center)
+        IconButton({ onDay(day.plusDays(1)) }, Modifier.semantics { contentDescription = "Later day" }, enabled = day < today) {
+            HarborIcon(HarborGlyph.CHEVRON, if (day < today) harbor.acc else harbor.line, Modifier.size(20.dp))
+        }
+    }
+}
+
+/**
+ * The day's headline figure: the phone's own screen-time count when it reported one for this day, otherwise the time in
+ * the timeline's app sessions (which leaves out sessions under a minute). A dash until there is either.
+ */
+fun activityDayFigure(view: ActivityViewState): Pair<String?, String> {
+    val phone = view.screenTime?.takeIf { it.date == view.day.toString() }
+    if (phone != null) return formatUsageDuration(phone.totalMs) to "Screen time"
+    val sessions = view.totals.sumOf { it.ms }
+    return (if (view.totals.isEmpty()) null else formatUsageDuration(sessions)) to "Time in apps"
+}
+
+/** The day newest first: app time in sea glass, and the moments a rule stepped in (blocks, limits, pause, bedtime) in amber. */
+fun activityTimeline(events: List<ActivityEvent>, zone: ZoneId): List<HarborTimelineItem> = events.asReversed().map { e ->
+    HarborTimelineItem(Instant.ofEpochMilli(alertInstantMs(e.at)).atZone(zone).format(clock), activityLine(e), review = e.kind != ActivityKind.APP_SESSION)
 }
 
 fun formatMinutes(ms: Long): String {

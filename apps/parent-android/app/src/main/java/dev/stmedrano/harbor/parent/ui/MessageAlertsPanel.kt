@@ -45,14 +45,14 @@ fun rememberChildAlertsUi(graph: ParentApplication, lease: ProfileLease, resumeT
 fun MessageAlertsSection(ui: ChildAlertsUi) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (ui.access.notificationAccess && ui.access.smsPermission) {
-            HarborStatus("Message access enabled", ok = true, detail = if (ui.host.uploadFailing) "Can't reach Harbor. Trying again." else null)
+            HarborStatus("Message access enabled", ok = true, glyph = HarborGlyph.ALERTS, detail = if (ui.host.uploadFailing) "Can't reach Harbor. Trying again." else null)
         } else {
             if (!ui.access.notificationAccess) {
-                HarborStatus("Notification access off", ok = false)
+                HarborStatus("Notification access off", ok = false, glyph = HarborGlyph.ALERTS)
                 HarborButton(ui.onOpenNotificationAccess, Modifier.fillMaxWidth()) { Text("Turn on notification access") }
             }
             if (!ui.access.smsPermission) {
-                HarborStatus("Text message access off", ok = false)
+                HarborStatus("Text message access off", ok = false, glyph = HarborGlyph.ALERTS)
                 HarborButton(ui.onAllowSms, Modifier.fillMaxWidth()) { Text("Allow text messages") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }

@@ -149,7 +149,8 @@ class MainActivity : ComponentActivity() {
                             }) },
                         parentAuth = {}, parentMenu = {}, parentContent = {},
                         childPairing = {
-                            Text("Enter pairing code")
+                            dev.stmedrano.harbor.parent.ui.HarborScreenHeader("Connect this phone", "Enter pairing code",
+                                subtitle = "Ask your parent for a fresh six-digit pairing code.")
                             if (child != null) ChildPairingScreen(child) {
                                 graph.accountScope.launch { graph.profiles.activateChild() }
                             } else Text("This phone needs a parent to check its setup.")

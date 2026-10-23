@@ -1,32 +1,27 @@
 package dev.stmedrano.harbor.parent.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
 /**
- * One short status line: a dot and a few words ("Sharing location", "Message access enabled"). The dot is decoration;
- * the words carry the meaning, so nothing depends on colour. Everything longer lives in About and the policies.
+ * One status line in the design system's `SharingStatus` style: an icon chip, a few words ("Sharing location", "Message
+ * access enabled") and an optional detail. Sea glass when it's on, amber when something needs fixing (never coral: a paused
+ * share is not an emergency). The words carry the meaning, so nothing depends on colour.
  */
 @Composable
-fun HarborStatus(text: String, ok: Boolean, detail: String? = null, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(if (ok) scheme.secondary else scheme.tertiary))
-        Column {
-            Text(text, style = MaterialTheme.typography.titleSmall)
-            if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+fun HarborStatus(text: String, ok: Boolean, detail: String? = null, modifier: Modifier = Modifier, glyph: HarborGlyph? = null) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        HarborIconChip(glyph ?: if (ok) HarborGlyph.CHECK else HarborGlyph.TOAST_REVIEW, review = !ok)
+        Column(Modifier.weight(1f)) {
+            Text(text, style = MaterialTheme.typography.titleSmall, color = harbor.ink)
+            if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
         }
     }
 }

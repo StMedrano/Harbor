@@ -2,6 +2,7 @@ package dev.stmedrano.harbor.parent.checkin
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -33,9 +34,14 @@ class CheckInUiTest {
         val answered = mutableListOf<CheckInPreset>()
         compose.setContent { HarborTheme { CheckInScreen(childUi(CheckInUiState(loaded = true, pending = pending), answered)) } }
         compose.onNodeWithText("A parent asked you to check in").assertExists()
-        compose.onNodeWithText("I’m okay").performClick()
+        // Pick a reply ("I’m okay" by default), then share: never a bare "Check in".
+        compose.onNodeWithText("I’m okay").assertIsSelected()
+        compose.onNodeWithText("Share my check-in").performClick()
         compose.onNodeWithText("Running late").performClick()
+        compose.onNodeWithText("Running late").assertIsSelected()
+        compose.onNodeWithText("Share my check-in").performClick()
         assertEquals(listOf(CheckInPreset.OK, CheckInPreset.LATE), answered)
+        compose.onNodeWithText("Check in").assertDoesNotExist()
         compose.onNodeWithText("SOS").assertDoesNotExist()
         compose.onNodeWithText("Emergency").assertDoesNotExist()
     }
@@ -71,7 +77,7 @@ class CheckInUiTest {
             }
         }
         compose.onNodeWithText("A parent asked you to check in").assertExists()
-        compose.onNodeWithText("Check in").performClick()
+        compose.onNodeWithText("Share my check-in").performClick()
         assertEquals("Check in", tab)
     }
 
@@ -93,14 +99,15 @@ class CheckInUiTest {
         val reply = CheckInEntryReply(ago(90), CheckInPreset.LATE, CheckInFix(ago(95), 41.878114, -87.629798, 18))
         compose.setContent { HarborTheme { ParentCheckInScreen(CheckInViewState(CheckInViewStatus.READY, listOf(entry(CheckInStatus.ANSWERED, 100, reply))), "Maya") { asked++ } } }
         compose.onNodeWithText("Maya is running late").assertExists()
-        compose.onNodeWithText("Ask Maya to check in", substring = false).performClick()
+        compose.onNodeWithText("Request Maya's check-in", substring = false).performClick()
         assertEquals(1, asked)
     }
 
     @Test fun parentSeesWaitingInsteadOfAskingTwice() {
         compose.setContent { HarborTheme { ParentCheckInScreen(CheckInViewState(CheckInViewStatus.READY, listOf(entry(CheckInStatus.PENDING, 5))), "Maya") {} } }
         compose.onNodeWithText("Waiting for Maya", substring = true).assertExists()
-        compose.onNodeWithText("Ask Maya to check in").assertDoesNotExist()
+        compose.onNodeWithText("Request sent").assertExists()
+        compose.onNodeWithText("Request Maya's check-in").assertDoesNotExist()
     }
 
     @Test fun parentWithoutAccessSeesNoPreviousAnswer() {

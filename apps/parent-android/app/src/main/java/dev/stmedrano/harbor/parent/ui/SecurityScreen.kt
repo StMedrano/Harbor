@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -38,7 +39,7 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
     DisposableEffect(model) { onDispose { model.clear() } }
     BackHandler { onBack() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Account security", style = MaterialTheme.typography.headlineSmall)
+        HarborScreenHeader("Your account", "Account security")
         TextButton(onBack, enabled = !closing) { Text("Back to family") }
         if (state.target != null) {
             Text("Revoke ${model.targetName() ?: "selected device"}?", style = MaterialTheme.typography.titleMedium)
@@ -47,7 +48,7 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
         state.message?.let { HarborNote(it, HarborTone.INFO) }
         if (state.phase == SecurityPhase.CONFIRMATION) HarborButton({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Confirm revocation") }
         if (state.phase == SecurityPhase.READY_TO_RETRY) HarborButton({ scope.launch { request { model.confirmRetry() } } }, enabled = enabled) { Text("Retry revocation") }
-        Text("Authenticator", style = MaterialTheme.typography.titleMedium)
+        Text("Authenticator", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleMedium)
         Text("Verification does not revoke a device. You must confirm the revocation separately.")
         HarborOutlinedButton({ scope.launch { request { model.enrollTotp() } } }, enabled = enabled) { Text("Set up authenticator") }
         state.enrollment?.let { enrollment ->
@@ -57,10 +58,8 @@ fun SecurityScreen(model: SecurityViewModel, onBack: () -> Unit, runtime: Parent
         state.factors.forEachIndexed { index, id ->
             TextButton({ selectedFactor = id }, enabled = enabled && state.enrollment == null) { Text("Use authenticator ${index + 1}") }
         }
-        OutlinedTextField(code, { code = it.filter { char -> char in '0'..'9' }.take(6) },
-            label = { Text("Authenticator code") }, singleLine = true, enabled = enabled && factor != null,
-            shape = MaterialTheme.shapes.medium, colors = harborFieldColors(),
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+        HarborField(code, { code = it.filter { char -> char in '0'..'9' }.take(6) }, "Authenticator code", enabled = enabled && factor != null,
+            hint = "The six digits in your authenticator app.", visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }))
         HarborButton({ val entered = code; val selected = factor; code = ""; if (selected != null) scope.launch { request { model.challenge(selected, entered) } } },

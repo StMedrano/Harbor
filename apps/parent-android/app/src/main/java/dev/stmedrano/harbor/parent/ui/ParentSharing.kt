@@ -70,9 +70,8 @@ fun ParentSharingPanel(ui: ParentSharingUi) {
                 HarborRow("Share my location", subtitle = if (sharing) "Sharing as ${state.mySharing?.label}" else "Children see it while Harbor is open",
                     trailing = { HarborSwitch(sharing, ui.onShareChange, Modifier.semantics { contentDescription = "Share my location" },
                         enabled = !state.busy && (sharing || validFamilyMapLabel(ui.label))) })
-                if (!sharing) OutlinedTextField(ui.label, ui.onLabel, Modifier.fillMaxWidth(), label = { Text("Name on the map") }, singleLine = true,
-                    isError = !validFamilyMapLabel(ui.label), supportingText = { if (!validFamilyMapLabel(ui.label)) Text("Use 1 to 40 characters.") },
-                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors())
+                if (!sharing) HarborField(ui.label, ui.onLabel, "Name on the map",
+                    error = if (!validFamilyMapLabel(ui.label)) "Use 1 to 40 characters." else null, hint = "How your children see you on the family map.")
                 HarborRow("Children can see the family map", divider = true,
                     trailing = { HarborSwitch(state.childrenCanView, ui.onChildrenCanViewChange, Modifier.semantics { contentDescription = "Children can see the family map" }, enabled = !state.busy) })
                 ui.placeProblem?.let { HarborNote(it, HarborTone.WARN) }

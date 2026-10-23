@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.alerts.*
@@ -29,17 +30,19 @@ fun rememberParentAlertsView(model: ParentAlertsModel?, identity: ParentIdentity
  */
 @Composable
 fun ParentAlertsScreen(view: AlertsViewState, onRefresh: (() -> Unit)? = null) {
-    HarborPanel("Message alerts") {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Text("Message alerts", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
         when (view.status) {
-            AlertsViewStatus.NONE -> HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE)
-            AlertsViewStatus.EXPIRED -> HarborEmptyState("No alerts in the last 30 days.", art = HarborArt.CALM)
+            AlertsViewStatus.NONE -> HarborCard { HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE) }
+            AlertsViewStatus.EXPIRED -> HarborCard { HarborEmptyState("No alerts in the last 30 days.", art = HarborArt.CALM) }
             AlertsViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this device's alerts.", HarborTone.DANGER, emphasis = true)
             AlertsViewStatus.LOAD_FAILED -> HarborNote("Alerts could not be loaded. Check your connection and try again.", HarborTone.DANGER, emphasis = true)
             AlertsViewStatus.AVAILABLE -> AvailableAlerts(view)
         }
-        if (view.offline) Text("Showing the alerts that last loaded. They could not be refreshed just now.", style = MaterialTheme.typography.bodySmall)
+        if (view.offline) Text("Showing the alerts that last loaded. They could not be refreshed just now.", style = MaterialTheme.typography.bodySmall,
+            color = harbor.ink2)
         HarborNote(ALERT_LIMITS_NOTICE, HarborTone.INFO)
-        if (onRefresh != null && view.status != AlertsViewStatus.ACCESS_LOST) HarborSecondaryButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh alerts") }
+        if (onRefresh != null && view.status != AlertsViewStatus.ACCESS_LOST) HarborOutlinedButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh alerts") }
     }
 }
 
@@ -48,15 +51,10 @@ private fun AvailableAlerts(view: AlertsViewState) {
     if (view.notificationAccess == false) HarborNote("Notification access is off on this phone, so chat-app alerts are not arriving.", HarborTone.WARN)
     if (view.smsPermission == false) HarborNote("SMS permission is off on this phone, so text-message alerts are not arriving.", HarborTone.WARN)
     if (view.alerts.isEmpty()) {
-        HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE)
+        HarborCard { HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE) }
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        view.alerts.forEachIndexed { index, alert ->
-            if (index > 0) HorizontalDivider(color = harbor.line)
-            AlertRow(alert)
-        }
-    }
+    view.alerts.forEach { alert -> AlertCard(alert) }
 }
 
 /** Urgent (coral) for a possible risk to someone's safety; every other flag is for review (amber). Always with the word. */
@@ -65,15 +63,16 @@ private fun alertTone(category: AlertCategory) = when (category) {
     else -> HarborTagTone.MEDIUM
 }
 
+/**
+ * Design system `AlertCard`: the tag word first, then what was flagged (a possibility, never a verdict), then the app and
+ * when. No message text, ever. An urgent card carries a coral border; the event owns the colour, never the child.
+ */
 @Composable
-private fun AlertRow(alert: MessageAlert) {
+private fun AlertCard(alert: MessageAlert) {
     val contact = if (alert.savedContact) "a saved contact" else "someone not in contacts"
     val tone = alertTone(alert.category)
-    Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Alert: ${alertCategoryLabel(alert.category)}" },
-    ) {
-        HarborTag(if (tone == HarborTagTone.HIGH) "Urgent" else "Review", tone)
+    HarborCard(Modifier.semantics(mergeDescendants = false) { contentDescription = "Alert: ${alertCategoryLabel(alert.category)}" },
+        tag = if (tone == HarborTagTone.HIGH) "Urgent" else "Review", tagTone = tone, border = if (tone == HarborTagTone.HIGH) harbor.dan else harbor.line) {
         Text(alertCategoryLabel(alert.category), style = MaterialTheme.typography.titleMedium)
         Text("${alert.appLabel} · ${formatTimestamp(alert.at)} · from $contact", style = MaterialTheme.typography.bodySmall,
             color = harbor.ink3)

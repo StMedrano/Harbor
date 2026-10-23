@@ -44,6 +44,20 @@ fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, m
     val ink = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else primary
     val land = harbor.land
     val ring = harbor.pinRing
+    val swell = harbor.acc
+    // Location ripple (design system motion): one sea-glass ring from the pin each time a new place arrives while the map
+    // is open. Never on first draw, never looping, and not at all when the phone's animations are off.
+    val reduced = rememberReducedMotion()
+    val ripple = remember { androidx.compose.animation.core.Animatable(1f) }
+    var shownAt by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(latest.at) {
+        val previous = shownAt
+        shownAt = latest.at
+        if (previous != null && previous != latest.at && !reduced) {
+            ripple.snapTo(0f)
+            ripple.animateTo(1f, androidx.compose.animation.core.tween(1200, easing = HarborEasing.swell))
+        }
+    }
     BoxWithConstraints(modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(20.dp)).semantics { contentDescription = description }) {
         val density = LocalDensity.current
         val width = with(density) { maxWidth.toPx() }.toDouble()
@@ -87,6 +101,9 @@ fun LocationMap(fixes: List<LocationFix>, stale: Boolean, description: String, m
             }
             val here = at(latest)
             drawCircle(ink.copy(alpha = 0.16f), radius = MapMath.accuracyRadiusPx(latest.accuracyM, latest.latitude, zoom).toFloat(), center = here)
+            val wave = ripple.value
+            if (wave < 1f) drawCircle(swell.copy(alpha = 0.7f * (1f - wave)), radius = 14.dp.toPx() * (1f + 1.6f * wave), center = here,
+                style = Stroke(width = 2.dp.toPx()))
             drawCircle(ring, radius = 14.dp.toPx(), center = here)
             drawCircle(ink, radius = 11.dp.toPx(), center = here)
         }

@@ -46,20 +46,20 @@ fun LocationStatusSection(ui: ChildLocationUi) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         when (locationStatus(ui.access)) {
             LocationStatus.PERMISSION_LOST -> {
-                HarborStatus("Location off", ok = false)
+                HarborStatus("Location off", ok = false, glyph = HarborGlyph.MAP)
                 HarborButton(ui.onAllowLocation, Modifier.fillMaxWidth()) { Text("Allow location") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }
             LocationStatus.SERVICES_OFF -> {
-                HarborStatus("Location is off in Android settings", ok = false)
+                HarborStatus("Location is off in Android settings", ok = false, glyph = HarborGlyph.MAP)
                 HarborButton(ui.onOpenLocationSettings, Modifier.fillMaxWidth()) { Text("Open location settings") }
             }
             LocationStatus.BACKGROUND_MISSING -> {
-                HarborStatus("Sharing only while Harbor is open", ok = false)
+                HarborStatus("Sharing only while Harbor is open", ok = false, glyph = HarborGlyph.MAP)
                 HarborButton(ui.onAllowAllTheTime, Modifier.fillMaxWidth()) { Text("Allow all the time") }
                 HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
             }
-            LocationStatus.SHARING -> HarborStatus("Sharing location", ok = true,
+            LocationStatus.SHARING -> HarborStatus("Sharing location", ok = true, glyph = HarborGlyph.MAP,
                 detail = if (ui.host.uploadFailing) "Can't reach Harbor. Trying again."
                     else ui.host.lastUploadMs?.let { "Last sent ${formatTimestamp(java.time.Instant.ofEpochMilli(it).toString())}" })
         }

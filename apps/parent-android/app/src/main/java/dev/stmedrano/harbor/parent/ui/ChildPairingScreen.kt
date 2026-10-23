@@ -38,12 +38,10 @@ import kotlinx.coroutines.withContext
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Ask your parent for a fresh six-digit pairing code.")
-        OutlinedTextField(code, onValueChange = { value ->
+        HarborField(code, onValueChange = { value ->
             if (!busy && value.length <= 6 && value.all { it in '0'..'9' }) code = value
-        }, label = { Text("Pairing code") }, singleLine = true, enabled = !busy,
-            textStyle = HarborCodeStyle.copy(fontSize = 22.sp, lineHeight = 28.sp), shape = MaterialTheme.shapes.medium, colors = harborFieldColors(),
-            modifier = Modifier.fillMaxWidth(),
+        }, label = "Pairing code", enabled = !busy, hint = "Six digits from your parent's Harbor app. A code works for 10 minutes.",
+            textStyle = HarborCodeStyle.copy(fontSize = 22.sp, lineHeight = 28.sp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
         HarborButton(modifier = Modifier.fillMaxWidth(), enabled = !busy && code.matches(Regex("[0-9]{6}")), onClick = {
             val submitted = code

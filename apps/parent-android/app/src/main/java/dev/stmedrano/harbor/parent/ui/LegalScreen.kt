@@ -30,10 +30,11 @@ fun rememberLegalBlocks(doc: LegalDoc): List<LegalBlock> {
     }
 }
 
+/** [showTitle] false when the page already has its own header (the child's About tab), so the title is not said twice. */
 @Composable
-fun LegalBody(blocks: List<LegalBlock>) {
+fun LegalBody(blocks: List<LegalBlock>, showTitle: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        blocks.forEach { block ->
+        blocks.filter { showTitle || it !is LegalBlock.Title }.forEach { block ->
             when (block) {
                 is LegalBlock.Title -> Text(block.text, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
                 is LegalBlock.Heading -> Text(block.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
@@ -51,7 +52,7 @@ fun LegalBody(blocks: List<LegalBlock>) {
 @Composable
 fun LegalScreen(doc: LegalDoc, onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        TextButton(onBack) { Text("Back") }
+        HarborBackButton(onBack)
         LegalBody(rememberLegalBlocks(doc))
     }
 }
@@ -60,7 +61,8 @@ fun LegalScreen(doc: LegalDoc, onBack: () -> Unit) {
 @Composable
 fun PolicyLinks(onOpen: (LegalDoc) -> Unit) {
     HarborCard {
-        HarborRow("Privacy policy", onClick = { onOpen(LegalDoc.PRIVACY) }, trailing = { Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant) })
-        HarborRow("Terms of service", divider = true, onClick = { onOpen(LegalDoc.TERMS) }, trailing = { Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant) })
+        HarborRow("Privacy policy", onClick = { onOpen(LegalDoc.PRIVACY) }, leading = { HarborIcon(HarborGlyph.LOCK, harbor.ink2) }, trailing = { HarborChevron() })
+        HarborRow("Terms of service", divider = true, onClick = { onOpen(LegalDoc.TERMS) }, leading = { HarborIcon(HarborGlyph.ANCHOR, harbor.ink2) },
+            trailing = { HarborChevron() })
     }
 }

@@ -12,8 +12,7 @@ fun ChildSetupSheet(initialName: String = "", busy: Boolean, error: String?, onS
     AlertDialog(onDismissRequest = { if (!busy) onCancel() }, title = { Text("Add child", style = MaterialTheme.typography.titleMedium) },
         text = {
             androidx.compose.foundation.layout.Column {
-                OutlinedTextField(name, { name = it }, label = { Text("Child name") }, enabled = !busy, singleLine = true,
-                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors())
+                HarborField(name, { name = it }, "Child name", enabled = !busy, hint = "Shown only to your family.")
                 if (error != null) HarborNote(error, HarborTone.DANGER, Modifier.padding(top = 8.dp), emphasis = true)
                 if (busy) CircularProgressIndicator()
             }

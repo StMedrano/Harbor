@@ -36,26 +36,22 @@ import kotlinx.coroutines.*
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Parent approval", style = MaterialTheme.typography.headlineSmall)
-        Text("A parent must confirm removal before this phone can change roles.")
+        HarborScreenHeader("Change this phone's role", "Parent approval",
+            subtitle = "A parent must confirm removal before this phone can change roles.")
         when (step) {
             0 -> {
-                OutlinedTextField(email, { if (!busy) email = it }, label = { Text("Parent email") },
-                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-                OutlinedTextField(password, { if (!busy) password = it }, label = { Text("Parent password") },
-                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+                HarborField(email, { if (!busy) email = it }, "Parent email", enabled = !busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                HarborField(password, { if (!busy) password = it }, "Parent password", enabled = !busy,
+                    visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                 HarborButton(enabled = !busy && email.isNotBlank() && password.isNotBlank(), onClick = {
                     val submittedEmail = email; val submittedPassword = password; password = ""
                     perform(1, "Use a confirmed parent account with an authenticator set up.") { onSignIn(submittedEmail, submittedPassword) }
                 }) { Text(if (busy) "Checking…" else "Continue as parent") }
             }
             1 -> {
-                OutlinedTextField(code, { if (!busy && it.length <= 6 && it.all { char -> char in '0'..'9' }) code = it },
-                    label = { Text("Authenticator code") }, singleLine = true, enabled = !busy,
-                    shape = MaterialTheme.shapes.medium, colors = harborFieldColors(), modifier = Modifier.fillMaxWidth(),
+                HarborField(code, { if (!busy && it.length <= 6 && it.all { char -> char in '0'..'9' }) code = it },
+                    "Authenticator code", enabled = !busy, hint = "The six digits in your authenticator app.",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
                 HarborButton(enabled = !busy && code.length == 6, onClick = {
                     val submitted = code; code = ""

@@ -3,6 +3,10 @@ package dev.stmedrano.harbor.parent.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -151,7 +155,7 @@ fun harborNight(): Boolean = when (HarborAppearanceStore.mode) {
 
 @Composable
 fun HarborTheme(dark: Boolean = harborNight(), content: @Composable () -> Unit) {
-    val c = if (dark) NightHarbor else Daybreak
+    val c = tide(if (dark) NightHarbor else Daybreak)
     val view = LocalView.current
     if (!view.isInEditMode) SideEffect {
         // Status and navigation bar icons follow Harbor's theme, which can differ from the phone's when chosen in Settings.
@@ -165,6 +169,27 @@ fun HarborTheme(dark: Boolean = harborNight(), content: @Composable () -> Unit) 
     CompositionLocalProvider(LocalHarborColors provides c) {
         MaterialTheme(colorScheme = materialColors(c), typography = harborTypography(), shapes = HarborShapes, content = content)
     }
+}
+
+/**
+ * The day/night tide (design system motion): when the theme changes, every colour crossfades over 400ms instead of
+ * snapping. It plays only on a change, never on first draw, and not at all when the phone's animations are off.
+ */
+@Composable
+private fun tide(target: HarborColors): HarborColors {
+    val spec: AnimationSpec<Color> = if (rememberReducedMotion()) snap() else tween(400, easing = HarborEasing.tide)
+    @Composable fun a(color: Color) = animateColorAsState(color, spec, label = "tide").value
+    return HarborColors(
+        bg = a(target.bg), s = a(target.s), s2 = a(target.s2), line = a(target.line),
+        ink = a(target.ink), ink2 = a(target.ink2), ink3 = a(target.ink3),
+        brand = a(target.brand), bi = a(target.bi), acc = a(target.acc), accs = a(target.accs),
+        warn = a(target.warn), warns = a(target.warns), warni = a(target.warni),
+        dan = a(target.dan), dans = a(target.dans), onDan = a(target.onDan),
+        water = a(target.water), ripple = a(target.ripple), land = a(target.land), shore = a(target.shore),
+        road = a(target.road), pinRing = a(target.pinRing),
+        toastBg = a(target.toastBg), toastBorder = a(target.toastBorder), scrim = a(target.scrim),
+        logoWave = a(target.logoWave), night = target.night,
+    )
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

@@ -7,7 +7,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import dev.stmedrano.harbor.parent.usage.formatUsageDuration
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -64,15 +68,17 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
                         TextButton({ selectTab("About") }) { Text("What Harbor shares and why") }
                     }
                 }
+                if (usage != null) ChildScreenTimeCard(usage.view) { selectTab("Apps") }
                 if (controls != null) ControlsPanel(controls)
-                if (usage != null) UsageTodayPanel(usage.view)
                 HarborOutlinedButton(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Sync now") }
             }
             CHECK_IN_TAB -> if (checkIn != null) CheckInScreen(checkIn) else Text("Check-ins are starting. Try again in a moment.")
             FAMILY_MAP_TAB -> if (familyMap != null) FamilyMapScreen(familyMap) else Text("The family map is starting. Try again in a moment.")
             "Apps" -> if (usage != null) UsageAppsPanel(usage.view) else Text("App information is not available yet.")
             "About" -> {
-                LegalBody(rememberLegalBlocks(LegalDoc.CHILD_ABOUT))
+                ChildTransparency(location = location != null, usage = usage != null, alerts = alerts != null, controls = controls != null,
+                    checkIn = checkIn != null)
+                LegalBody(rememberLegalBlocks(LegalDoc.CHILD_ABOUT), showTitle = false)
                 PolicyLinks { legalDoc = it }
                 if (onEnableNotifications != null) {
                     HarborCard {
@@ -84,6 +90,54 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
                 HarborOutlinedButton(onClick = onRequestRoleChange, modifier = Modifier.fillMaxWidth()) { Text("Ask a parent to change setup") }
             }
         }
+    }
+}
+
+/** Today's screen time on the child's phone, and the way to the Apps tab (child view design). */
+@Composable
+fun ChildScreenTimeCard(state: dev.stmedrano.harbor.parent.usage.UsageViewState, onApps: () -> Unit) {
+    UsageNoticeList(state)
+    val measured = state.status == dev.stmedrano.harbor.parent.usage.UsageViewStatus.MEASURED
+    HarborCard {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Your screen time today", style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                Text(if (measured) formatUsageDuration(state.today?.totalMs) else "—", style = HarborMetricStyle, color = harbor.ink)
+            }
+            HarborSecondaryButton(onApps, small = true) { Text("See your apps") }
+        }
+    }
+}
+
+/**
+ * Design system `Transparency`: what parents can see and control, and what Harbor never does, in plain sentences. Each
+ * line is shown only when that part of Harbor is running on this phone, so the list always matches the parent app.
+ */
+@Composable
+fun ChildTransparency(location: Boolean, usage: Boolean, alerts: Boolean, controls: Boolean, checkIn: Boolean) {
+    val can = buildList {
+        if (location) add("Where this phone is, how accurate that is and when it was sent. Harbor keeps places for 30 days.")
+        if (usage) add("How long you use this phone each day, and which apps.")
+        if (controls) add("Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work.")
+        if (alerts) add("When a notification is flagged: the app, the time and the kind of concern.")
+        if (checkIn) add("Your answer when a parent asks you to check in, with this phone's last known place.")
+    }
+    if (can.isNotEmpty()) HarborCard(title = "What your parents can see") {
+        can.forEach { line -> TransparencyLine(line, harbor.acc) }
+    }
+    HarborCard(title = "What Harbor does not do") {
+        if (alerts) TransparencyLine("It never sends your message text to your parents.", harbor.ink3)
+        TransparencyLine("It never sees what's on your screen, only which app is open.", harbor.ink3)
+        TransparencyLine("It can't use your camera or microphone.", harbor.ink3)
+    }
+}
+
+@Composable
+private fun TransparencyLine(text: String, dot: androidx.compose.ui.graphics.Color) {
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        androidx.compose.foundation.layout.Box(Modifier.padding(top = 8.dp).size(8.dp)
+            .background(dot, androidx.compose.foundation.shape.CircleShape))
+        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = harbor.ink)
     }
 }
 

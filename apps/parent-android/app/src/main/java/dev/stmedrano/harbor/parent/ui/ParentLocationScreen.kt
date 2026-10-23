@@ -27,13 +27,15 @@ fun ParentLocationScreen(view: LocationViewState, onRefresh: (() -> Unit)? = nul
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = System.currentTimeMillis() } }
     HarborPanel("Location") {
         when (view.status) {
-            LocationViewStatus.NONE -> Text("No place shared yet.")
-            LocationViewStatus.EXPIRED -> Text("No places in the last 30 days.")
+            LocationViewStatus.NONE -> HarborEmptyState("No place shared yet.", art = HarborArt.BUOY,
+                body = "It shows up here once the phone shares where it is.")
+            LocationViewStatus.EXPIRED -> HarborEmptyState("No places in the last 30 days.", art = HarborArt.CALM)
             LocationViewStatus.ACCESS_LOST -> HarborNote("You no longer have access to this device's location.", HarborTone.DANGER, emphasis = true)
             LocationViewStatus.LOAD_FAILED -> HarborNote("Location could not be loaded. Check your connection and try again.", HarborTone.DANGER, emphasis = true)
             LocationViewStatus.AVAILABLE -> AvailableLocation(view, now, accent.takeIf { it != Color.Unspecified } ?: MaterialTheme.colorScheme.primary)
         }
-        if (view.offline) Text("Showing the last place that loaded. It could not be refreshed just now.", style = MaterialTheme.typography.bodySmall)
+        if (view.offline) Text("Showing the last place that loaded. It could not be refreshed just now.", style = MaterialTheme.typography.bodySmall,
+            color = harbor.ink2)
         if (onRefresh != null && view.status != LocationViewStatus.ACCESS_LOST) HarborSecondaryButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh location") }
     }
 }
@@ -55,8 +57,10 @@ private fun AvailableLocation(view: LocationViewState, now: Long, accent: Color)
         HarborNote("$reason The map shows its last known place, not where it is now.", HarborTone.WARN, emphasis = true)
     }
     LocationMap(view.fixes, stale, label, accent = accent)
-    Text("Seen ${locationAgeLabel(now - seen)} · ${formatTimestamp(latest.at)}", style = MaterialTheme.typography.titleMedium)
-    Text("Accurate to about ${latest.accuracyM} m · ${providerLabel(latest.provider)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Freshness on the line itself (design system `StatusSummary` rows): amber with a word when the place is old.
+    HarborStatus("Seen ${locationAgeLabel(now - seen)} · ${formatTimestamp(latest.at)}", ok = !stale,
+        detail = "Accurate to about ${latest.accuracyM} m · ${providerLabel(latest.provider)}", glyph = HarborGlyph.MAP)
+    if (stale) HarborTag("Needs refresh", HarborTagTone.MEDIUM)
 }
 
 private fun providerLabel(provider: LocationProvider) = when (provider) {

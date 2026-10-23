@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +33,10 @@ private fun stamp(iso: String?): String = iso?.let { runCatching { stampFormat.f
 /** Local, readable time for a server timestamp; an unparseable value is shown unchanged rather than hidden. */
 internal fun formatTimestamp(iso: String): String =
     runCatching { stampFormat.format(java.time.OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault())) }.getOrDefault(iso)
+private val clockFormat = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+/** Local time of day ("3:42 PM") for a server timestamp; an unparseable value is shown unchanged. */
+internal fun formatClock(iso: String): String =
+    runCatching { clockFormat.format(java.time.OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault())) }.getOrDefault(iso)
 private fun dayLabel(localDate: String): String = runCatching {
     java.time.LocalDate.parse(localDate).format(DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()))
 }.getOrDefault(localDate)
@@ -77,8 +82,9 @@ private fun DayBars(days: List<UsageDayRow>) {
                         Text("?", style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
+                    // Design system `BarChart`: plain sea-glass bars, no axes or gridlines.
                     Box(Modifier.fillMaxWidth().height((day.totalMs.toFloat() / known * 104f).coerceAtLeast(2f).dp)
-                        .background(MaterialTheme.colorScheme.secondary, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 3.dp, bottomEnd = 3.dp)))
+                        .background(harbor.acc, RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)))
                 }
                 Text(dayLabel(day.localDate).takeLast(2).trim(), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -132,9 +138,12 @@ fun UsageAppsPanel(state: UsageViewState) {
 fun UsageReportScreen(state: UsageViewState, onRefresh: (() -> Unit)? = null) {
     var tab by remember { mutableStateOf("Today") }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Screen time", style = MaterialTheme.typography.titleMedium)
+        Text("Screen time", Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
         HarborTabs(listOf("Today", "Apps").map { title -> HarborTab(title, tab == title) { tab = title } })
         if (tab == "Today") UsageTodayPanel(state) else UsageAppsPanel(state)
         if (onRefresh != null) HarborOutlinedButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh") }
+        if (state.status == UsageViewStatus.MEASURED && state.days.none { it.totalMs != null }) HarborCard {
+            HarborEmptyState("No screen time this week yet.", art = HarborArt.CALM)
+        }
     }
 }

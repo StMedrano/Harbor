@@ -1,8 +1,19 @@
 package dev.stmedrano.harbor.parent.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,13 +59,13 @@ fun rememberChildCheckInUi(graph: ParentApplication, lease: ProfileLease, resume
 
 internal fun presetWords(preset: CheckInPreset) = if (preset == CheckInPreset.OK) "Checked in, I’m okay" else "Checked in, running late"
 
-/** The banner on Today while a request is open. */
+/** The banner on Today while a request is open. Answering is "Share my check-in", never a bare "Check in". */
 @Composable
 fun CheckInRequestBanner(pending: CheckInPending, onOpen: () -> Unit) {
     HarborNote(HarborTone.WARN) {
         Text("A parent asked you to check in", style = MaterialTheme.typography.titleSmall)
-        Text("Asked ${formatTimestamp(pending.requestedAt)}")
-        HarborButton(onOpen, Modifier.fillMaxWidth()) { Text("Check in") }
+        Text("Asked ${formatClock(pending.requestedAt)}", style = MaterialTheme.typography.bodySmall)
+        HarborButton(onOpen, Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Share my check-in") }
     }
 }
 
@@ -64,19 +75,26 @@ fun CheckInScreen(ui: ChildCheckInUi) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         val pending = state.pending
         when {
+            // Design system `CheckInPrompt`: pick a short reply ("I’m okay" by default), then share. Two taps, no pressure.
             pending != null -> HarborCard {
+                var reply by remember(pending.requestId) { mutableStateOf(CheckInPreset.OK) }
                 Text("A parent asked you to check in", style = MaterialTheme.typography.titleMedium)
-                Text("Asked ${formatTimestamp(pending.requestedAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Your parents get your answer, the time and your last known place.", style = MaterialTheme.typography.bodyMedium)
-                HarborButton({ ui.onAnswer(CheckInPreset.OK) }, Modifier.fillMaxWidth(), enabled = !state.sending) { Text("I’m okay") }
-                HarborOutlinedButton({ ui.onAnswer(CheckInPreset.LATE) }, Modifier.fillMaxWidth(), enabled = !state.sending) { Text("Running late") }
-                if (state.sending) Text("Sending…", style = MaterialTheme.typography.bodySmall)
+                Text("Asked ${formatClock(pending.requestedAt)}", style = MaterialTheme.typography.bodySmall, color = harbor.ink3)
+                Text("Your parents get your answer, the time and your last known place.", style = MaterialTheme.typography.bodyMedium, color = harbor.ink2)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReplyOption("I’m okay", reply == CheckInPreset.OK, !state.sending, Modifier.weight(1f)) { reply = CheckInPreset.OK }
+                    ReplyOption("Running late", reply == CheckInPreset.LATE, !state.sending, Modifier.weight(1f)) { reply = CheckInPreset.LATE }
+                }
+                HarborButton({ ui.onAnswer(reply) }, Modifier.fillMaxWidth(), enabled = !state.sending) {
+                    Text(if (state.sending) "Sending…" else "Share my check-in")
+                }
             }
             !state.loaded -> HarborCard {
-                Text("Looking for requests…", style = MaterialTheme.typography.titleMedium)
+                HarborEmptyState("Looking for requests…", art = HarborArt.BUOY)
             }
             else -> HarborCard {
-                Text("Nothing to answer right now", style = MaterialTheme.typography.titleMedium)
+                HarborEmptyState("Nothing to answer right now", art = HarborArt.CALM,
+                    body = "When a parent asks you to check in, it shows up here and on Today.")
             }
         }
         when (state.problem) {
@@ -92,12 +110,25 @@ fun CheckInScreen(ui: ChildCheckInUi) {
     }
 }
 
+/** One preset reply (design system `CheckInPrompt` options): a block that is tinted sea glass when chosen. */
+@Composable
+private fun ReplyOption(label: String, selected: Boolean, enabled: Boolean, modifier: Modifier, onSelect: () -> Unit) {
+    val c = harbor
+    Box(modifier.heightIn(min = 48.dp).alpha(if (enabled) 1f else 0.45f).clip(MaterialTheme.shapes.medium)
+        .background(if (selected) c.accs else androidx.compose.ui.graphics.Color.Transparent)
+        .border(1.dp, if (selected) c.acc else c.line, MaterialTheme.shapes.medium)
+        .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect),
+        contentAlignment = Alignment.Center) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) c.acc else c.ink2)
+    }
+}
+
 @Composable
 private fun EarlierCheckIns(recent: List<CheckInRecent>) {
     HarborPanel("Earlier") {
         recent.forEachIndexed { index, item ->
             HarborRow(presetWords(item.preset), subtitle = formatTimestamp(item.repliedAt), divider = index > 0,
-                trailing = { if (item.located) HarborTag("Place sent") })
+                leading = { HarborIcon(HarborGlyph.CHECK, harbor.acc) }, trailing = { if (item.located) HarborTag("Place sent", HarborTagTone.LOW) })
         }
     }
 }

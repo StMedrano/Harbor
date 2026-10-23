@@ -327,11 +327,10 @@ fun ParentControlsScreen(view: ControlsViewState, childName: String, usage: Usag
     }
 
     sheetFor?.let { app ->
-        ModalBottomSheet({ sheetFor = null }) {
-            Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${app.label} for $childName", style = MaterialTheme.typography.titleLarge)
+        HarborSheet({ sheetFor = null }, title = "${app.label} for $childName") {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${app.usedMinutes}m used today. Limits are hard stops.", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    color = harbor.ink2)
                 Spacer(Modifier.height(8.dp))
                 val current = ruleOf(c, app.pkg)
                 val minutes = c.appLimits.firstOrNull { it.packageName == app.pkg }?.minutesPerDay
@@ -382,9 +381,8 @@ fun DurationPickerSheet(title: String, initialMinutes: Int, onDismiss: () -> Uni
     var hours by remember { mutableStateOf(start / 60) }
     var minutes by remember { mutableStateOf((start % 60) / 5 * 5) }
     val total = (if (hours >= 12) 12 * 60 else hours * 60 + minutes).coerceAtLeast(5)
-    ModalBottomSheet(onDismiss) {
-        Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
+    HarborSheet(onDismiss, title = title) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Wheel(pickerHours, hours, { "$it h" }, Modifier.weight(1f)) { hours = it }
                 Wheel(pickerMinutes, minutes, { "$it min" }, Modifier.weight(1f)) { minutes = it }

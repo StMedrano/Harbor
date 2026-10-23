@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.stmedrano.harbor.parent.access.AccessReason
@@ -45,18 +46,67 @@ class HarborDesignGalleryTest {
     private val tiktok = "com.zhiliaoapp.musically"
     private val now = ZonedDateTime.now(ZoneId.systemDefault())
 
-    private enum class Screen { WELCOME, SIGN_IN, MAP, ALERTS, CONTROLS, FAMILY, CHILD_TODAY, TOASTS }
+    // Sign-in is left out: it sets FLAG_SECURE, so Android blanks any screenshot of it (FIELDS shows the same field).
+    private enum class Screen { WELCOME, FIELDS, MAP, CHECK_IN, ALERTS, CONTROLS, ACTIVITY, FAMILY, PAIRING, CHILD_TODAY, CHILD_CHECK_IN, CHILD_ABOUT, TOASTS }
+
+    private fun iso(minutesAgo: Long) = now.minusMinutes(minutesAgo).toInstant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString()
+    private fun event(kind: dev.stmedrano.harbor.parent.activity.ActivityKind, minutesAgo: Long, minutes: Long? = null, app: String? = null, label: String? = null,
+        reason: dev.stmedrano.harbor.parent.activity.BlockReason? = null) =
+        dev.stmedrano.harbor.parent.activity.ActivityEvent("e$minutesAgo", kind, iso(minutesAgo), minutes?.let { iso(minutesAgo - it) }, app, label, reason)
 
     @Composable
     private fun Render(screen: Screen) {
         val parentBar: @Composable () -> Unit = {
             HarborBottomBar(parentNavItems(when (screen) {
-                Screen.ALERTS -> ParentTab.ALERTS; Screen.CONTROLS -> ParentTab.CONTROLS; Screen.FAMILY -> ParentTab.FAMILY; else -> ParentTab.MAP
+                Screen.ALERTS -> ParentTab.ALERTS; Screen.CONTROLS -> ParentTab.CONTROLS; Screen.ACTIVITY -> ParentTab.ACTIVITY
+                Screen.FAMILY, Screen.PAIRING -> ParentTab.FAMILY; else -> ParentTab.MAP
             }) {})
         }
         when (screen) {
             Screen.WELCOME -> ParentApp(showBrand = false, centered = true) { FamilyEntryScreen({}, {}) }
-            Screen.SIGN_IN -> ParentApp(showBrand = false) { AuthScreen(null, null) {} }
+            Screen.FIELDS -> ParentApp(showBrand = false) {
+                HarborScreenHeader("Parent account", "Welcome back", subtitle = "Sign in to see how your family is doing.")
+                HarborField("alex@example.invalid", {}, "Email")
+                HarborField("secret", {}, "Password", error = "Incorrect email or password.",
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailing = { androidx.compose.material3.TextButton({}) { androidx.compose.material3.Text("Show", color = harbor.acc) } })
+                HarborField("", {}, "Pairing code", hint = "Six digits from your parent's Harbor app. A code works for 10 minutes.")
+                HarborButton({}, androidx.compose.ui.Modifier.fillMaxWidth()) { androidx.compose.material3.Text("Sign in") }
+            }
+            Screen.CHECK_IN -> ParentApp(bottomBar = parentBar) {
+                KidSwitcher(kids, "b", {}, {})
+                ParentCheckInScreen(dev.stmedrano.harbor.parent.checkin.CheckInViewState(dev.stmedrano.harbor.parent.checkin.CheckInViewStatus.READY, listOf(
+                    dev.stmedrano.harbor.parent.checkin.CheckInEntry("c1", iso(3), iso(-60 * 23), dev.stmedrano.harbor.parent.checkin.CheckInStatus.PENDING, null))), "Maya") {}
+                ParentCheckInScreen(dev.stmedrano.harbor.parent.checkin.CheckInViewState(dev.stmedrano.harbor.parent.checkin.CheckInViewStatus.READY, listOf(
+                    dev.stmedrano.harbor.parent.checkin.CheckInEntry("c2", iso(40), iso(-60 * 23), dev.stmedrano.harbor.parent.checkin.CheckInStatus.ANSWERED,
+                        dev.stmedrano.harbor.parent.checkin.CheckInEntryReply(iso(35), dev.stmedrano.harbor.parent.checkin.CheckInPreset.OK, null)))), "Maya") {}
+            }
+            Screen.ACTIVITY -> ParentApp(bottomBar = parentBar) {
+                val today = now.toLocalDate()
+                ParentTabHeader(ParentTab.ACTIVITY, "Leo's Pixel 8")
+                ParentActivityScreen(dev.stmedrano.harbor.parent.activity.ActivityViewState(dev.stmedrano.harbor.parent.activity.ActivityViewStatus.AVAILABLE, today, true,
+                    listOf(event(dev.stmedrano.harbor.parent.activity.ActivityKind.APP_SESSION, 300, 42, youtube, "YouTube"), event(dev.stmedrano.harbor.parent.activity.ActivityKind.LIMIT_REACHED, 250, null, youtube, "YouTube"),
+                        event(dev.stmedrano.harbor.parent.activity.ActivityKind.BLOCKED_OPEN, 200, null, tiktok, "TikTok", dev.stmedrano.harbor.parent.activity.BlockReason.BLOCKED_APP),
+                        event(dev.stmedrano.harbor.parent.activity.ActivityKind.APP_SESSION, 120, 25, "com.whatsapp", "WhatsApp"), event(dev.stmedrano.harbor.parent.activity.ActivityKind.BEDTIME_STARTED, 30)),
+                    listOf(dev.stmedrano.harbor.parent.activity.AppTotal(youtube, "YouTube", 42 * 60_000L), dev.stmedrano.harbor.parent.activity.AppTotal("com.whatsapp", "WhatsApp", 25 * 60_000L)),
+                    screenTime = dev.stmedrano.harbor.parent.activity.ScreenTime(today.toString(), 80 * 60_000L, emptyList())), today, {}, {})
+            }
+            Screen.PAIRING -> ParentApp(bottomBar = parentBar) {
+                FamilyScreen(FamilyState(snapshot), listOf(snapshot.family), "a", {}, {}, {}, {}, {}, {}, {})
+                PairingSheet(PairingState("a", PairingCode("482913", iso(-10))), false, null, {}, {}, {})
+            }
+            Screen.CHILD_CHECK_IN -> ParentApp(bottomBar = { HarborBottomBar(childNavItems(CHECK_IN_TAB, withCheckIn = true) {}) }) {
+                val (eyebrow, title) = childHeader(CHECK_IN_TAB)
+                HarborScreenHeader(eyebrow, checkNotNull(title))
+                CheckInScreen(ChildCheckInUi(dev.stmedrano.harbor.parent.checkin.CheckInUiState(loaded = true,
+                    pending = dev.stmedrano.harbor.parent.checkin.CheckInPending("p1", iso(2), iso(-60 * 23)),
+                    recent = listOf(dev.stmedrano.harbor.parent.checkin.CheckInRecent("r1", iso(60 * 26), iso(60 * 26 - 3), dev.stmedrano.harbor.parent.checkin.CheckInPreset.OK, true))), {}, {}))
+            }
+            Screen.CHILD_ABOUT -> ParentApp(bottomBar = { HarborBottomBar(childNavItems("About", withCheckIn = true) {}) }) {
+                ChildDashboard(ChildSyncState.Stale(1000), ChildBinding("device-a", "family-a", "child-a"), {}, {},
+                    checkIn = ChildCheckInUi(dev.stmedrano.harbor.parent.checkin.CheckInUiState(loaded = true), {}, {}),
+                    controls = ChildControlsUi(ControlsV1(), true, emptyMap(), emptyMap(), now) {}, tab = "About")
+            }
             Screen.MAP -> ParentApp(bottomBar = parentBar) {
                 KidSwitcher(kids, "b", {}, {}, meta = "School · 2 min ago")
                 ParentChildPage(ParentTab.MAP, kids[1], null, ParentChildData(), Color.Unspecified) {}
