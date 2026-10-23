@@ -1,72 +1,52 @@
-// CHILD experience: simple, friendly, and open about what parents can see. Mounted only for role === 'child'.
+// CHILD experience on the web (development preview): open about what parents can see. Mounted only for role === 'child'.
+// The Harbor Family Android app is what measures, shares and enforces; this browser shares nothing.
 import { api, ApiError } from './api.js';
-import { $, e, LOGO, toast, open, shut, fld, form } from './common.js';
+import { $, e, icon, brand, header, note, btn, fld, form, open, shut, toast, busy, empty } from './common.js';
 import { renderDisclosure } from './child-disclosure.js';
 
-const TABS = { today: 'Today', apps: 'Apps', about: 'About me' };
-const ico = {
-  today: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
-  apps: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
-  about: '<path d="M12 21s-7-4.4-7-10V6l7-3 7 3v5c0 5.6-7 10-7 10z"/><path d="m9 12 2 2 4-4"/>',
-};
+const TABS = [['today', 'Today'], ['apps', 'Apps'], ['about', 'About']];
 let cb = {}, st = null, tab = 'today', timer = null;
-
-const emptyKid = (t, d) => `<div class="empty"><h2>${t}</h2><p class="sm">${d}</p></div>`;
 const when = iso => iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : null;
 
 function today() {
-  return `<div class="hello"><h1>Hi${st.child.name ? ' ' + e(st.child.name) : ' there'}</h1><p>${new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p></div>
-<div class="panel"><div class="row"><div><div class="rt">This phone is paired</div><div class="rs">Connected to your family\u2019s Harbor Family account</div></div><span class="tag ${st.offline ? 'm' : ''}">${st.offline ? 'Offline' : 'Connected'}</span></div>
-<div class="row"><div><div class="rt">Last sync</div><div class="rs">${st.lastSync ? e(when(st.lastSync)) : 'Not synced yet'}${st.offline ? ' (showing the last known state)' : ''}</div></div></div></div>
-<p class="rs" style="text-align:center;margin-top:12px">Screen time, location and message checks come only from the Harbor Family Android app. This browser shares none of them. See <button class="lnk" data-a="tab" data-v="about">About me</button> for what Harbor can see.</p>`;
+  return header('Today', 'Hi there', new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }))
+    + `<div class="hb-card"><div class="hb-share-h"><span class="hb-share-ic">${icon('phone', 18)}</span><h3>This phone is paired</h3><span class="hb-tag ${st.offline ? 'hb-tag-medium' : 'hb-tag-low'}">${st.offline ? 'Offline' : 'Connected'}</span></div>`
+    + `<p>Connected to your family’s Harbor Family account.</p><p class="hf-small">Last sync: ${st.lastSync ? e(when(st.lastSync)) : 'not synced yet'}${st.offline ? ' (showing the last known state)' : ''}</p></div>`
+    + note('Screen time, location and message checks come only from the Harbor Family Android app. This browser shares none of them.');
 }
-function apps() {
-  return `<div class="head"><h1>Apps</h1></div>${emptyKid('Not measured here', 'App use is measured only by the Harbor Family Android app. This browser does not report usage.')}`;
-}
-function about() {
-  return `<div class="head"><h1>About me</h1></div>
-<p class="note"><b>Nothing is hidden.</b> Harbor Family is on this phone so your parents can help keep you safe. This is everything it can do:</p>
-${renderDisclosure()}
-<div class="lab">Parents only</div><button class="btn g" style="width:100%" data-a="unpair">Remove Harbor Family from this phone</button>`;
-}
+const apps = () => header('Your apps', 'Apps and time') + `<div class="hb-card">${empty('Not measured here', 'App use is measured only by the Harbor Family Android app. This browser does not report usage.', { art: 'calm' })}</div>`;
+const about = () => header('What your parents see', 'About Harbor on your phone')
+  + note('<b>Nothing is hidden.</b> Harbor Family is on this phone so your parents can help keep you safe. This is everything it can do.')
+  + renderDisclosure()
+  + `<div class="hf-section">Parents only</div>${btn('Remove Harbor Family from this phone', 'data-a="unpair"', 'outline', 'hb-btn-block')}`;
 
-function render(en) {
-  $('#kshell').style.setProperty('--kc', st.child.color);
-  $('#kbrand').innerHTML = LOGO + 'Harbor Family'; $('#kwho').textContent = st.child.name || 'This phone';
-  const v = $('#kview'), keep = v.scrollTop; v.className = en ? 'in' : '';
-  v.innerHTML = { today, apps, about }[tab](); v.scrollTop = keep;
-  $('#ktabs').innerHTML = Object.keys(TABS).map(t => `<button class="tab" data-a="tab" data-v="${t}" ${tab === t ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ico[t]}</svg><span>${TABS[t]}</span></button>`).join('');
+function render(enter) {
+  $('#kbrand').innerHTML = brand();
+  const v = $('#kview'); v.className = 'hf-view' + (enter ? ' in' : '');
+  v.innerHTML = { today, apps, about }[tab]();
+  $('#ktabs').innerHTML = `<div class="hb-tabs hb-tabs-dock">${TABS.map(([t, l]) => `<button class="hb-tab" data-a="tab" data-v="${t}" ${tab === t ? 'aria-current="page"' : ''}>${icon(t, 22, tab === t ? 2.3 : 1.8)}<span>${l}</span></button>`).join('')}</div>`;
 }
 
 function handle(x) { if (x && x.code === 'unauthenticated') { cb.onExpired && cb.onExpired(); return true; } return false; }
-async function load(en) { try { st = await api.getMyStatus(); render(en); } catch (x) { if (!handle(x)) toast('Couldn\u2019t refresh. Check your connection.'); } }
+async function load(enter) { try { st = await api.getMyStatus(); render(enter); } catch (x) { if (!handle(x)) toast('Couldn’t refresh', { tone: 'info', detail: 'Check your connection.' }); } }
 const poll = () => { if ($('#mod').hidden && !document.hidden) load(); };
 
-const onClick = async ev => {
-  const t = ev.target.closest('[data-a]'); if (!t) return;
-  const a = t.dataset.a, v = t.dataset.v, i = +t.dataset.i;
-  try {
-    switch (a) {
-      case 'x': shut(); return;
-      case 'tab': tab = v; render(true); return;
-      case 'unpair': open(`<h2 style="font-size:19px">Parents only</h2><p class="muted sm">A parent must sign in to remove Harbor Family from this phone.</p>` + form('unpair', `<div style="margin-top:14px">${fld('email', 'Parent email', 'email', 'off', '', 'inputmode="email" autocapitalize="none"')}<div class="fld"><label for="upw">Parent password</label><input id="upw" name="password" type="password" autocomplete="off" required></div></div>`, 'Remove Harbor Family')); return;
-      default: return;
-    }
-  } catch (x) { if (!handle(x)) toast(x instanceof ApiError ? x.message : 'Something went wrong. Please try again.'); return; }
-  await load();
+const onClick = ev => {
+  const t = ev.target.closest('[data-a]'); if (!t || !$('#kshell').contains(t) && !$('#mod').contains(t)) return;
+  if (t.dataset.a === 'x') shut();
+  if (t.dataset.a === 'tab') { tab = t.dataset.v; render(true); }
+  if (t.dataset.a === 'unpair') open(`<h2>Parents only</h2><p class="hf-muted">A parent signs in to remove Harbor Family from this phone.</p>` + form('unpair', fld('email', 'Parent email', 'email', 'off', '', 'inputmode="email" autocapitalize="none"') + `<div class="hb-fld"><label for="upw">Parent password</label><input id="upw" name="password" type="password" autocomplete="off" required></div>`, 'Remove Harbor Family'));
 };
-
 const onSubmit = async ev => {
-  const f = ev.target.closest('form[data-form]'); if (!f || !['unpair'].includes(f.dataset.form)) return;
+  const f = ev.target.closest('#mod form[data-form="unpair"]'); if (!f) return;
   ev.preventDefault();
-  const name = f.dataset.form, d = Object.fromEntries(new FormData(f)), err = f.querySelector('.err'), btn = f.querySelector('[type=submit]');
+  const d = Object.fromEntries(new FormData(f)), err = f.querySelector('.hb-err'), b = f.querySelector('[type=submit]');
   const fail = t => { err.textContent = t; err.hidden = false; }; err.hidden = true;
-  if (name === 'unpair' && (!d.email || !d.password)) return fail('Enter your parent\u2019s email and password.');
-  btn.classList.add('load');
-  try {
-    await api.unpairDevice({ email: d.email, password: d.password }); cb.onSignOut && cb.onSignOut();
-  } catch (x) { if (!handle(x)) fail(x instanceof ApiError ? x.message : 'Something went wrong. Please try again.'); }
-  finally { btn.classList.remove('load'); }
+  if (!d.email || !d.password) return fail('Enter your parent’s email and password.');
+  busy(b, true);
+  try { await api.unpairDevice({ email: d.email, password: d.password }); shut(); cb.onSignOut && cb.onSignOut(); }
+  catch (x) { if (!handle(x)) fail(x instanceof ApiError ? x.message : 'Something went wrong. Please try again.'); }
+  finally { busy(b, false); }
 };
 
 export async function mountChild(session, callbacks) {

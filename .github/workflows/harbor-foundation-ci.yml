@@ -175,6 +175,9 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.9.7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Verify local browser acceptance recipient
         run: |
           deno test --frozen tests/notification-acceptance
@@ -184,8 +187,8 @@ jobs:
           deno check --frozen tools/notification-acceptance/web/app.ts
           deno run --frozen --allow-read --allow-write --allow-run=deno tools/notification-acceptance/web/build.ts
           VERCEL_ENV=preview sh tools/notification-acceptance/web/preview-build.sh
-          cmp index.html preview-dist/index.html
-          for part in frontend-bundle/part-*.txt; do cmp "$part" "preview-dist/$part"; done
+          grep -q '<title>Harbor Family</title>' preview-dist/index.html
+          for name in index.html app.js service-worker.js; do cmp "tools/notification-acceptance/web/dist/$name" "preview-dist/acceptance/$name"; done
 
   family-web:
     runs-on: ubuntu-latest

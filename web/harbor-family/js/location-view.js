@@ -61,7 +61,8 @@ export function tileGrid(lat, lng, { z = ZOOM, halfW = 400, halfH = 140 } = {}) 
 }
 
 const stamp = iso => `<time datetime="${esc(iso)}">${esc(new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</time>`;
-const note = (cls, html) => `<div class="note ${cls}" role="status">${html}</div>`;
+const note = (cls, html) => `<div class="hb-note${cls === 'w' ? ' hb-note-warn' : ''}" role="status">${html}</div>`;
+const card = (title, body) => `<div class="hb-card"><div class="hb-empty"><h3>${title}</h3><p>${body}</p></div></div>`;
 const pos = (dx, dy) => `left:calc(50% + ${dx}px);top:calc(50% + ${dy}px)`;
 
 /** The map: OpenStreetMap tiles, older places as small dots, the newest place as the marker (grey when last known). */
@@ -71,7 +72,7 @@ export function renderMap(v, { color = '#1f6b5c', initial = '' } = {}) {
   const trail = v.fixes.slice(1, 50).map(f => { const p = project(f.lat, f.lng); return { dx: Math.round(p.x - centre.x), dy: Math.round(p.y - centre.y) }; })
     .filter(p => Math.abs(p.dx) < 400 && Math.abs(p.dy) < 140);
   const osm = `https://www.openstreetmap.org/?mlat=${latest.lat.toFixed(5)}&mlon=${latest.lng.toFixed(5)}#map=16/${latest.lat.toFixed(5)}/${latest.lng.toFixed(5)}`;
-  return `<div class="mapbox live" id="map" role="img" aria-label="${v.stale ? 'Last known place' : 'Latest place'} on a map">`
+  return `<div class="hf-map" id="map" role="img" aria-label="${v.stale ? 'Last known place' : 'Latest place'} on a map">`
     + tiles.map(t => `<img class="tile" alt="" src="${esc(t.url)}" width="${TILE}" height="${TILE}" referrerpolicy="strict-origin-when-cross-origin" loading="lazy" style="${pos(t.dx, t.dy)}">`).join('')
     + trail.map(p => `<i class="trail" style="${pos(p.dx, p.dy)}"></i>`).join('')
     + `<span class="pin${v.stale ? ' old' : ''}" style="${pos(0, 0)};${v.stale ? '' : `background:${esc(color)}`}">${esc(initial)}</span>`
@@ -80,16 +81,16 @@ export function renderMap(v, { color = '#1f6b5c', initial = '' } = {}) {
 
 export function renderLocationView(v, { name = 'your child', color, initial } = {}) {
   const who = esc(name);
-  if (v.status === 'unavailable') return `<div class="mapbox" id="map">Location sharing is not available here.</div><div class="empty"><h2>No location here</h2><p class="sm">Location is shared by the Harbor Family Android app on the child’s phone.</p></div>`;
-  if (v.status === 'none') return `<div class="mapbox" id="map">No place reported yet.</div><div class="empty"><h2>No location for ${who} yet</h2><p class="sm">Sharing starts once location is allowed in Harbor Family on ${who}’s phone. Places arrive every 5 to 15 minutes, not live.</p></div>`;
-  if (v.status === 'expired') return `<div class="mapbox" id="map">No recent place.</div><div class="empty"><h2>The last place expired</h2><p class="sm">Places older than 30 days are removed. Nothing new has arrived from ${who}’s phone.</p></div>`;
+  if (v.status === 'unavailable') return card('No location here', 'Location is shared by the Harbor Family Android app on the child’s phone.');
+  if (v.status === 'none') return card(`Waiting for ${who}’s location`, `Sharing starts once location is allowed in Harbor Family on ${who}’s phone. Places arrive every 5 to 15 minutes, not live.`);
+  if (v.status === 'expired') return card('The last place expired', `Places older than 30 days are removed. Nothing new has arrived from ${who}’s phone.`);
   const flags = (v.offline ? note('w', '<b>Can’t reach Harbor.</b> Showing the last place received.') : '')
     + (v.stale && v.latest ? note('w', `<b>Last known place.</b> Nothing new has arrived for more than 30 minutes. ${who}’s phone may be still, offline or restricted by Android.`) : '')
     + (v.sharing && STATUS_TEXT[v.sharing] ? note('w', esc(STATUS_TEXT[v.sharing])) : '');
-  if (!v.latest) return `<div class="mapbox" id="map">No place reported yet.</div>${flags}<div class="empty"><h2>No place yet</h2><p class="sm">${who}’s phone is connected but hasn’t sent a place.</p></div>`;
+  if (!v.latest) return flags + card('No place yet', `${who}’s phone is connected but hasn’t sent a place.`);
   const acc = v.latest.accuracyM !== null ? ` · within about ${Math.round(v.latest.accuracyM)} m` : '';
   return renderMap(v, { color, initial })
-    + `<div class="lh"><div><h2>${v.stale ? 'Last known place' : 'Latest place'}</h2><div class="muted sm">Seen ${stamp(v.latest.at)}${esc(acc)}${v.receivedAt ? ` · received ${stamp(v.receivedAt)}` : ''}</div></div></div>`
+    + `<div class="hb-card"><h3>${v.stale ? 'Last known place <span class="hb-tag hb-tag-medium">Needs refresh</span>' : 'Latest place'}</h3><p>Seen ${stamp(v.latest.at)}${esc(acc)}${v.receivedAt ? ` · received ${stamp(v.receivedAt)}` : ''}</p>`
     + flags
-    + `<p class="rs">Places come from ${who}’s phone every 5 to 15 minutes, so this is not live tracking. Up to 30 days are kept; dots show earlier places.</p>`;
+    + `<p class="hf-small">Places come from ${who}’s phone every 5 to 15 minutes, so this is not live tracking. Up to 30 days are kept; dots show earlier places.</p></div>`;
 }

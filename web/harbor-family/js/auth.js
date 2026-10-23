@@ -1,80 +1,98 @@
-// Signed-out experience: sign in, create account (parent or child), reset password, and the child's pairing-code step.
+// Signed-out experience and first steps: sign in, create a parent account, reset password, a child's pairing code,
+// and, for a new parent with no family yet, starting a family or joining one with another parent's invite code.
 import { api, ApiError } from './api.js';
-import { $, e, LOGO, fld, pw, form, link } from './common.js';
+import { $, e, fld, pw, form, link, busy } from './common.js';
 
-let mode = 'signin', onSession = () => {}, pending = null;
+let mode = 'signin', onSession = () => {}, pendingSession = null;
 const lastEmail = () => { try { return localStorage.getItem('harbor.lastEmail') || ''; } catch { return ''; } };
 const MAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const em = v => fld('email', 'Email', 'email', 'username', v, 'inputmode="email" autocapitalize="none"');
-const ROLE_HINT = { parent: 'You\u2019ll add your children and get a code to pair each of their phones.', child: 'No email needed. You\u2019ll enter the 6-digit pairing code a parent gives you.' };
-const rolePick = `<div class="fld"><label id="rl">This account is for</label><div class="seg full" role="radiogroup" aria-labelledby="rl" style="margin-bottom:6px"><button type="button" role="radio" data-a="role" data-v="parent" aria-checked="true" aria-selected="true">A parent</button><button type="button" role="radio" data-a="role" data-v="child" aria-checked="false" aria-selected="false">A child</button></div><input type="hidden" name="role" value="parent"><p class="hint" id="rh">${ROLE_HINT.parent}</p></div>`;
+const LOCKUP = '<img class="hf-lockup" src="logo-night.svg" alt="Harbor Family" width="150" height="158" data-theme-logo>';
 
 /** Shows the pairing-code step for a signed-in child who has not paired yet. */
-export function showPair(session) { pending = session; showAuth('pair'); }
+export function showPair() { showAuth('pair'); }
+/** A parent signed in without a family: start one or join one with an invite code. */
+export function showFamilySetup(session) { pendingSession = session; showAuth('family'); }
+
 export function showAuth(m) {
-  mode = m || 'signin'; if (mode !== 'pair') pending = null;
+  mode = m || 'signin'; if (mode !== 'family' && mode !== 'join') pendingSession = null;
+  const first = pendingSession && pendingSession.user.name ? pendingSession.user.name.trim().split(/\s+/)[0] : '';
   const V = {
-    signin: ['Welcome back', 'Sign in to see how your family is doing.',
-      form('signin', em(lastEmail()) + pw('password', 'Password', 'current-password') + `<label class="chk"><input type="checkbox" name="remember" checked> Keep me signed in</label>`, 'Sign in', `${link('forgot', 'Forgot password?')}<br>New to Harbor Family? ${link('signup', 'Create an account')}`)],
-    signup: ['Create your account', 'Harbor Family keeps parents and kids connected. It takes about a minute.',
-      form('signup', rolePick + fld('name', 'Your name', 'text', 'name') + em('') + pw('password', 'Password', 'new-password') + `<p class="hint" style="margin:-8px 0 14px">At least 8 characters, with a letter and a number.</p>` + pw('confirm', 'Confirm password', 'new-password'), 'Create account', `Already have an account? ${link('signin', 'Sign in')}`)],
-    confirm: ['Confirm your email', 'We sent you a link. Open it, then come back and sign in.', `<button class="btn p" data-a="auth" data-v="signin" style="width:100%">Go to sign in</button>`],
-    forgot: ['Reset your password', 'Enter your email and we\u2019ll send you a reset link.', form('forgot', em(lastEmail()), 'Send reset link', link('signin', 'Back to sign in'))],
-    sent: ['Check your email', 'If an account exists for that address, a reset link is on its way.', `<button class="btn p" data-a="auth" data-v="signin" style="width:100%">Back to sign in</button>`],
-    pair: ['Pair this phone', 'Ask a parent for the 6-digit code in their Harbor Family app: Family \u203A Pairing code. You only do this once.',
-      form('pair', fld('code', 'Pairing code', 'text', 'one-time-code', '', 'inputmode="numeric" maxlength="7" placeholder="000 000" style="font-size:22px;letter-spacing:.2em;text-align:center"'), 'Pair this phone', `Harbor Family shows your parents your location and app time. You can see exactly what they see in the About tab.<br>${link('signup', 'Not a child? Back')}`)],
+    signin: ['Parent account', 'Welcome back', 'Sign in to see how your family is doing.',
+      form('signin', em(lastEmail()) + pw('password', 'Password', 'current-password') + `<label class="hf-check"><input type="checkbox" name="remember" checked> Keep me signed in</label>`, 'Sign in',
+        `${link('forgot', 'Forgot password?')}<br>New to Harbor Family? ${link('signup', 'Create an account')}<br>Setting up a child’s phone? ${link('pair', 'Enter a pairing code')}`)],
+    signup: ['Parent account', 'Create your account', 'For a parent or another adult who helps look after the children.',
+      form('signup', fld('name', 'Your name', 'text', 'name') + em('') + pw('password', 'Password', 'new-password') + '<p class="hb-hint" style="margin:-10px 0 16px">At least 8 characters, with a letter and a number.</p>' + pw('confirm', 'Confirm password', 'new-password'), 'Create account', `Already have an account? ${link('signin', 'Sign in')}`)],
+    confirm: ['Parent account', 'Confirm your email', 'We sent you a link. Open it, then come back and sign in.', `<button type="button" class="hb-btn hb-btn-primary hb-btn-block" data-a="auth" data-v="signin">Go to sign in</button>`],
+    forgot: ['Parent account', 'Reset your password', 'Enter your email and we’ll send you a reset link.', form('forgot', em(lastEmail()), 'Send reset link', link('signin', 'Back to sign in'))],
+    sent: ['Parent account', 'Check your email', 'If an account exists for that address, a reset link is on its way.', `<button type="button" class="hb-btn hb-btn-primary hb-btn-block" data-a="auth" data-v="signin">Back to sign in</button>`],
+    pair: ['Connect this phone', 'Enter pairing code', 'Six digits from your parent’s Harbor app: Family › Pairing code. A code works for 10 minutes.',
+      form('pair', `<div class="hf-code">${fld('code', 'Pairing code', 'text', 'one-time-code', '', 'inputmode="numeric" maxlength="7" placeholder="000 000"')}</div>`, 'Connect this phone', `Not a child’s phone? ${link('signin', 'Back to sign in')}`)],
+    family: ['Your circle', first ? `Welcome, ${first}` : 'Welcome to Harbor', 'Start your own family, or join one another parent already set up.',
+      `<div class="hf-gap"><button type="button" class="hb-btn hb-btn-primary hb-btn-block" data-a="auth" data-v="join">I have an invite code</button><button type="button" class="hb-btn hb-btn-secondary hb-btn-block" data-a="auth" data-v="start">Start a new family</button></div><p class="hf-alt">${link('out', 'Sign out')}</p>`],
+    join: ['Your circle', 'Join a family', 'Ask the other parent for a code: in Harbor Family, Family › Invite a parent. A code works once, for one day.',
+      form('join', `<div class="hf-code">${fld('code', 'Invite code', 'text', 'off', '', 'autocapitalize="characters" maxlength="12" placeholder="ABCD-EFGH" spellcheck="false"')}</div>`, 'Join family', link('family', 'Back'))],
+    start: ['Your circle', 'Start a family', 'You can add your children and invite another parent next.',
+      form('start', fld('fname', 'Family name', 'text', 'off', first ? `${first}’s family` : ''), 'Start family', link('family', 'Back'))],
   }[mode];
-  $('#auth').innerHTML = `<div class="brand">${LOGO}Harbor Family</div><div><h1>${V[0]}</h1><p class="sub">${V[1]}</p></div><div>${V[2]}</div>`;
+  $('#auth').innerHTML = `${LOCKUP}<div class="hb-card"><header class="hb-sh"><div class="hb-eyebrow">${e(V[0])}</div><h1>${e(V[1])}</h1><p>${e(V[2])}</p></header>${V[3]}</div>`;
+  themeLogo();
   $('#shell').hidden = true; $('#kshell').hidden = true; $('#auth').hidden = false;
-  const f = $('#auth input'); f && f.focus({ preventScroll: true });
+  const f = $('#auth input:not([type=checkbox])'); f && f.focus({ preventScroll: true });
+}
+
+/** The lockup in the theme the page is showing. */
+function themeLogo() {
+  const img = $('#auth [data-theme-logo]'); if (!img) return;
+  const day = matchMedia('(prefers-color-scheme: light)').matches;
+  img.src = day ? 'logo-daybreak.svg' : 'logo-night.svg';
 }
 
 function validate(name, d) {
   if (name === 'pair') return String(d.code || '').replace(/\D/g, '').length === 6 ? '' : 'Enter the 6-digit code from your parent.';
+  if (name === 'join') return String(d.code || '').replace(/[\s-]/g, '').length === 8 ? '' : 'Enter the 8-character code, like ABCD-EFGH.';
+  if (name === 'start') return (d.fname || '').trim() ? '' : 'Enter a name for your family.';
   if (name === 'signup' && !(d.name || '').trim()) return 'Enter your name.';
   if (!MAIL.test((d.email || '').trim())) return 'Enter a valid email address.';
   if (name === 'signin' && !d.password) return 'Enter your password.';
   if (name === 'signup') {
     if (d.password.length < 8 || !/[A-Za-z]/.test(d.password) || !/\d/.test(d.password)) return 'Password needs 8+ characters with a letter and a number.';
-    if (d.password !== d.confirm) return 'Passwords don\u2019t match.';
+    if (d.password !== d.confirm) return 'Passwords don’t match.';
   }
   return '';
 }
 
-/** `cb(session)` is called after any successful sign-in / sign-up / pairing. */
+/** `cb(session)` is called after any successful sign-in, sign-up, pairing or family step. */
 export function initAuth(cb) {
   onSession = cb;
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', themeLogo);
   document.addEventListener('click', async ev => {
     const t = ev.target.closest('#auth [data-a]'); if (!t) return;
     if (t.dataset.a === 'auth') showAuth(t.dataset.v);
-    if (t.dataset.a === 'signout') { try { await api.signOut(); } catch { /* ignore */ } showAuth('signin'); }
-    if (t.dataset.a === 'role') {
-      const v = t.dataset.v; if (v === 'child') return showAuth('pair'); // children don't create accounts: they pair with a code
-      t.closest('form').elements.role.value = v;
-      t.parentElement.querySelectorAll('button').forEach(b => { const on = b === t; b.setAttribute('aria-selected', on); b.setAttribute('aria-checked', on); });
-      $('#rh').textContent = ROLE_HINT[v];
-    }
+    if (t.dataset.a === 'out') { try { await api.signOut(); } catch { /* ignore */ } showAuth('signin'); }
   });
   document.addEventListener('submit', async ev => {
-    const f = ev.target.closest('form[data-form]'); if (!f || !['signin', 'signup', 'forgot', 'pair'].includes(f.dataset.form)) return;
+    const f = ev.target.closest('#auth form[data-form]'); if (!f) return;
     ev.preventDefault();
-    const name = f.dataset.form, d = Object.fromEntries(new FormData(f)), err = f.querySelector('.err'), btn = f.querySelector('[type=submit]');
+    const name = f.dataset.form, d = Object.fromEntries(new FormData(f)), err = f.querySelector('.hb-err'), btn = f.querySelector('[type=submit]');
     const fail = t => { err.textContent = t; err.hidden = false; }; err.hidden = true;
     const bad = validate(name, d); if (bad) return fail(bad);
-    btn.classList.add('load');
+    busy(btn, true);
     try {
       if (name === 'forgot') { await api.requestPasswordReset(d.email.trim()); return showAuth('sent'); }
       let s;
       if (name === 'pair') s = await api.pairDevice({ code: d.code, deviceName: 'This phone' });
+      else if (name === 'join') s = await api.joinFamily(d.code);
+      else if (name === 'start') s = await api.createFamily(d.fname);
       else {
-        s = name === 'signin' ? await api.signIn({ email: d.email, password: d.password, remember: !!d.remember }) : await api.signUp({ name: d.name, email: d.email, password: d.password, role: d.role });
+        s = name === 'signin' ? await api.signIn({ email: d.email, password: d.password }) : await api.signUp({ name: d.name, email: d.email, password: d.password });
         try { localStorage.setItem('harbor.lastEmail', d.email.trim()); } catch { /* ignore */ }
       }
       await onSession(s);
     } catch (x) {
       if (x && x.code === 'confirm_email') return showAuth('confirm');
-      if (x && x.code === 'unauthenticated' && name === 'pair') return showAuth('signin');
+      if (x && x.code === 'unauthenticated') return showAuth('signin');
       fail(x instanceof ApiError ? x.message : 'Something went wrong. Please try again.');
-    } finally { btn.classList.remove('load'); }
+    } finally { busy(btn, false); }
   });
 }

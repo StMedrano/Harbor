@@ -151,13 +151,3 @@ test('a partial day that began at midnight does not claim a late start', () => {
   const late = report({ days: [day('2026-10-08', { quality: 'partial', coverageStart: '2026-10-08T09:30:00.000Z' })] });
   assert.match(renderUsageView(toUsageView(reply(late), NOW)), /starts at/);
 });
-
-test('the controls tab makes no usage or enforcement claims the backend cannot keep', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../js/parent.js', import.meta.url), 'utf8');
-  const controls = source.slice(source.indexOf('function controlsView()'), source.indexOf('/* ───────────── usage'));
-  for (const claim of ['Used today', 'Daily limit', 'Time\\u2019s up', 'Give 15 more min', 'Hard stops', 'App limits', 'SOS always work']) {
-    assert.ok(!controls.includes(claim), `controls still says: ${claim}`);
-  }
-  assert.ok(controls.includes('Measured screen time is under Activity'));
-});

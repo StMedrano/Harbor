@@ -1,0 +1,81 @@
+/* Harbor Family web app layout. Components come from harbor.css (the design system); this file only places them. */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+#app{max-width:var(--app-max);margin:0 auto;min-height:100%;background:var(--s);position:relative;box-shadow:var(--shadow-device)}
+@media (max-width:440px){#app{box-shadow:none}}
+
+/* Shell: app bar, kid switcher, the screen, and the floating dock */
+.hf-shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+.hf-top{position:sticky;top:0;z-index:20}
+.hf-view{flex:1;padding:18px 22px 120px}
+.hf-view.in{animation:hf-in .26s var(--ease-settle)}
+@keyframes hf-in{from{opacity:.4;transform:translateY(6px)}}
+.hf-dock{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:var(--app-max);margin:0 auto;padding-bottom:env(safe-area-inset-bottom)}
+.hf-dock .hb-tabs{margin-bottom:max(14px,env(safe-area-inset-bottom))}
+.hf-kids{padding:10px 22px;background:var(--s);border-bottom:1px solid var(--line)}
+.hf-sub{display:block;font-size:12px;line-height:18px;color:var(--ink2)}
+
+/* Sheet over a scrim */
+.hf-mod{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.hf-scrim{position:absolute;inset:0;background:var(--scrim)}
+.hf-mod .hb-sheet{max-width:var(--app-max);max-height:88vh;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.hf-acts{display:grid;gap:8px;margin-top:16px}
+.hf-acts-2{grid-template-columns:1fr 1fr}
+
+/* Toast above the dock */
+.hf-toast{position:fixed;left:0;right:0;bottom:104px;z-index:60;display:flex;justify-content:center;padding:0 12px;pointer-events:none}
+.hf-toast>*{pointer-events:auto}
+
+/* Signed out: the lockup, then one card */
+.hf-auth{min-height:100vh;min-height:100dvh;padding:40px 22px 32px;display:flex;flex-direction:column;gap:8px}
+.hf-auth .hf-lockup{display:block;width:150px;margin:8px auto 18px}
+.hf-auth .hb-card{margin:6px 0}
+.hf-alt{text-align:center;font-size:14px;line-height:22px;color:var(--ink2);margin:16px 0 0}
+.hf-link{font:inherit;font-weight:600;color:var(--acc);background:none;border:0;padding:6px 2px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.hf-check{display:flex;align-items:center;gap:10px;margin:-4px 0 16px;font-size:14px;color:var(--ink2)}
+.hf-check input{width:20px;height:20px;accent-color:var(--acc)}
+.hf-code input{font-size:22px;letter-spacing:.2em;text-align:center;font-variant-numeric:tabular-nums;text-transform:uppercase}
+
+/* Rows in panels */
+.hf-row-btn{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.hf-rt{display:block;font-weight:700;color:var(--ink)}
+.hf-right{display:flex;align-items:center;gap:8px;flex:none}
+.hf-num{font-variant-numeric:tabular-nums;font-weight:650}
+.hf-muted{color:var(--ink2)}
+.hf-small{font-size:12px;line-height:18px;color:var(--ink3)}
+.hf-section{margin:22px 0 4px;font-size:16px;line-height:22px;font-weight:700}
+.hf-gap{display:grid;gap:8px}
+.hf-two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.hb-card .hb-note,.hb-panel .hb-note{margin:10px 0}
+
+/* Controls */
+.hf-ctl{display:grid;gap:4px}
+.hf-select{appearance:none;-webkit-appearance:none;font:inherit;font-size:14px;font-weight:600;color:var(--ink);background:var(--s);border:1px solid var(--line);border-radius:var(--radius-md);min-height:var(--tap-small);padding:6px 30px 6px 12px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-size:5px 5px;background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;background-repeat:no-repeat}
+.hf-select:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.hf-select option{background:var(--s2);color:var(--ink)}
+.hf-days{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+.hf-days .hb-chip{min-height:36px;padding:6px 10px}
+.hf-applied{display:flex;align-items:center;gap:8px;font-size:12px;line-height:18px;color:var(--ink2);margin:-6px 0 10px}
+.hf-applied i{width:8px;height:8px;border-radius:50%;background:var(--acc);flex:none}
+.hf-applied.pending i{background:var(--warn)}
+
+/* Map */
+.hf-map{position:relative;height:260px;overflow:hidden;border-radius:var(--radius-map);background:var(--water);border:1px solid var(--line)}
+.hf-map .tile{position:absolute;transform:translate(0,0);filter:saturate(.75)}
+.hf-map .trail{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--acc);opacity:.6}
+.hf-map .pin{position:absolute;display:grid;place-items:center;width:var(--avatar);height:var(--avatar);margin:calc(var(--avatar) / -2) 0 0 calc(var(--avatar) / -2);border-radius:50%;border:3px solid var(--pin-ring);color:var(--on-color);font-size:13px;font-weight:700}
+.hf-map .pin.old{background:var(--ink3)}
+.hf-map .osm{position:absolute;right:8px;bottom:6px;font-size:10px;color:var(--ink3);background:var(--s);padding:1px 6px;border-radius:6px}
+.hf-map-empty{display:grid;place-items:center;text-align:center;padding:16px;color:var(--ink2);font-size:14px}
+
+/* Charts */
+.hf-chart{display:flex;gap:10px;align-items:flex-end;height:120px;margin:14px 0 4px}
+.hf-chart .cc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%;font-size:11px;color:var(--ink3)}
+.hf-chart .cc i{display:block;width:100%;max-width:28px;min-height:2px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;background:var(--acc)}
+.hf-chart .cc.part i{opacity:.55}
+.hf-chart .cc.unk i{background:transparent;border:1px dashed var(--line);height:24px}
+.hf-hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.hb-card .hb-req-line{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:13px;line-height:18px;color:var(--ink2)}
+.hb-card .hb-req-line svg{flex:none}

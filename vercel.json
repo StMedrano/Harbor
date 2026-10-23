@@ -24,6 +24,29 @@
           "value": "default-src 'none'; script-src 'self'; connect-src 'self' https://bfvybxkjxilntjgndsrm.supabase.co; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/fn/:name",
+      "destination": "/api/fn?name=:name"
     }
   ]
 }

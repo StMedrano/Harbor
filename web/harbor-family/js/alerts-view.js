@@ -43,27 +43,30 @@ export function toAlertsView(replies, { offline = false } = {}) {
 }
 
 const stamp = iso => `<time datetime="${esc(iso)}">${esc(new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</time>`;
-const note = (cls, html) => `<div class="note ${cls}" role="status">${html}</div>`;
+const note = (cls, html) => `<div class="hb-note${cls === 'w' ? ' hb-note-warn' : ''}" role="status">${html}</div>`;
+const card = (title, body) => `<div class="hb-card"><div class="hb-empty"><h3>${title}</h3><p>${body}</p></div></div>`;
 const contact = a => a.savedContact ? 'From a saved contact' : 'Not from a saved contact';
 
 export function renderAlertsList(v, { name = 'your child' } = {}) {
-  const who = esc(name), limits = `<p class="rs">${esc(LIMITS_NOTICE)}</p>`;
-  if (v.status === 'unavailable') return `<div class="empty"><h2>Alerts aren’t available here</h2><p class="sm">Message alerts come from the Harbor Family Android app on the child’s phone.</p></div>`;
-  if (v.status === 'none') return `<div class="empty"><h2>No alerts set up yet</h2><p class="sm">${who}’s phone hasn’t reported. Alerts start once notification access is allowed in Harbor Family on that phone.</p></div>${limits}`;
-  if (v.status === 'expired') return `<div class="empty"><h2>No recent report</h2><p class="sm">Nothing has arrived from ${who}’s phone for 30 days, so earlier alerts were removed.</p></div>${limits}`;
+  const who = esc(name), limits = `<p class="hf-small">${esc(LIMITS_NOTICE)}</p>`;
+  if (v.status === 'unavailable') return card('Alerts aren’t available here', 'Message alerts come from the Harbor Family Android app on the child’s phone.');
+  if (v.status === 'none') return card('No alerts set up yet', `${who}’s phone hasn’t reported. Alerts start once notification access is allowed in Harbor Family on that phone.`) + limits;
+  if (v.status === 'expired') return card('No recent report', `Nothing has arrived from ${who}’s phone for 30 days, so earlier alerts were removed.`) + limits;
   const flags = (v.offline ? note('w', '<b>Can’t reach Harbor.</b> Showing the alerts received so far.') : '')
     + (v.notificationAccess === false ? note('w', `<b>Notification access is off on ${who}’s phone.</b> Chat apps aren’t being checked, so no alerts can come from them.`) : '')
     + (v.smsPermission === false ? note('w', `<b>SMS permission is off on ${who}’s phone.</b> Text messages aren’t being checked.`) : '');
-  const rows = v.alerts.map(a => `<button class="al" data-a="alert" data-id="${esc(a.id)}"><span class="sev ${a.category === 'self_harm' ? 'h' : 'm'}"></span><span><span class="at"><span>${esc(a.app)} · ${stamp(a.at)}</span></span><b style="display:block;margin:2px 0">${esc(a.label)}</b><span class="ab">${contact(a)}</span></span></button>`).join('');
+  // Design system AlertCard: amber REVIEW for most, coral URGENT for self-harm and threats, always with the word.
+  const urgent = a => a.category === 'self_harm' || a.category === 'violence_threat';
+  const rows = v.alerts.map(a => `<button class="hb-al${urgent(a) ? ' hb-al-high' : ''}" data-a="alert" data-id="${esc(a.id)}"><span class="hb-tag ${urgent(a) ? 'hb-tag-high' : 'hb-tag-medium'}">${urgent(a) ? 'Urgent' : 'Review'}</span><span class="hb-ah">${esc(a.label)}</span><span class="hb-ab">${contact(a)}</span><span class="hb-at">${esc(a.app)} · ${stamp(a.at)}</span></button>`).join('');
   return flags
-    + (rows || `<div class="empty"><h2>Nothing flagged</h2><p class="sm">No possible concerns were flagged for ${who} in the last 30 days. That doesn’t mean nothing happened.</p></div>`)
-    + (v.nextBefore ? '<button class="btn o" style="width:100%;margin-top:4px" data-a="alertsmore">Show older alerts</button>' : '')
+    + (rows || card('Nothing flagged', `No possible concerns were flagged for ${who} in the last 30 days. That doesn’t mean nothing happened.`))
+    + (v.nextBefore ? '<button class="hb-btn hb-btn-outline hb-btn-block" data-a="alertsmore">Show older alerts</button>' : '')
     + limits;
 }
 
 export function renderAlertDetail(a) {
-  return `<h2 style="font-size:19px">${esc(a.label)}</h2><p class="muted sm">${esc(a.app)} · ${stamp(a.at)} · ${contact(a)}</p>`
-    + `<p class="sm">Harbor flagged a possible concern. It never sees or sends the message itself, so talk with your child before drawing conclusions.</p>`
+  return `<h2>${esc(a.label)}</h2><p class="hf-muted">${esc(a.app)} · ${stamp(a.at)} · ${contact(a)}</p>`
+    + `<p>A message was flagged for your review. A flag is not a confirmed issue: Harbor never sees or sends the message itself, so talk with your child before drawing conclusions.</p>`
     + (a.category === 'self_harm' ? note('w', esc(SELF_HARM_GUIDANCE)) : '')
-    + `<p class="rs">${esc(LIMITS_NOTICE)}</p><div class="ma"><button class="btn o" data-a="x">Close</button></div>`;
+    + `<p class="hf-small">${esc(LIMITS_NOTICE)}</p><div class="hf-acts"><button class="hb-btn hb-btn-primary hb-btn-block" data-a="x">Close</button></div>`;
 }

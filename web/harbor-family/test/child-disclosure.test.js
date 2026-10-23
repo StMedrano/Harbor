@@ -12,7 +12,8 @@ test('the app list matches the Android allowlist labels, in order', () => {
 });
 
 test('every feature is disclosed, and the message section says no text is sent', () => {
-  assert.deepEqual(SECTIONS.map(s => s.title), ['Pairing', 'Screen time', 'Location', 'What Harbor watches']);
+  assert.deepEqual(SECTIONS.map(s => s.title), ['Pairing', 'Screen time', 'App controls', 'Location', 'What Harbor watches', 'Check-ins']);
+  assert.match(SECTIONS.find(s => s.title === 'App controls').lines.join(' '), /Removing an app needs their OK/);
   const watch = SECTIONS.find(s => s.title === 'What Harbor watches').lines.join(' ');
   assert.match(watch, /never sent the message text/);
   for (const a of MONITORED_APPS) assert.ok(watch.includes(a), a);

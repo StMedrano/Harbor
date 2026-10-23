@@ -13,7 +13,14 @@ export const SECTIONS = [
   },
   {
     title: 'Screen time',
-    lines: ['The Harbor Family Android app measures how long apps are used, only while sharing is on. It does not limit or block apps.'],
+    lines: ['The Harbor Family Android app measures how long you use this phone each day, and which apps.'],
+  },
+  {
+    title: 'App controls',
+    lines: [
+      'Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work.',
+      'Removing an app needs their OK. Harbor only sees which app is open, never what is on the screen.',
+    ],
   },
   {
     title: 'Location',
@@ -31,6 +38,10 @@ export const SECTIONS = [
       'Harbor can miss things: muted or hidden message previews and end-to-end encrypted messages may not be seen, and it makes mistakes in both directions. It does not read your whole conversations.',
     ],
   },
+  {
+    title: 'Check-ins',
+    lines: ['Your answer when a parent asks you to check in, with this phone’s last known place. It goes only to the parent who asked.'],
+  },
 ];
 
 export const BROWSER_NOTE = 'This browser does not measure screen time, share location or check messages. Those come only from the Harbor Family Android app.';
@@ -39,6 +50,6 @@ export const PARENT_ONLY = 'Only your parents can turn these off, by removing th
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function renderDisclosure() {
-  return SECTIONS.map(s => `<div class="lab">${esc(s.title)}</div><div class="panel"><div class="row"><div>${s.lines.map(l => `<p class="rs">${esc(l)}</p>`).join('')}</div></div></div>`).join('')
-    + `<p class="note">${esc(BROWSER_NOTE)}</p><p class="rs">${esc(PARENT_ONLY)}</p>`;
+  return SECTIONS.map(s => `<div class="hb-card"><h3>${esc(s.title)}</h3>${s.lines.map(l => `<p>${esc(l)}</p>`).join('')}</div>`).join('')
+    + `<div class="hb-note">${esc(BROWSER_NOTE)}</div><p class="hf-small">${esc(PARENT_ONLY)}</p>`;
 }
