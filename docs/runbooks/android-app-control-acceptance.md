@@ -69,16 +69,19 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 ## 0.30: a second parent, and the web app (2026-10-24)
 
+**Parents.** The **Family** tab lists everyone who looks after the family, on the phone and in the web app: their name, and whether they started the family or joined it. The parent reading it is marked. Below the list it says that every parent sees the same children and phones and can change the same rules.
+
 **Invite a parent.** On either phone, **Family › Invite a parent** gives a code of 8 characters, shown as ABCD-EFGH, that works once and for one day. The other adult creates their own account and enters it under **I have an invite code**; they then see the same children, phones, places, alerts, activity and controls, and can change the same rules. A new code replaces the parent's earlier one. The code is stored only as a keyed digest, and after 10 wrong codes in an hour that account is refused for the rest of the hour. Harbor never emails anyone: the code is read out or sent by the parents themselves.
 
 **The web app** is the same Harbor Family parent app in a browser, at **harbor-git-feat-activity-app-control-stalinvmedrano-1274.vercel.app**. It has the same five tabs, the same words and the same rules as the phone app, in the Harbor Family design system: Map with check-ins, Alerts, Controls (pause, 15 more minutes, the daily limit, bedtime, a rule per app, Allowed right now, Requests), Activity, and Family with Add a child, pairing codes and Invite a parent. It can be installed to the home screen. What it does **not** do: it never measures, shares or enforces anything itself (only a child's Android phone does), and removing a phone still needs the two-step verification the web app has no screen for.
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
-## Still to verify on real phones (0.30)
+## Still to verify on real phones (0.31)
 
-Install build 0.30 (versionCode 30) on both phones. Then:
+Install build 0.31 (versionCode 31) on both phones. Then:
 
+- **Parents.** Before inviting anyone, **Family** lists one parent: you, marked as having started the family. After the second account joins, both phones list both parents, and each marks the one reading it.
 - **Invite a parent.** On the first phone, **Family › Invite a parent**: a code appears. On the second phone (or in the web app), create an account with a different email, choose **I have an invite code**, and enter it. That account lands in the family and sees the same children and phones. Enter the same code again from a third account: it is refused. Ask for a new code on the first phone: the earlier code no longer works.
 - **Two parents, step 21.** With both parents on the same child's **Controls** tab: one sets YouTube to Blocked while the other sets the daily limit to a different value, within a few seconds of each other. Both changes are there afterwards on both screens and on the child's phone; neither reverts. Repeat with one parent on the phone app and one in the web app.
 - **A second parent can do everything.** From the second account: answer a request (Allow 15 min), pause and resume the phone, request a check-in, and open Activity. All of it works and shows on the first parent's screen.

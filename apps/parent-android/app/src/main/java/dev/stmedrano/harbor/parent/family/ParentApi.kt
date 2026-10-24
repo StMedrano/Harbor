@@ -1,5 +1,6 @@
 package dev.stmedrano.harbor.parent.family
 
+import dev.stmedrano.harbor.parent.data.FamilyParentV1
 import dev.stmedrano.harbor.parent.data.FamilySnapshot
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -115,8 +116,18 @@ class SdkParentApi(private val client: SupabaseClient, private val auth: ParentA
                 .decodeList<FamilyRow>().singleOrNull() ?: throw FamilyAccessDenied()
             val children = client.postgrest.from("children").select { filter { eq("family_id", familyId) } }.decodeList<ChildRow>()
             val devices = client.postgrest.from("devices_public").select { filter { eq("family_id", familyId) } }.decodeList<DeviceRow>()
-            val profile = client.postgrest.from("profiles").select { filter { eq("id", identity.userId) } }.decodeList<ProfileRow>().singleOrNull()
-            FamilySnapshot(family.public(), member.public(), children.map { row -> row.public() }, devices.map { row -> row.public() }, now(), profile?.public())
+            // Every active parent of this family, and their names where a profile has one. Row Level Security already
+            // limits both reads to families this parent belongs to.
+            val members = client.postgrest.from("family_members").select { filter { eq("family_id", familyId); eq("status", "active") } }.decodeList<MemberRow>()
+            val profiles = client.postgrest.from("profiles").select {
+                filter { isIn("id", members.map { it.userId }.ifEmpty { listOf(identity.userId) }) }
+            }.decodeList<ProfileRow>()
+            val profile = profiles.singleOrNull { it.id == identity.userId }
+            val parents = members.filter { it.role in setOf("owner", "parent") }
+                .sortedWith(compareBy({ it.role != "owner" }, { it.createdAt }))
+                .map { FamilyParentV1(it.userId, it.role, profiles.singleOrNull { row -> row.id == it.userId }?.displayName) }
+            FamilySnapshot(family.public(), member.public(), children.map { row -> row.public() }, devices.map { row -> row.public() }, now(),
+                profile?.public(), parents)
         } catch (failure: RestException) {
             if (failure.statusCode in setOf(403, 404)) throw FamilyAccessDenied()
             throw failure

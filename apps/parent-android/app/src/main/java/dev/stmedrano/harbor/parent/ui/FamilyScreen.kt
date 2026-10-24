@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import dev.stmedrano.harbor.parent.data.FamilyParentV1
 import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.legal.LegalDoc
 import java.time.Instant
@@ -74,10 +75,22 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
             HarborButton(onAddChild, enabled = online, modifier = Modifier.fillMaxWidth()) { Text("Add child") }
             HarborSecondaryButton(onPair, enabled = online && selectedChildId != null, modifier = Modifier.fillMaxWidth()) { Text("Pair device") }
             // Every parent of a family sees the same children and phones and can change the same controls.
-            if (onInviteParent != null) HarborCard(title = "Parents") {
-                Text("${snapshot.membership.role.replaceFirstChar(Char::uppercase)} of this family. Another adult joins with a code and sees everything you see.",
-                    style = MaterialTheme.typography.bodyMedium, color = harbor.ink2)
-                HarborSecondaryButton(onInviteParent, enabled = online, modifier = Modifier.fillMaxWidth()) { Text("Invite a parent") }
+            HarborCard(title = "Parents") {
+                val parents = snapshot.parents.ifEmpty {
+                    listOf(FamilyParentV1(snapshot.membership.userId, snapshot.membership.role, snapshot.profile?.displayName))
+                }
+                parents.forEachIndexed { index, parent ->
+                    val you = parent.userId == snapshot.membership.userId
+                    val name = parent.displayName?.takeIf { it.isNotBlank() } ?: if (you) "You" else "A parent"
+                    HarborRow(if (you && parent.displayName != null) "$name (you)" else name, divider = index > 0,
+                        subtitle = if (parent.role == "owner") "Started this family" else "Parent",
+                        leading = { HarborAvatar(name, 36.dp, HarborParentColor) })
+                }
+                Text("Every parent sees the same children and phones, and can change the same rules. When two parents change a rule at the same time, both changes are kept.",
+                    style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
+                if (onInviteParent != null) HarborSecondaryButton(onInviteParent, enabled = online, modifier = Modifier.fillMaxWidth()) {
+                    Text("Invite a parent")
+                }
             }
             TextButton(onCreateFamily, enabled = online) { Text("Start another family") }
         }

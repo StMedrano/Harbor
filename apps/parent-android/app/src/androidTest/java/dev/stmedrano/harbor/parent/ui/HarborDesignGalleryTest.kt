@@ -41,7 +41,9 @@ class HarborDesignGalleryTest {
         ChildV1(1, "c", "family", "Sam", stamp, stamp))
     private val phone = DevicePublicV1(1, "phone", "family", "a", "Pixel 8", "standard", "active", null, stamp, stamp)
     private val snapshot = FamilySnapshot(FamilyV1(1, "family", "The Riveras", "UTC", stamp, stamp),
-        FamilyMemberV1(1, "m", "family", "parent", "owner", "active", stamp, stamp), kids, listOf(phone), 1)
+        FamilyMemberV1(1, "m", "family", "parent", "owner", "active", stamp, stamp), kids, listOf(phone), 1,
+        parents = listOf(dev.stmedrano.harbor.parent.data.FamilyParentV1("parent", "owner", "Alex Rivera"),
+            dev.stmedrano.harbor.parent.data.FamilyParentV1("parent-2", "parent", "Jordan Rivera")))
     private val youtube = "com.google.android.youtube"
     private val tiktok = "com.zhiliaoapp.musically"
     private val now = ZonedDateTime.now(ZoneId.systemDefault())

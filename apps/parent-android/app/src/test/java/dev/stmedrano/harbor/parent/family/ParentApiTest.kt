@@ -112,9 +112,14 @@ class ParentApiTest {
             assertEquals(child, api.createChild(CreateChildRequest(family, "Child", "child-key")).id)
             assertEquals("123456", api.createPairing(child).code)
             assertTrue(requests.all { it.headers[HttpHeaders.Authorization] == "Bearer ${token()}" })
-            val member = requests.single { it.url.encodedPath == "/rest/v1/family_members" }
+            // Two reads of the members: this parent's own membership, and every active parent of the same family.
+            val members = requests.filter { it.url.encodedPath == "/rest/v1/family_members" }
+            assertEquals(2, members.size)
+            assertTrue("Every member read stays inside one family", members.all { it.url.parameters["family_id"] == "eq.$family" })
+            val member = members.single { it.url.parameters["user_id"] != null }
             assertEquals("eq.$user", member.url.parameters["user_id"])
-            assertEquals("eq.$family", member.url.parameters["family_id"])
+            val others = members.single { it.url.parameters["user_id"] == null }
+            assertEquals("eq.active", others.url.parameters["status"])
             for (request in requests.filter { it.url.encodedPath.startsWith("/functions/") }) {
                 val body = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
                 assertFalse(body.containsKey("userId"))
