@@ -49,6 +49,29 @@ Every value except the last is written out for this family's development project
 Both print the certificate the APK was signed with. It should read
 `CN=Harbor Family development, OU=Harbor Family, O=Harbor Family, C=US` wherever the build ran.
 
+## Setting up a fresh machine
+
+A cloud environment starts with neither the Android SDK nor the Firebase CLI. Once per environment:
+
+```sh
+# A JDK 17 or newer, and the command line tools.
+sudo apt-get update && sudo apt-get install -y openjdk-17-jdk unzip
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export ANDROID_HOME="$HOME/android-sdk"
+mkdir -p "$ANDROID_HOME/cmdline-tools"
+curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools" && mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+
+# What this app builds against. Accepting the licences is required and is the Google SDK licence, not Harbor's.
+yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-37" "build-tools;36.0.0"
+
+# Only needed to upload.
+npm install -g firebase-tools
+```
+
+Keep `JAVA_HOME` and `ANDROID_HOME` in the environment, beside the variables in the table above.
+
 ## The service account, for uploading from a cloud environment
 
 The Firebase CLI on the PC uses the owner's own Google login, which a cloud environment cannot have. Instead, in the
