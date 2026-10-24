@@ -13,11 +13,11 @@ Harbor Family is one app. A parent or guardian creates an account and adds child
 - Message alerts from a child's phone: Harbor checks new notifications from {{monitored_apps}} and incoming text messages on the phone. Only the kind of concern, the app, the time and whether the sender is a saved contact are sent. The message text, the sender, phone numbers and any part of a message are never sent. Kept for up to 30 days.
 - Parent location (optional, off by default): if a parent turns on Share my location, the name they choose, plus latitude, longitude, accuracy and time from their phone. It is sent only while Harbor is open on the screen, and only the latest place is kept. It is removed when the parent turns sharing off, leaves the family, or after 24 hours.
 - Check-ins: when a parent asks, the child's answer ("I'm okay" or "Running late"), the time, and the last place the phone already had if it is under an hour old. Kept for up to 30 days.
+- App control on a child's phone: the rules a parent sets, and a record of when an app was blocked or a limit was reached, with the app and the time. Kept for up to 30 days. To apply the rules, Harbor's accessibility service sees which app is in the foreground. To ask for a parent's OK before any app is removed, it also reads the name of the screen the phone's app installer brought to the front, which is used on the phone and is not sent anywhere. It does not read the contents of any screen.
 - Notifications: a device token so the phone can be notified, sent through Firebase Cloud Messaging.
 
 ## What Harbor does not do
 - It does not record the screen, the camera or the microphone.
-- It does not block or limit apps.
 - It does not send message text to anyone.
 
 ## Who can see it

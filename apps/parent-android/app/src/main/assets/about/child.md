@@ -20,10 +20,15 @@ It looks for possible concerns: bullying or harassment, self-harm or wellbeing, 
 
 When something is flagged, your parents are sent only the category, the app, the time and whether the sender is saved in your contacts. They are never sent the message text, who sent it, a phone number, or any part of the message. Harbor does not read your whole conversations.
 
+## What your parents can control
+- Your parents can pause the phone, set a daily limit on your screen time, set a bedtime, and set a limit or a block on particular apps. Harbor warns you a few minutes before an app or the day's screen time runs out.
+- When an app is blocked, or a limit or bedtime has been reached, it will not open. Harbor shows you which rule stopped it, and you can ask a parent from that screen. They are sent a notification and can say yes or no.
+- Some apps are never blocked, whatever the rules say: the phone, messages, Settings, the keyboard and the home screen. You can always call or text someone, including an emergency number. Time in the phone, messages and Settings still counts toward a daily limit.
+- While Harbor is on, removing any app from this phone needs a parent's OK, not only Harbor. Harbor cannot tell which app is being removed, so it asks for all of them. Your parent is sent a notification and can say yes, which allows removing apps for 15 minutes. Installing apps is not affected.
+
 ## What Harbor never does
 - It never records your screen, your camera or your microphone.
 - Screen time never reads messages, web pages, photos or contacts.
-- It never blocks or limits any app.
 - It never sends your parents the words of a message.
 
 ## Who can turn it off

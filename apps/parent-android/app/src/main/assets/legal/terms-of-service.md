@@ -18,7 +18,7 @@ Parents and guardians create accounts. A child uses Harbor only on a phone that 
 - Locations and reports can be delayed or out of date. Harbor labels information that may be old.
 
 ## What Harbor does
-Harbor shares a child's location, screen time, possible-concern alerts and check-in answers with the parents in the family, as described in the Privacy policy. It also shows children a family map of the latest places of the children and of parents who chose to share, which a parent can turn off. It does not record the screen, camera or microphone, and it does not block or limit apps.
+Harbor shares a child's location, screen time, possible-concern alerts and check-in answers with the parents in the family, as described in the Privacy policy. It also shows children a family map of the latest places of the children and of parents who chose to share, which a parent can turn off. It does not record the screen, camera or microphone. When a parent sets up controls, Harbor can block or limit apps on a child's phone, and removing any app from that phone then needs a parent's OK.
 
 ## Ending use
 A parent can remove a device at any time in the Family tab, which stops sharing from it. You can stop using Harbor at any time.

@@ -43,6 +43,12 @@ From the real-phone run on 0.24:
 - **Parent and phone showed different totals.** The parent now shows the count the phone enforces (sent about once a minute), not a recount from the timeline.
 - **Faster sync.** Rule changes wake the phone by push within seconds; without a push the phone checks every 30 seconds (was 60). The parent's Controls tab refreshes every 15 seconds and Activity every 30 seconds.
 
+## Results on 0.33 (2026-10-24)
+
+Passed on real phones, reported by the owner: **step 21 (two parents)** and **step 22 (revocation)** — the two the 0.27 round never reached. Parent invites therefore work end to end as well, since step 21 needs a second parent in the family: an invited account joined, and both parents' changes to the same child's Controls held without either reverting.
+
+Still not reported: steps 11, 12 and 19 (fixed in 0.28, never re-run), the RCS alert check, and 0.33's names and joining a family later.
+
 ## Results on 0.27 (2026-10-23)
 
 Passed on real phones: steps 1 to 10, 13 to 18 and 20 of the list below. Step 16 also showed Unlimited apps blocked during bedtime, which is the design: Unlimited means no time limit, not exempt from pause or bedtime. Not reported: 21 (two parents) and 22 (revocation).
@@ -76,6 +82,14 @@ Not covered (the parent's notification "App controls were turned off" covers the
 **The web app** is the same Harbor Family parent app in a browser, at **harbor-family-dev.vercel.app**, which always serves the newest build of this branch. It has the same five tabs, the same words and the same rules as the phone app, in the Harbor Family design system: Map with check-ins, Alerts, Controls (pause, 15 more minutes, the daily limit, bedtime, a rule per app, Allowed right now, Requests), Activity, and Family with Add a child, pairing codes and Invite a parent. It can be installed to the home screen. What it does **not** do: it never measures, shares or enforces anything itself (only a child's Android phone does), and removing a phone still needs the two-step verification the web app has no screen for.
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
+
+## 0.34: the app's own documents match what it does (2026-10-24)
+
+Harbor's About pages, privacy policy and terms all said it never blocks or limits apps. That stopped being true in 0.28 and 0.29, which added blocked apps, per-app and daily limits, bedtime, and the guard over removing an app. The child's About page was the worst of the four: it opens by promising to explain everything Harbor does, and then told the child no app would ever be blocked.
+
+All four now describe app control instead of denying it. The child's page gains **What your parents can control**: the rules a parent can set, that a blocked app says which rule stopped it and offers to ask a parent, that the phone, messages, Settings, the keyboard and the home screen are never blocked so a call or a text always works, and that removing any app needs a parent's OK. The parent's page gains a **Controls** entry and a **Removing apps** section. The privacy policy now discloses what app control reads on the phone — which app is in the foreground, and the name of the screen the phone's app installer brought to the front, which is used on the phone and sent nowhere — and that it reads the contents of no screen.
+
+Check on the phones: **child phone › About Harbor**, and on a parent phone **About Harbor**, **Privacy policy** and **Terms of service**. Each reads as described above, and none of them claims Harbor does not block apps.
 
 ## 0.33: a name to be known by, and joining a family later (2026-10-24)
 

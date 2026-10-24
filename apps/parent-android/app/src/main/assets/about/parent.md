@@ -7,6 +7,7 @@ Harbor Family shows you what your child's phone shares with you. This page expla
 - Alerts: possible concerns found on the phone, with the kind of concern, the app and the time. You never see message text, who sent it, a phone number or any part of the message.
 - Activity: measured screen time and the apps used over the last 7 days. If the phone cannot measure it, Harbor says so instead of showing zero.
 - Check in: you can ask your child to check in. They answer "I'm okay" or "Running late", with the last place their phone already had if it is under an hour old.
+- Controls: pause the phone, a daily limit on screen time, a bedtime, a limit or a block for particular apps, and apps you mark unlimited. You also see the requests your child sends when something is blocked, and say yes or no to each.
 - Family: your children, their devices, and the other parents in the family.
 
 ## The family map
@@ -19,9 +20,11 @@ Children see a Family tab with a map of every child in the family and any parent
 ## What your child sees
 Your child's phone shows a notification while location is shared, lists everything Harbor does in its About page, and cannot turn sharing off. Only you can stop it, by removing the device in the Family tab. Being open about it builds trust.
 
+## Removing apps
+While controls are on, removing any app from your child's phone needs your OK, so Harbor cannot be removed without one. Harbor cannot tell which app is being removed, so it asks for all of them. You are sent a notification, and a yes allows removing apps for 15 minutes. Installing apps is not affected. The phone, messages and Settings are never blocked, so the phone stays usable and emergency calls always work.
+
 ## What Harbor does not do
 - It does not record the screen, camera or microphone.
-- It does not block or limit apps.
 - It does not read or send message text.
 
 ## What Harbor can miss
