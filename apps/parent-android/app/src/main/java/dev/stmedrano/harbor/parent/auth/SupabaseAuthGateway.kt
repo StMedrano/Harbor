@@ -17,6 +17,8 @@ import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.postgrest.Postgrest
 import io.ktor.client.engine.HttpClientEngine
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.Locale
 import java.util.UUID
 
@@ -26,9 +28,16 @@ class SupabaseAuthGateway(private val client: SupabaseClient, private val store:
         return client.auth.currentSessionOrNull() ?: throw AuthSessionRejected()
     }
 
-    override suspend fun signUp(email: String, password: String): String =
-        client.auth.signUpWith(Email, redirectUrl = CALLBACK) { this.email = email; this.password = password }
-            ?.id?.takeIf { it.isNotBlank() } ?: throw AuthSessionRejected()
+    override suspend fun signUp(email: String, password: String, displayName: String): String {
+        // The account trigger reads display_name, so a name typed here is the one the family sees from the first sign-in.
+        val name = displayName.trim()
+        require(name.isNotEmpty() && name.length <= 100 && name.none(Char::isISOControl)) { "Enter the name your family will see" }
+        return client.auth.signUpWith(Email, redirectUrl = CALLBACK) {
+            this.email = email
+            this.password = password
+            this.data = buildJsonObject { put("display_name", name); put("name", name) }
+        }?.id?.takeIf { it.isNotBlank() } ?: throw AuthSessionRejected()
+    }
 
     override suspend fun requestRecovery(email: String) = client.auth.resetPasswordForEmail(email, redirectUrl = CALLBACK)
     override suspend fun exchangeCode(code: String) = client.auth.exchangeCodeForSession(code)

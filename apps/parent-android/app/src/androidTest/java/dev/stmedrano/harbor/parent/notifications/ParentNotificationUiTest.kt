@@ -86,7 +86,7 @@ class ParentNotificationUiTest {
             override suspend fun clearLocalSession() { session = null }
             override suspend fun signOutCurrent(): Unit = error("offline")
             override suspend fun signIn(email: String, password: String) = error("Unused")
-            override suspend fun signUp(email: String, password: String) = error("Unused")
+            override suspend fun signUp(email: String, password: String, displayName: String) = error("Unused")
             override suspend fun requestRecovery(email: String) = error("Unused")
             override suspend fun exchangeCode(code: String) = error("Unused")
             override suspend fun changePassword(password: String) = error("Unused")

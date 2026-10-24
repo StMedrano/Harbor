@@ -33,6 +33,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     // Credentials never enter saved-instance state; rotation and navigation clear typed passwords.
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
     var signupConfirmation by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -46,7 +47,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     val scope = rememberCoroutineScope()
 
     fun navigate(destination: AccountPage) {
-        password = ""; signupConfirmation = ""; newPassword = ""; confirmPassword = ""
+        password = ""; signupConfirmation = ""; newPassword = ""; confirmPassword = ""; displayName = ""
         page = destination
     }
 
@@ -135,6 +136,11 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
             }
             if (accountForm) {
                 key(page) {
+                    if (page == AccountPage.SIGN_UP) {
+                        // The name the rest of the family sees. Without it they would read only as "A parent".
+                        HarborField(displayName, { displayName = it }, "Your name", enabled = enabled,
+                            hint = "The other parents and your children see this.")
+                    }
                     HarborPasswordField(password, { password = it }, "Password", enabled)
                     if (page == AccountPage.SIGN_UP) {
                         HarborPasswordField(signupConfirmation, { signupConfirmation = it }, "Confirm password", enabled)
@@ -143,9 +149,9 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
                 HarborButton(onClick = {
                     val secret = password
                     if (page == AccountPage.SIGN_IN) submit("Parent session verified.", ::openParentIfVerified) { it.signIn(email, secret) }
-                    else submit("Check your email. Open the confirmation link on this device. Return to sign in after confirmation.") { it.beginSignup(email, secret) }
+                    else { val name = displayName; submit("Check your email. Open the confirmation link on this device. Return to sign in after confirmation.") { it.beginSignup(email, secret, name) } }
                 }, enabled = enabled && email.isNotBlank() && password.isNotBlank() &&
-                    (page == AccountPage.SIGN_IN || password == signupConfirmation),
+                    (page == AccountPage.SIGN_IN || (password == signupConfirmation && displayName.isNotBlank())),
                     modifier = Modifier.fillMaxWidth().testTag("auth-submit")) {
                     Text(if (page == AccountPage.SIGN_IN) "Sign in" else "Create account")
                 }

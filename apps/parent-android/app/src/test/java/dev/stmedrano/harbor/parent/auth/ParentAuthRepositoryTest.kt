@@ -35,7 +35,7 @@ class ParentAuthRepositoryTest {
         var logoutFailure = false
         var verifiedIdentity = ParentIdentity("user", "session")
         override suspend fun signIn(email: String, password: String) = stored!!
-        override suspend fun signUp(email: String, password: String) = "user"
+        override suspend fun signUp(email: String, password: String, displayName: String) = "user"
         override suspend fun requestRecovery(email: String) { if (recoveryFailure) error("offline") }
         override suspend fun exchangeCode(code: String): UserSession { exchanges++; return stored!! }
         override suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?): ParentIdentity {
@@ -123,7 +123,7 @@ class ParentAuthRepositoryTest {
         val gateway = Gateway(session())
         val store = store()
         val repo = repo(gateway, store)
-        repo.beginSignup("parent@example.invalid", "memory-only")
+        repo.beginSignup("parent@example.invalid", "memory-only", "Parent One")
         rejected { repo.signIn("parent@example.invalid", "memory-only") }
         repo.cancelEmailFlow()
         assertNull(store.transaction)
@@ -158,7 +158,7 @@ class ParentAuthRepositoryTest {
         assertNull(store.transaction)
         gateway.recoveryFailure = false
         repo.beginRecovery("parent@example.invalid")
-        rejected { repo.beginSignup("other@example.invalid", "memory-only") }
+        rejected { repo.beginSignup("other@example.invalid", "memory-only", "Parent Two") }
         assertEquals(AuthKind.RECOVERY, store.transaction?.kind)
     }
 

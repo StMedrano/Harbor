@@ -77,6 +77,12 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
+## 0.33: a name to be known by, and joining a family later (2026-10-24)
+
+**A name.** Creating an account on the phone now asks for the name the rest of the family sees, and a parent can change it afterwards: **Family › Parents**, tap your own row. Until now the Android sign-up asked only for an email and a password, so every parent who made their account there had no name at all and read to the others only as "A parent". The web app asks for a name as it always did. A parent may change their own name and nobody else's (migration `20261024170000_profile_display_name`).
+
+**Joining a family later.** The invite code used to be enterable only on the way in, by an account with no family. An adult who already had an account — or who started a family of their own by mistake — had no way to accept an invite. **Family › Join another family with a code** now takes one at any time, on the phone and in the web app. A parent can belong to more than one family; the Family tab lists them and switches between them.
+
 ## 0.32: one signing key, so the app can be built anywhere (2026-10-24)
 
 Until now the app was signed with whatever debug key sat on the machine that built it, one made per machine. A build from anywhere else would have been refused by a phone as an update. From 0.32 there is one Harbor development key, supplied to the build from outside the repository, so a build from the PC and a build from a cloud environment install over each other. `docs/runbooks/parent-build-anywhere.md` says what a machine needs.
@@ -88,6 +94,8 @@ Until now the app was signed with whatever debug key sat on the machine that bui
 Uninstall Harbor Family from both phones, install build 0.32 (versionCode 32), and pair the child phone again. Then:
 
 - **Parents.** Before inviting anyone, **Family** lists one parent: you, marked as having started the family. After the second account joins, both phones list both parents, and each marks the one reading it.
+- **A name.** Create an account on a phone: it asks for a name, and the other parent sees that name under **Parents**. Then **Family › Parents › your own row**: change it, and the other parent sees the new one.
+- **Joining later.** With an account that already has its own family, use **Family › Join another family with a code** with a code from the first parent. Both families are then listed, and switching between them shows each one's children.
 - **Invite a parent.** On the first phone, **Family › Invite a parent**: a code appears. On the second phone (or in the web app), create an account with a different email, choose **I have an invite code**, and enter it. That account lands in the family and sees the same children and phones. Enter the same code again from a third account: it is refused. Ask for a new code on the first phone: the earlier code no longer works.
 - **Two parents, step 21.** With both parents on the same child's **Controls** tab: one sets YouTube to Blocked while the other sets the daily limit to a different value, within a few seconds of each other. Both changes are there afterwards on both screens and on the child's phone; neither reverts. Repeat with one parent on the phone app and one in the web app.
 - **A second parent can do everything.** From the second account: answer a request (Allow 15 min), pause and resume the phone, request a check-in, and open Activity. All of it works and shows on the first parent's screen.

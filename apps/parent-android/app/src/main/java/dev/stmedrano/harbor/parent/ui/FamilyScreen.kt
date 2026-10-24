@@ -20,7 +20,7 @@ import java.time.Instant
 fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: String?,
     onRefresh: () -> Unit, onSelectFamily: (String) -> Unit, onSelectChild: (String) -> Unit,
     onCreateFamily: () -> Unit, onAddChild: () -> Unit, onPair: () -> Unit, onDevice: (DevicePublicV1) -> Unit,
-    onInviteParent: (() -> Unit)? = null, onJoinFamily: (() -> Unit)? = null,
+    onInviteParent: (() -> Unit)? = null, onJoinFamily: (() -> Unit)? = null, onMyName: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null,
     sharing: ParentSharingUi? = null) {
     val snapshot = state.snapshot
@@ -81,15 +81,24 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                 }
                 parents.forEachIndexed { index, parent ->
                     val you = parent.userId == snapshot.membership.userId
-                    val name = parent.displayName?.takeIf { it.isNotBlank() } ?: if (you) "You" else "A parent"
-                    HarborRow(if (you && parent.displayName != null) "$name (you)" else name, divider = index > 0,
-                        subtitle = if (parent.role == "owner") "Started this family" else "Parent",
-                        leading = { HarborAvatar(name, 36.dp, HarborParentColor) })
+                    val named = parent.displayName?.takeIf { it.isNotBlank() }
+                    val name = named ?: if (you) "You" else "A parent"
+                    val role = if (parent.role == "owner") "Started this family" else "Parent"
+                    HarborRow(if (you && named != null) "$name (you)" else name, divider = index > 0,
+                        // Only your own name is yours to change; the others set theirs on their own phone.
+                        subtitle = if (you) "$role · tap to change your name" else role,
+                        onClick = if (you) onMyName else null,
+                        leading = { HarborAvatar(name, 36.dp, HarborParentColor) },
+                        trailing = if (you && onMyName != null) ({ HarborChevron() }) else null)
                 }
                 Text("Every parent sees the same children and phones, and can change the same rules. When two parents change a rule at the same time, both changes are kept.",
                     style = MaterialTheme.typography.bodySmall, color = harbor.ink2)
                 if (onInviteParent != null) HarborSecondaryButton(onInviteParent, enabled = online, modifier = Modifier.fillMaxWidth()) {
                     Text("Invite a parent")
+                }
+                // A parent who already has an account, and already has a family of their own, still joins with a code.
+                if (onJoinFamily != null) HarborOutlinedButton(onJoinFamily, enabled = online, modifier = Modifier.fillMaxWidth()) {
+                    Text("Join another family with a code")
                 }
             }
             TextButton(onCreateFamily, enabled = online) { Text("Start another family") }

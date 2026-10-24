@@ -130,6 +130,15 @@ export const supabaseApi = {
     try { const r = await fn('accept-parent-invite', { code: clean(code) }); remember(r.familyId); return { ...(await currentSession()), joined: r.familyName || 'the family' }; }
     catch (x) { if (x instanceof ApiError && x.code === 'validation_failed') throw fail('invite_invalid'); if (x instanceof ApiError && x.code === 'forbidden') throw fail('invite_locked'); throw x; }
   },
+  /** The name the rest of the family sees on this parent. A parent may set only their own. */
+  async setMyName(name) {
+    const { data: { user } } = await sb().auth.getUser(); if (!user) throw fail('unauthenticated');
+    const wanted = clean(name);
+    if (!wanted || wanted.length > 100) throw new ApiError('validation_failed', 'Enter the name your family will see.');
+    ok(await sb().from('profiles').update({ display_name: wanted }).eq('id', user.id));
+    return wanted;
+  },
+
   /** A one-day code another adult enters to join this family as a parent. */
   async createInvite(familyId) { return fn('create-parent-invite', { familyId }); },
 

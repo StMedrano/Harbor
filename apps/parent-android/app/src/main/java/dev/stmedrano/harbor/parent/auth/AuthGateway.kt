@@ -4,7 +4,8 @@ import io.github.jan.supabase.auth.user.UserSession
 
 interface AuthGateway {
     suspend fun signIn(email: String, password: String): UserSession
-    suspend fun signUp(email: String, password: String): String
+    /** [displayName] is the name the rest of the family sees; a parent can change it later. */
+    suspend fun signUp(email: String, password: String, displayName: String): String
     suspend fun requestRecovery(email: String)
     suspend fun exchangeCode(code: String): UserSession
     suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?): ParentIdentity

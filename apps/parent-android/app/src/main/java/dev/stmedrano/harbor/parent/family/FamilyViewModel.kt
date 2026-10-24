@@ -95,6 +95,14 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
         return invite
     }
 
+    /** The name the rest of the family sees on this parent. */
+    suspend fun setMyName(identity: ParentIdentity, name: String) = operation(identity) {
+        requireOnline()
+        api.setDisplayName(name)
+        requireCurrent(identity)
+        repository.state.value.snapshot?.family?.id?.let { repository.refresh(identity, it) }
+    }
+
     /** Joins the family another parent's code names, and shows it. Throws [ParentInviteRejected] for a code that does not work. */
     suspend fun joinFamily(identity: ParentIdentity, code: String) = operation(identity) {
         val joined = api.acceptParentInvite(code)

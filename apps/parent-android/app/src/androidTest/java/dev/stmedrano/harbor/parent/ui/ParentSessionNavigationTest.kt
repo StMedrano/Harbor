@@ -37,7 +37,7 @@ class ParentSessionNavigationTest {
         override suspend fun requestRecovery(email: String) {}
         override suspend fun exchangeCode(code: String) = verifiedSession()
         override suspend fun changePassword(password: String) {}
-        override suspend fun signUp(email: String, password: String) = "synthetic-parent"
+        override suspend fun signUp(email: String, password: String, displayName: String) = "synthetic-parent"
         override suspend fun refresh() = verifiedSession()
     }
 

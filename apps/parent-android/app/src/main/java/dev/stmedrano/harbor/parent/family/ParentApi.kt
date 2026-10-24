@@ -41,6 +41,8 @@ interface ParentApi {
     suspend fun createPairing(childId: String): PairingCode
     suspend fun readFamily(familyId: String): FamilySnapshot
     suspend fun revokeDevice(familyId: String, deviceId: String)
+    /** The name the rest of the family sees. A parent may set only their own. */
+    suspend fun setDisplayName(name: String): Unit = throw UnsupportedOperationException()
     /** Default: only the live backend issues and accepts invites, so test doubles need not implement them. */
     suspend fun createParentInvite(familyId: String): ParentInvite = throw UnsupportedOperationException()
     suspend fun acceptParentInvite(code: String): JoinedFamily = throw UnsupportedOperationException()
@@ -81,6 +83,15 @@ class SdkParentApi(private val client: SupabaseClient, private val auth: ParentA
             val code = runCatching { Json.parseToJsonElement(failure.response.bodyAsText()).jsonObject["code"]?.jsonPrimitive?.content }.getOrNull()
             if (failure.statusCode == 403 && code == "MFA_REQUIRED") throw MfaRequired()
             throw failure
+        }
+    }
+
+    override suspend fun setDisplayName(name: String): Unit = auth.withAccessToken {
+        val trimmed = name.trim()
+        require(trimmed.isNotEmpty() && trimmed.length <= 100 && trimmed.none(Char::isISOControl)) { "Enter a name" }
+        val identity = checkNotNull(auth.identity.value)
+        client.postgrest.from("profiles").update(buildJsonObject { put("display_name", trimmed) }) {
+            filter { eq("id", identity.userId) }
         }
     }
 

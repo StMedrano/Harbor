@@ -42,7 +42,7 @@ class AuthScreenTest {
             override suspend fun exchangeCode(code: String) = UserSession("synthetic", "synthetic", expiresIn = 3600, tokenType = "bearer")
             override suspend fun fetchVerifiedIdentity(session: UserSession, expectedEmail: String?, expectedUserId: String?) = ParentIdentity("synthetic-user", "synthetic-session")
             override suspend fun signIn(email: String, password: String) = error("Not used")
-            override suspend fun signUp(email: String, password: String) = error("Not used")
+            override suspend fun signUp(email: String, password: String, displayName: String) = error("Not used")
             override suspend fun changePassword(password: String) = error("Not used")
             override suspend fun refresh() = error("Not used")
             override suspend fun signOutCurrent() {}
@@ -108,7 +108,7 @@ class AuthScreenTest {
             override suspend fun clearLocalSession() { session = null }
             override suspend fun signOutCurrent() { session = null }
             override suspend fun refresh() = error("Not used")
-            override suspend fun signUp(email: String, password: String) = error("Not used")
+            override suspend fun signUp(email: String, password: String, displayName: String) = error("Not used")
             override suspend fun requestRecovery(email: String) = error("Not used")
             override suspend fun exchangeCode(code: String) = error("Not used")
             override suspend fun changePassword(password: String) = error("Not used")

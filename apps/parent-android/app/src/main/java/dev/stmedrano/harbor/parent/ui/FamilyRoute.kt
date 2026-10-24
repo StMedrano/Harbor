@@ -126,6 +126,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onCreateFamily = { sheet = "family"; error = null },
             onInviteParent = { sheet = "invite"; error = null; invite = null; submit { invite = model.inviteParent(identity) } },
             onJoinFamily = { sheet = "join"; error = null; name = "" },
+            onMyName = { sheet = "myname"; error = null; name = family.snapshot?.profile?.displayName.orEmpty() },
             onAddChild = { sheet = "child"; error = null },
             onPair = { sheet = "pair"; submit { model.issuePairing(identity) } },
             onDevice = { deviceId = it.id },
@@ -144,6 +145,8 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onCancel = { scope.launch { if (request { model.cancelChild(identity) }) { sheet = null; name = "" } } })
         "pair" -> PairingSheet(pairing, expired, error,
             onRenew = { submit { model.issuePairing(identity) } }, onCheck = { submit { model.refresh(identity) } }, onClose = { sheet = null })
+        "myname" -> MyNameSheet(name, control.busy, error, onName = { name = it }, onClose = { sheet = null; name = "" },
+            onSave = { scope.launch { if (request { model.setMyName(identity, name) }) { sheet = null; name = "" } } })
         "invite" -> InviteParentSheet(invite, control.busy, error,
             onRetry = { submit { invite = model.inviteParent(identity) } }, onClose = { sheet = null; invite = null })
         "join" -> JoinFamilySheet(name, control.busy, error, onCode = { name = it }, onClose = { sheet = null; name = "" },

@@ -55,7 +55,7 @@ class SupabaseAuthGatewayTest {
         val client = SupabaseAuthGateway.createClient("https://parent.test", "sb_publishable_fixture", store, engine)
         try {
             val gateway = SupabaseAuthGateway(client, store)
-            assertEquals(uid, gateway.signUp("parent@example.invalid", "memory-only"))
+            assertEquals(uid, gateway.signUp("parent@example.invalid", "memory-only", "Parent One"))
             val signup = requests.single()
             assertEquals("harbor-parent://auth/callback", signup.url.parameters["redirect_to"])
             assertEquals("s256", body(signup)["code_challenge_method"]?.jsonPrimitive?.content)

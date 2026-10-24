@@ -222,10 +222,17 @@ function familyView() {
   if (!S.family) return loadingCard('Loading your family…');
   const kids = S.family.children, parents = S.family.parents;
   const kidRows = kids.map(c => `<div class="hb-row"><div class="hb-rm">${avatar(c.name, crew(c.index), 'hb-av-lg')}<div><span class="hf-rt">${e(c.name)}</span><span class="hb-rs">${c.device ? `${e(c.device.name || 'Phone')}${c.device.lastSeenAt ? ' · seen ' + e(ago(c.device.lastSeenAt)) : ''}` : 'No phone paired yet'}</span></div></div>${c.device ? tag('Paired', 'low') : btn('Pair a phone', `data-a="code" data-id="${e(c.id)}"`, 'secondary', 'hb-btn-small')}</div>`).join('');
-  const parentRows = parents.map(p => `<div class="hb-row"><div class="hb-rm">${avatar(p.name || '?', 'var(--brand)', 'hb-av-lg')}<div><span class="hf-rt">${e(p.name || 'A parent')}${p.userId === S.user.id ? ' (you)' : ''}</span><span class="hb-rs">${p.role === 'owner' ? 'Started this family' : 'Parent'}</span></div></div></div>`).join('');
+  const parentRows = parents.map(p => {
+    const you = p.userId === S.user.id, named = (p.name || '').trim();
+    const shown = named || (you ? 'You' : 'A parent');
+    const role = p.role === 'owner' ? 'Started this family' : 'Parent';
+    // Only your own name is yours to change; the others set theirs where they sign in.
+    return `<div class="hb-row"><div class="hb-rm">${avatar(shown, 'var(--brand)', 'hb-av-lg')}<div><span class="hf-rt">${e(shown)}${you && named ? ' (you)' : ''}</span><span class="hb-rs">${role}</span></div></div>${you ? btn(named ? 'Change' : 'Add your name', 'data-a="myname"', 'outline', 'hb-btn-small') : ''}</div>`;
+  }).join('');
   const others = S.families.length > 1 ? `<div class="hf-section">Families</div><div class="hb-panel">${S.families.map(f => `<div class="hb-row"><div><span class="hf-rt">${e(f.name)}</span><span class="hb-rs">${f.role === 'owner' ? 'You started it' : 'You joined'}</span></div>${f.id === S.familyId ? tag('Showing', 'low') : btn('Show', `data-a="family" data-id="${e(f.id)}"`, 'outline', 'hb-btn-small')}</div>`).join('')}</div>` : '';
   return `<div class="hf-section">Children</div><div class="hb-panel">${kidRows || `<div class="hb-row"><p>No children yet.</p></div>`}<div class="hb-row">${btn('Add a child', 'data-a="addkid"', 'secondary', 'hb-btn-block')}</div></div>`
-    + `<div class="hf-section">Parents</div><div class="hb-panel">${parentRows}<div class="hb-row">${btn('Invite a parent', 'data-a="invite"', 'secondary', 'hb-btn-block')}</div></div>`
+    + `<div class="hf-section">Parents</div><div class="hb-panel">${parentRows}<div class="hb-row">${btn('Invite a parent', 'data-a="invite"', 'secondary', 'hb-btn-block')}</div>`
+      + `<div class="hb-row">${btn('Join another family with a code', 'data-a="joinfam"', 'outline', 'hb-btn-block')}</div></div>`
     + '<p class="hf-small">Every parent sees the same children and phones and can change the same controls. When two parents change a rule at the same time, both changes are kept.</p>'
     + others
     + `<div class="hf-section">Account</div><div class="hb-panel"><div class="hb-row"><div><span class="hf-rt">${e(S.user.name || 'Signed in')}</span><span class="hb-rs">${e(S.user.email || '')}</span></div>${btn('Sign out', 'data-a="signout"', 'outline', 'hb-btn-small')}</div></div>`;
@@ -289,6 +296,18 @@ const onClick = async ev => {
       case 'code': case 'newcode': { const c = S.family.children.find(x => x.id === t.dataset.id); busy(t, true); try { pairSheet(c, await api.pairingCode(c.id)); } finally { busy(t, false); } return; }
       case 'donepair': shut(); loadFamily(); return;
       case 'invite': { busy(t, true); try { inviteSheet(await api.createInvite(S.familyId)); } finally { busy(t, false); } return; }
+      case 'myname': {
+        const mine = (S.family.parents.find(p => p.userId === S.user.id) || {}).name || '';
+        open('<h2>Your name</h2><p class="hf-muted">The other parents and your children see this. Without one you read only as “A parent”.</p>'
+          + form('myname', fld('name', 'Your name', 'text', 'name', mine), 'Save name'));
+        return;
+      }
+      case 'joinfam': {
+        // A parent who already has an account, and a family of their own, still joins another with a code.
+        open('<h2>Join a family</h2><p class="hf-muted">Ask the other parent for a code: in Harbor Family, Family › Invite a parent. A code works once, for one day.</p>'
+          + form('joinfam', `<div class="hf-code">${fld('code', 'Invite code', 'text', 'off', '', 'autocapitalize="characters" maxlength="12" placeholder="ABCD-EFGH" spellcheck="false"')}</div>`, 'Join family'));
+        return;
+      }
       case 'copy': try { await navigator.clipboard.writeText(v); toast('Code copied'); } catch { toast('Couldn’t copy', { tone: 'info', detail: 'Select the code and copy it instead.' }); } return;
       case 'checkin': { busy(t, true); try { await api.requestCheckIn(k.device.id); toast(`Check-in request sent to ${k.name}`); } finally { busy(t, false); } load('checkins', { force: true }); return; }
       case 'alert': { const u = got('alerts'), x = u && u.reply ? toAlertsView([u.reply]).alerts.find(y => y.id === t.dataset.id) : null; if (x) open(renderAlertDetail(x)); return; }
@@ -326,16 +345,41 @@ const onChange = ev => {
   }
 };
 const onSubmit = async ev => {
-  const f = ev.target.closest('#mod form[data-form]'); if (!f || f.dataset.form !== 'addchild') return;
+  const f = ev.target.closest('#mod form[data-form]'); if (!f) return;
+  const kind = f.dataset.form;
+  if (!['addchild', 'myname', 'joinfam'].includes(kind)) return;
   ev.preventDefault();
   const d = Object.fromEntries(new FormData(f)), err = f.querySelector('.hb-err'), b = f.querySelector('[type=submit]');
-  if (!(d.name || '').trim()) { err.textContent = 'Enter your child’s name.'; err.hidden = false; return; }
+  const fail = text => { err.textContent = text; err.hidden = false; };
+  err.hidden = true;
+  if (kind === 'myname') {
+    if (!(d.name || '').trim()) return fail('Enter the name your family will see.');
+    busy(b, true);
+    try { await api.setMyName(d.name); shut(); await loadFamily(); toast('Your name is saved'); }
+    catch (x) { if (!handle(x)) fail(failText(x)); }
+    finally { busy(b, false); }
+    return;
+  }
+  if (kind === 'joinfam') {
+    if ((d.code || '').replace(/[\s-]/g, '').length !== 8) return fail('Enter the 8-character code, like ABCD-EFGH.');
+    busy(b, true);
+    try {
+      const joined = await api.joinFamily(d.code);
+      shut();
+      Object.assign(S, { families: joined.families, familyId: joined.familyId, family: null, k: null, tab: 'family' });
+      await loadFamily(); render(true); loadTab(true);
+      toast(`You joined ${joined.joined || 'the family'}`, { detail: 'You can see and change everything the other parent can.' });
+    } catch (x) { if (!handle(x)) fail(failText(x)); }
+    finally { busy(b, false); }
+    return;
+  }
+  if (!(d.name || '').trim()) return fail('Enter your child’s name.');
   busy(b, true);
   try {
     const id = await api.addChild(S.familyId, d.name);
     await loadFamily(); S.k = id || S.k; syncControls(); render();
     const c = S.family.children.find(x => x.id === id); if (c) pairSheet(c, await api.pairingCode(c.id)); else shut();
-  } catch (x) { if (!handle(x)) { err.textContent = failText(x); err.hidden = false; } }
+  } catch (x) { if (!handle(x)) fail(failText(x)); }
   finally { busy(b, false); }
 };
 function tick() {

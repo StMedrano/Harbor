@@ -60,8 +60,8 @@ android {
         buildConfigField("boolean", "CI_FIXTURE", ciFixture.toString())
         buildConfigField("String", "SUPABASE_URL", "\"${config.getProperty("supabaseUrl")}\"")
         buildConfigField("String", "PUBLISHABLE_KEY", "\"${config.getProperty("publishableKey")}\"")
-        versionCode = 32
-        versionName = "0.32-development"
+        versionCode = 33
+        versionName = "0.33-development"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

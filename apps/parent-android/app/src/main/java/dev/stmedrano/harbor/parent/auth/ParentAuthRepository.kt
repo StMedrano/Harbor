@@ -48,12 +48,12 @@ class ParentAuthRepository(
         block(active.accessToken)
     }
 
-    suspend fun beginSignup(email: String, password: String) = mutex.withLock {
+    suspend fun beginSignup(email: String, password: String, displayName: String) = mutex.withLock {
         prepareFlow()
         val normalized = normalizeEmail(email)
         val started = now()
         try {
-            val subject = gateway.signUp(normalized, password)
+            val subject = gateway.signUp(normalized, password, displayName)
             store.transaction = AuthTransaction(AuthKind.SIGNUP, normalized, subject, started)
         } catch (failure: Exception) { clearFlow(); throw failure }
     }

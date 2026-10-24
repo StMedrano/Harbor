@@ -91,3 +91,17 @@ private fun InviteStep(number: Int, text: String) {
         Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = harbor.ink2)
     }
 }
+
+/** The name the rest of the family sees on this parent. Only your own is yours to change. */
+@Composable
+fun MyNameSheet(name: String, busy: Boolean, error: String?, onName: (String) -> Unit, onSave: () -> Unit, onClose: () -> Unit) {
+    AlertDialog(onDismissRequest = { if (!busy) onClose() }, containerColor = harbor.s2,
+        title = { Text("Your name", style = MaterialTheme.typography.titleLarge) }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                HarborField(name, onName, "Your name", enabled = !busy,
+                    hint = "The other parents and your children see this. Without one you read only as \"A parent\".")
+                if (error != null) HarborNote(error, HarborTone.DANGER, emphasis = true)
+                HarborButton(onSave, Modifier.fillMaxWidth(), enabled = !busy && name.isNotBlank(), loading = busy) { Text("Save name") }
+            }
+        }, confirmButton = { TextButton(onClose, enabled = !busy) { Text("Close") } })
+}
