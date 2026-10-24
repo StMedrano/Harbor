@@ -20,10 +20,12 @@ const PASS = ["authorization", "apikey", "content-type", "x-harbor-device-id", "
 const ALLOW_HEADERS = PASS.join(", ");
 const MAX_BYTES = 65_536;
 
-/** This project's own preview deployments of the web app, and a developer's local copy of it. */
+/** The web app's own addresses: the one this project is known by, its preview deployments, and a local copy of it. */
+const NAMED_ORIGINS = ["https://harbor-lyart-nu.vercel.app"];
 export function webOriginAllowed(origin: string | null): boolean {
   if (!origin) return false;
-  return /^https:\/\/harbor-[a-z0-9-]*stalinvmedrano-1274\.vercel\.app$/.test(origin) ||
+  return NAMED_ORIGINS.includes(origin) ||
+    /^https:\/\/harbor-[a-z0-9-]*stalinvmedrano-1274\.vercel\.app$/.test(origin) ||
     /^http:\/\/localhost:\d{2,5}$/.test(origin) ||
     /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(origin);
 }
