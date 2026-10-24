@@ -43,6 +43,21 @@ From the real-phone run on 0.24:
 - **Parent and phone showed different totals.** The parent now shows the count the phone enforces (sent about once a minute), not a recount from the timeline.
 - **Faster sync.** Rule changes wake the phone by push within seconds; without a push the phone checks every 30 seconds (was 60). The parent's Controls tab refreshes every 15 seconds and Activity every 30 seconds.
 
+## Results on 0.35: the message alert works (2026-10-24)
+
+**An RCS message alert reached the parent.** This was the one feature with no evidence it had ever worked, across every round since 0.27. Confirmed on the phones by the owner and in the backend:
+
+| 20:27:02 UTC | flagged on the child's phone (`alert_at`) |
+| 20:27:05.295 | outbox row created |
+| 20:27:05.307 | alert stored (`received_at`) |
+| 20:27:22 | push **sent**, first attempt, no retry |
+
+Twenty seconds end to end. The stored row is `category: bullying`, `app_label: Messages`, `saved_contact: false`, `rule_set_version: 2` — and `private.device_message_alerts` has no column for message text, the sender or a phone number, so what the contract promises is a property of the schema rather than of the code that writes it.
+
+Worth recording for the history: the listener rebind added in 0.28 is the change this exercises, and it had never been run since. One earlier outbox send of `device.alert.created` exists from 2026-10-23 18:23 with no surviving alert row, so something may have fired then too; today's is the first captured end to end with the alert, the push and the parent's screen all confirmed together.
+
+Still not reported: steps 11, 12 and 19 (fixed in 0.28, never re-run), and the browser notification checks now that the VAPID key is served.
+
 ## Results on 0.33 (2026-10-24)
 
 Passed on real phones, reported by the owner: **step 21 (two parents)** and **step 22 (revocation)** — the two the 0.27 round never reached. Parent invites therefore work end to end as well, since step 21 needs a second parent in the family: an invited account joined, and both parents' changes to the same child's Controls held without either reverting.
