@@ -9,7 +9,8 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 /* Shell: app bar, kid switcher, the screen, and the floating dock */
 .hf-shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 .hf-top{position:sticky;top:0;z-index:20}
-.hf-view{flex:1;padding:18px 22px 120px}
+/* The dock is fixed over the screen and grows by the phone's bottom inset, so the last card needs room to clear it. */
+.hf-view{flex:1;padding:18px 22px calc(140px + env(safe-area-inset-bottom))}
 .hf-view.in{animation:hf-in .26s var(--ease-settle)}
 @keyframes hf-in{from{opacity:.4;transform:translateY(6px)}}
 .hf-dock{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:var(--app-max);margin:0 auto;padding-bottom:env(safe-area-inset-bottom)}

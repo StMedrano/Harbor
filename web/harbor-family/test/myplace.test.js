@@ -34,6 +34,16 @@ test('a place Harbor would refuse is never sent', () => {
   assert.equal(fixFrom({ coords: { latitude: 0, longitude: -181 }, timestamp: now }, now), null);
 });
 
+test('coordinates carry at most six decimal places, which is what Harbor accepts', () => {
+  const now = Date.UTC(2026, 9, 24, 12, 0, 0);
+  // A browser reports full double precision. Harbor's contract runs Number(v.toFixed(6)) === v and refuses the whole
+  // report when that fails, which is exactly how live sharing broke on 2026-10-24.
+  const fix = fixFrom({ coords: { latitude: 40.71280123456789, longitude: -74.00601987654321, accuracy: 18 }, timestamp: now }, now);
+  assert.equal(fix.latitude, 40.712801);
+  assert.equal(fix.longitude, -74.00602);
+  for (const v of [fix.latitude, fix.longitude]) assert.equal(Number(v.toFixed(6)), v, 'the contract would refuse this');
+});
+
 test('accuracy is an integer inside the range the backend allows', () => {
   const now = Date.UTC(2026, 9, 24, 12, 0, 0);
   const none = fixFrom({ coords: { latitude: 1, longitude: 2 }, timestamp: now }, now);

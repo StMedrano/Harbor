@@ -22,6 +22,12 @@ export function cleanLabel(name) {
 }
 
 /**
+ * Harbor accepts a coordinate of at most six decimal places (about 10cm), and refuses the whole report otherwise.
+ * A browser gives full double precision, so rounding here is required, not tidying.
+ */
+const places6 = n => Number(n.toFixed(6));
+
+/**
  * One browser position as the report the backend expects, or null when it cannot be used. A cached position can be
  * older than the backend's 10-minute limit, so an old one is dropped here rather than sent and refused.
  */
@@ -32,7 +38,7 @@ export function fixFrom(position, nowMs = Date.now()) {
   const at = Number.isFinite(position.timestamp) ? position.timestamp : nowMs;
   if (at < nowMs - FIX_MAX_AGE_MS || at > nowMs + 60_000) return null;
   const accuracy = Number.isFinite(c.accuracy) ? Math.min(100_000, Math.max(0, Math.round(c.accuracy))) : 0;
-  return { at: new Date(at).toISOString(), latitude: c.latitude, longitude: c.longitude, accuracyM: accuracy };
+  return { at: new Date(at).toISOString(), latitude: places6(c.latitude), longitude: places6(c.longitude), accuracyM: accuracy };
 }
 
 let timer = null;
@@ -93,7 +99,14 @@ export async function startSharing(familyId, label) {
   state = { on: true, familyId, label: name, lastAt: null, error: null };
   listen();
   announce(sharingState());
-  await send();
+  try {
+    await send();
+  } catch (failure) {
+    // A first send that fails means nothing is being shared, so the switch must go back rather than claim it is on.
+    state = { on: false, familyId: null, label: name, lastAt: null, error: null };
+    announce(sharingState());
+    throw failure;
+  }
   clearInterval(timer);
   timer = setInterval(trySend, EVERY_MS);
   return sharingState();
