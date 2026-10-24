@@ -77,9 +77,15 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
-## Still to verify on real phones (0.31)
+## 0.32: one signing key, so the app can be built anywhere (2026-10-24)
 
-Install build 0.31 (versionCode 31) on both phones. Then:
+Until now the app was signed with whatever debug key sat on the machine that built it, one made per machine. A build from anywhere else would have been refused by a phone as an update. From 0.32 there is one Harbor development key, supplied to the build from outside the repository, so a build from the PC and a build from a cloud environment install over each other. `docs/runbooks/parent-build-anywhere.md` says what a machine needs.
+
+**0.32 installs once as a new app.** It is signed differently from 0.31, so **uninstall Harbor Family from both phones before installing it**, and pair the child phone again afterwards. Every build after 0.32 updates in place as before. Check the parent app is signed as expected: the build prints `CN=Harbor Family development`.
+
+## Still to verify on real phones (0.32)
+
+Uninstall Harbor Family from both phones, install build 0.32 (versionCode 32), and pair the child phone again. Then:
 
 - **Parents.** Before inviting anyone, **Family** lists one parent: you, marked as having started the family. After the second account joins, both phones list both parents, and each marks the one reading it.
 - **Invite a parent.** On the first phone, **Family › Invite a parent**: a code appears. On the second phone (or in the web app), create an account with a different email, choose **I have an invite code**, and enter it. That account lands in the family and sees the same children and phones. Enter the same code again from a third account: it is refused. Ask for a new code on the first phone: the earlier code no longer works.

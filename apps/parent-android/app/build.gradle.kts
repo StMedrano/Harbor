@@ -1,3 +1,5 @@
+import java.io.File
+import java.util.Base64
 import java.util.Properties
 import groovy.json.JsonSlurper
 plugins {
@@ -27,6 +29,27 @@ require(clients.any { client ->
     val info = (client as? Map<*, *>)?.get("client_info") as? Map<*, *>
     (info?.get("android_client_info") as? Map<*, *>)?.get("package_name") == "dev.stmedrano.harbor.parent"
 }) { "Firebase parent package mismatch" }
+/**
+ * Signing. A phone only accepts an update that is signed with the same key as the build it already has, so every
+ * machine that builds Harbor has to use one key, not its own debug key. The key is never in this repository: a build
+ * names it with HARBOR_KEYSTORE (a path) or, where no file can be placed, HARBOR_KEYSTORE_BASE64 (its bytes), with
+ * HARBOR_KEYSTORE_PASSWORD and optionally HARBOR_KEY_ALIAS and HARBOR_KEY_PASSWORD. Either may be a Gradle property
+ * instead of an environment variable. With none of them the build signs with this machine's own debug key, as before,
+ * which is what CI and a plain local build do.
+ */
+fun harborSigning(name: String): String? = (providers.environmentVariable(name).orNull ?: providers.gradleProperty(name).orNull)
+    ?.trim()?.takeIf { it.isNotEmpty() }
+val harborKeystore: File? = harborSigning("HARBOR_KEYSTORE")?.let { path ->
+    File(path).also { require(it.isFile) { "HARBOR_KEYSTORE names no file: $path" } }
+} ?: harborSigning("HARBOR_KEYSTORE_BASE64")?.let { encoded ->
+    layout.buildDirectory.file("harbor-signing.jks").get().asFile.also { file ->
+        file.parentFile.mkdirs()
+        file.writeBytes(Base64.getMimeDecoder().decode(encoded))
+    }
+}
+val harborStorePassword = harborSigning("HARBOR_KEYSTORE_PASSWORD")
+require(harborKeystore == null || harborStorePassword != null) { "Supply HARBOR_KEYSTORE_PASSWORD with the signing key" }
+
 android {
     namespace = "dev.stmedrano.harbor.parent"
     compileSdk = 37
@@ -37,9 +60,20 @@ android {
         buildConfigField("boolean", "CI_FIXTURE", ciFixture.toString())
         buildConfigField("String", "SUPABASE_URL", "\"${config.getProperty("supabaseUrl")}\"")
         buildConfigField("String", "PUBLISHABLE_KEY", "\"${config.getProperty("publishableKey")}\"")
-        versionCode = 31
-        versionName = "0.31-development"
+        versionCode = 32
+        versionName = "0.32-development"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        if (harborKeystore != null) create("harbor") {
+            storeFile = harborKeystore
+            storePassword = harborStorePassword
+            keyAlias = harborSigning("HARBOR_KEY_ALIAS") ?: "harbor"
+            keyPassword = harborSigning("HARBOR_KEY_PASSWORD") ?: harborStorePassword
+        }
+    }
+    buildTypes {
+        getByName("debug") { if (harborKeystore != null) signingConfig = signingConfigs.getByName("harbor") }
     }
     if (ciFixture) sourceSets.getByName("main").manifest.srcFile("../config/ci-manifest.xml")
     sourceSets.getByName("androidTest").assets.srcDir("src/test/resources")
