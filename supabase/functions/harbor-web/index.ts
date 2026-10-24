@@ -20,8 +20,11 @@ const PASS = ["authorization", "apikey", "content-type", "x-harbor-device-id", "
 const ALLOW_HEADERS = PASS.join(", ");
 const MAX_BYTES = 65_536;
 
-/** The web app's own addresses: the one this project is known by, its preview deployments, and a local copy of it. */
-const NAMED_ORIGINS = ["https://harbor-lyart-nu.vercel.app"];
+/**
+ * The web app's own addresses: the one that follows this branch's newest build, the one the project is known by, its
+ * preview deployments, and a local copy of it.
+ */
+const NAMED_ORIGINS = ["https://harbor-family-dev.vercel.app", "https://harbor-lyart-nu.vercel.app"];
 export function webOriginAllowed(origin: string | null): boolean {
   if (!origin) return false;
   return NAMED_ORIGINS.includes(origin) ||

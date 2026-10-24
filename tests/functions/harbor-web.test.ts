@@ -52,7 +52,7 @@ Deno.test("harbor-web reaches only the functions it lists, only by POST", async 
 
 Deno.test("harbor-web answers only the web app's own origins", async () => {
   const r = recorder();
-  for (const origin of [ORIGIN, "https://harbor-lyart-nu.vercel.app", "https://harbor-lyart-nu-stalinvmedrano-1274.vercel.app", "http://localhost:5191", "http://127.0.0.1:5173"]) {
+  for (const origin of [ORIGIN, "https://harbor-family-dev.vercel.app", "https://harbor-lyart-nu.vercel.app", "https://harbor-lyart-nu-stalinvmedrano-1274.vercel.app", "http://localhost:5191", "http://127.0.0.1:5173"]) {
     assert(webOriginAllowed(origin), origin);
   }
   for (const origin of ["https://harbor.example.invalid", "https://evil-stalinvmedrano-1274.vercel.app.attacker.test", "http://localhost", null]) {
