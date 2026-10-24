@@ -68,6 +68,27 @@ Deno.test("harbor-web answers only the web app's own origins", async () => {
   assertEquals(r.calls.length, 0);
 });
 
+Deno.test("harbor-web serves the public VAPID key itself, and never the private one", async () => {
+  const r = recorder();
+  const key = "BJ" + "A".repeat(85);
+  const url = `${BASE}/functions/v1/harbor-web/vapid-public-key`;
+  const reply = await handleHarborWeb(new Request(url, { method: "POST", headers: { origin: ORIGIN } }), r.send, BASE, () => key);
+  assertEquals(reply.status, 200);
+  assertEquals((await reply.json()).key, key);
+  assertEquals(reply.headers.get("access-control-allow-origin"), ORIGIN);
+  assertEquals(r.calls.length, 0, "it answers itself and forwards nothing");
+
+  // Not set up on the project: say so plainly rather than hand the browser an empty key to subscribe with.
+  const missing = await handleHarborWeb(new Request(url, { method: "POST", headers: { origin: ORIGIN } }), r.send, BASE, () => "  ");
+  assertEquals(missing.status, 503);
+  // Without a reader it stays unavailable, so no other deployment of this function can leak anything.
+  assertEquals((await handleHarborWeb(new Request(url, { method: "POST", headers: { origin: ORIGIN } }), r.send, BASE)).status, 503);
+  // A foreign origin is refused here exactly as everywhere else.
+  assertEquals((await handleHarborWeb(new Request(url, { method: "POST", headers: { origin: "https://harbor.example.invalid" } }), r.send, BASE, () => key)).status, 403);
+  // It is answered here, not forwarded: no function of that name is reachable through the gateway.
+  assertEquals(targetFunction(url), null);
+});
+
 Deno.test("harbor-web answers the browser's preflight and refuses an oversized body", async () => {
   const r = recorder();
   const preflight = await handleHarborWeb(request("create-family", { method: "OPTIONS" }), r.send, BASE);

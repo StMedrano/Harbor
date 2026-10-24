@@ -22,9 +22,10 @@ test('an empty key is refused rather than used', () => {
   assert.throws(() => applicationServerKey(null), /application server key/i);
 });
 
-test('this build knows whether it can offer notifications at all', () => {
-  // No VITE_VAPID_PUBLIC_KEY is set under test, so the app must report itself unconfigured instead of half-working.
-  assert.equal(pushConfigured(), false);
+test('with no build-time key and no backend, it reports itself unconfigured', async () => {
+  // The key normally comes from the backend; under test there is neither, so the app must say so plainly instead of
+  // half-working and failing at the browser's permission prompt.
+  assert.equal(await pushConfigured(), false);
 });
 
 test('an installation id is produced even where no storage is available', () => {

@@ -33,8 +33,22 @@ export const pushSupported = () =>
   typeof navigator !== 'undefined' && 'serviceWorker' in navigator &&
   typeof window !== 'undefined' && 'PushManager' in window && 'Notification' in window;
 
-/** Whether this build was given the public VAPID key it needs to subscribe. */
-export const pushConfigured = () => !!VAPID_PUBLIC_KEY;
+let fetchedKey;
+
+/**
+ * The public VAPID key this browser subscribes with. A build may carry one (VITE_VAPID_PUBLIC_KEY), but normally the
+ * backend serves its own through the gateway, so the key the browser subscribes with can never drift from the key
+ * the pushes are signed with. Asked for once per load; an empty answer means notifications are not set up.
+ */
+export async function publicKey() {
+  if (VAPID_PUBLIC_KEY) return VAPID_PUBLIC_KEY;
+  if (fetchedKey !== undefined) return fetchedKey;
+  try { fetchedKey = await api.vapidPublicKey(); } catch { fetchedKey = ''; }
+  return fetchedKey;
+}
+
+/** Whether Harbor can offer notifications here at all. */
+export const pushConfigured = async () => !!(await publicKey());
 
 /** The public VAPID key as the subscription API wants it. Pure, so it is tested directly. */
 export function applicationServerKey(base64) {
@@ -51,19 +65,21 @@ const worker = () => navigator.serviceWorker.getRegistration(BASE_URL);
 
 /** What the Family tab shows for the Notifications row. Never prompts. */
 export async function pushState() {
-  if (!pushSupported()) return { supported: false, configured: pushConfigured(), permission: 'unsupported', on: false };
+  if (!pushSupported()) return { supported: false, configured: false, permission: 'unsupported', on: false };
   let on = false;
   try {
     const registration = await worker();
     on = !!(registration && await registration.pushManager.getSubscription());
   } catch { on = false; }
-  return { supported: true, configured: pushConfigured(), permission: Notification.permission, on };
+  return { supported: true, configured: await pushConfigured(), permission: Notification.permission, on };
 }
 
 /** Asks permission, subscribes, and tells Harbor. Call only from a click. */
 export async function enablePush() {
   if (!pushSupported()) throw new Error('Notifications are not supported in this browser.');
-  if (!pushConfigured()) throw new Error('Notifications are not set up for this site yet.');
+  // Fail before the browser's prompt rather than after it: asking and then failing is the worse order.
+  const key = await publicKey();
+  if (!key) throw new Error('Notifications are not set up for this site yet.');
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return { supported: true, configured: true, permission, on: false };
   const registration = await navigator.serviceWorker.register(BASE_URL + 'sw.js', { scope: BASE_URL });
@@ -71,7 +87,7 @@ export async function enablePush() {
   const subscription = await registration.pushManager.getSubscription() ||
     await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: applicationServerKey(VAPID_PUBLIC_KEY),
+      applicationServerKey: applicationServerKey(key),
     });
   const { endpoint, keys } = subscription.toJSON();
   await api.registerWebPush({ clientInstallationId: installationId(), endpoint, keys });
@@ -89,5 +105,5 @@ export async function disablePush() {
     await api.removeWebPush({ clientInstallationId: installationId(), endpoint: subscription.endpoint });
     await subscription.unsubscribe();
   }
-  return { supported: true, configured: pushConfigured(), permission: Notification.permission, on: false };
+  return { supported: true, configured: await pushConfigured(), permission: Notification.permission, on: false };
 }

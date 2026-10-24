@@ -143,6 +143,19 @@ export const supabaseApi = {
   async createInvite(familyId) { return fn('create-parent-invite', { familyId }); },
 
   /* ── this parent's own notifications and place ── */
+  /**
+   * The public VAPID key, from the backend that signs the pushes. No token is needed: the key is public by design,
+   * and taking it from the backend rather than baking it into the build keeps it the same key that signs them.
+   * Sent with no headers, so the browser treats it as a simple request and never preflights it.
+   */
+  async vapidPublicKey() {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/harbor-web/vapid-public-key`, { method: 'POST' });
+      if (!r.ok) return '';
+      const j = await r.json().catch(() => ({}));
+      return typeof j.key === 'string' ? j.key.trim() : '';
+    } catch { return ''; }
+  },
   async registerWebPush({ clientInstallationId, endpoint, keys }) { return fn('register-web-push', { clientInstallationId, endpoint, keys }); },
   async removeWebPush({ clientInstallationId, endpoint }) { return fn('remove-web-push', { clientInstallationId, endpoint }); },
   async mapSettings(familyId) { return fn('get-family-map-settings', { version: 1, familyId }); },

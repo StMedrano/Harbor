@@ -113,7 +113,9 @@ Until now the web app had no service worker at all, so a parent working in a bro
 
 Both switches are per browser, not per account, and both are off until pressed. The browser's own permission prompts are only ever opened from a press.
 
-**One step by hand before notifications can work:** the Vercel project needs `VITE_VAPID_PUBLIC_KEY` set to the **public** half of the backend's VAPID pair — the same value as the `VAPID_PUBLIC_KEY` function secret. It is a public key by design and belongs in the browser; the private half stays a secret. Without it the app runs normally and the Notifications row reads "Not set up on this site yet" instead of failing when a parent presses it.
+**The public VAPID key needs nothing by hand.** The browser asks the gateway for it: `POST /functions/v1/harbor-web/vapid-public-key` returns the project's own `VAPID_PUBLIC_KEY` function secret, which is public by design — it is handed to the push service with every subscription — while the private half that signs them never leaves the server. Serving it this way means the key a browser subscribes with can never drift from the key the pushes are signed with, and no Vercel variable has to be kept in step. A build may still override it with `VITE_VAPID_PUBLIC_KEY`. If the secret is ever missing the endpoint answers 503 and the Notifications row reads "Not set up on this site yet" rather than failing at the browser's prompt.
+
+The Vercel–Supabase integration does **not** carry this: it syncs Supabase's own credentials (`POSTGRES_*`, `SUPABASE_URL`, the anon, service-role and JWT keys), not Edge Function secrets, and it writes them to the production target only, which this branch's preview deployments never read.
 
 Check in a browser, signed in as a parent, with a child's phone paired:
 

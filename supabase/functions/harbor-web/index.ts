@@ -47,6 +47,16 @@ export function targetFunction(url: string): string | null {
   return FUNCTIONS.has(name) ? name : null;
 }
 
+/**
+ * The one path this function answers itself rather than forwarding: the public half of the backend's VAPID pair,
+ * which a browser needs before it can subscribe to notifications. It is public by design — it is handed to the push
+ * service with every subscription — while the private half, which signs them, never leaves the server. Serving it
+ * from here means the browser's key can never drift from the one the pushes are signed with.
+ */
+export function isVapidRequest(url: string): boolean {
+  return new URL(url).pathname.replace(/\/+$/, "").endsWith("/harbor-web/vapid-public-key");
+}
+
 function refuse(status: number, code: string, message: string, origin: string | null): Response {
   return new Response(JSON.stringify({ code, message }), {
     status,
@@ -54,7 +64,12 @@ function refuse(status: number, code: string, message: string, origin: string | 
   });
 }
 
-export async function handleHarborWeb(request: Request, send: (url: string, init: RequestInit) => Promise<Response>, base: string): Promise<Response> {
+export async function handleHarborWeb(
+  request: Request,
+  send: (url: string, init: RequestInit) => Promise<Response>,
+  base: string,
+  vapidPublicKey: () => string | undefined = () => undefined,
+): Promise<Response> {
   const origin = request.headers.get("origin");
   const allowed = webOriginAllowed(origin);
   if (origin && !allowed) return refuse(403, "FORBIDDEN", "Origin is not allowed", null);
@@ -66,6 +81,20 @@ export async function handleHarborWeb(request: Request, send: (url: string, init
         "access-control-allow-methods": "POST, OPTIONS",
         "access-control-allow-headers": ALLOW_HEADERS,
         "access-control-max-age": "600",
+        vary: "Origin",
+      },
+    });
+  }
+  if (isVapidRequest(request.url)) {
+    if (request.method !== "POST" && request.method !== "GET") return refuse(404, "VALIDATION_FAILED", "Not found", allowed ? origin : null);
+    const key = vapidPublicKey()?.trim();
+    if (!key) return refuse(503, "DEVICE_OFFLINE", "Notifications are not set up on this project", allowed ? origin : null);
+    return new Response(JSON.stringify({ key }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+        ...(allowed && origin ? { "access-control-allow-origin": origin } : {}),
         vary: "Origin",
       },
     });
@@ -98,5 +127,6 @@ export async function handleHarborWeb(request: Request, send: (url: string, init
 
 if (import.meta.main) {
   const base = Deno.env.get("SUPABASE_URL")?.replace(/\/+$/, "") ?? "";
-  Deno.serve((request) => handleHarborWeb(request, (url, init) => fetch(url, init), base));
+  Deno.serve((request) =>
+    handleHarborWeb(request, (url, init) => fetch(url, init), base, () => Deno.env.get("VAPID_PUBLIC_KEY")));
 }
