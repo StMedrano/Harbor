@@ -39,6 +39,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     var name by remember(identity) { mutableStateOf("") }
     var error by remember(identity) { mutableStateOf<String?>(null) }
     var expired by remember(identity) { mutableStateOf(true) }
+    var invite by remember(identity) { mutableStateOf<dev.stmedrano.harbor.parent.family.ParentInvite?>(null) }
     var legalDoc by remember(identity) { mutableStateOf<dev.stmedrano.harbor.parent.legal.LegalDoc?>(null) }
 
     suspend fun request(action: suspend () -> Unit): Boolean = try {
@@ -123,6 +124,8 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onSelectFamily = { id -> submit { model.selectFamily(identity, id) } },
             onSelectChild = model::selectChild,
             onCreateFamily = { sheet = "family"; error = null },
+            onInviteParent = { sheet = "invite"; error = null; invite = null; submit { invite = model.inviteParent(identity) } },
+            onJoinFamily = { sheet = "join"; error = null; name = "" },
             onAddChild = { sheet = "child"; error = null },
             onPair = { sheet = "pair"; submit { model.issuePairing(identity) } },
             onDevice = { deviceId = it.id },
@@ -141,5 +144,21 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onCancel = { scope.launch { if (request { model.cancelChild(identity) }) { sheet = null; name = "" } } })
         "pair" -> PairingSheet(pairing, expired, error,
             onRenew = { submit { model.issuePairing(identity) } }, onCheck = { submit { model.refresh(identity) } }, onClose = { sheet = null })
+        "invite" -> InviteParentSheet(invite, control.busy, error,
+            onRetry = { submit { invite = model.inviteParent(identity) } }, onClose = { sheet = null; invite = null })
+        "join" -> JoinFamilySheet(name, control.busy, error, onCode = { name = it }, onClose = { sheet = null; name = "" },
+            onJoin = { scope.launch {
+                error = null
+                val joined = try {
+                    withContext(Dispatchers.IO) { if (runtime == null) model.joinFamily(identity, name) else runtime.authAction { model.joinFamily(identity, name) } }
+                    true
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (rejected: dev.stmedrano.harbor.parent.family.ParentInviteRejected) {
+                    error = if (rejected.locked) "Too many tries. Wait an hour, then ask the other parent for a new code."
+                    else "That code isn't valid or has expired. Ask the other parent for a new one."
+                    false
+                } catch (_: Exception) { error = "Couldn't join. Check your connection and try again."; false }
+                if (joined) { sheet = null; name = "" }
+            } })
     }
 }

@@ -22,6 +22,12 @@ import io.ktor.client.request.setBody
 @Serializable data class DevicePublicV1(val version: Int, val id: String, val familyId: String, val childId: String, val displayName: String, val supervisionMode: String, val status: String, val lastSeenAt: String?, val createdAt: String, val updatedAt: String)
 @Serializable data class CreateChildRequest(val familyId: String, val displayName: String, val idempotencyKey: String)
 @Serializable data class CreatedFamily(val familyId: String, val name: String, val role: String)
+/** A code another adult enters to join this family as a parent. It works once, for one day. */
+@Serializable data class ParentInvite(val code: String, val expiresAt: String)
+/** The family an invite code joined. [joined] is false when this account was already a member of it. */
+@Serializable data class JoinedFamily(val familyId: String, val familyName: String? = null, val joined: Boolean = true)
+/** The code was wrong, used or expired; [locked] when too many wrong codes were tried in the last hour. */
+class ParentInviteRejected(val locked: Boolean) : IllegalStateException(if (locked) "Too many tries" else "Invalid invite code")
 @Serializable data class PairingCode(val code: String, val expiresAt: String)
 
 class FamilyAccessDenied : IllegalStateException("Family access is no longer available")
@@ -34,6 +40,9 @@ interface ParentApi {
     suspend fun createPairing(childId: String): PairingCode
     suspend fun readFamily(familyId: String): FamilySnapshot
     suspend fun revokeDevice(familyId: String, deviceId: String)
+    /** Default: only the live backend issues and accepts invites, so test doubles need not implement them. */
+    suspend fun createParentInvite(familyId: String): ParentInvite = throw UnsupportedOperationException()
+    suspend fun acceptParentInvite(code: String): JoinedFamily = throw UnsupportedOperationException()
 }
 
 class SdkParentApi(private val client: SupabaseClient, private val auth: ParentAuthRepository,
@@ -70,6 +79,26 @@ class SdkParentApi(private val client: SupabaseClient, private val auth: ParentA
         } catch (failure: RestException) {
             val code = runCatching { Json.parseToJsonElement(failure.response.bodyAsText()).jsonObject["code"]?.jsonPrimitive?.content }.getOrNull()
             if (failure.statusCode == 403 && code == "MFA_REQUIRED") throw MfaRequired()
+            throw failure
+        }
+    }
+
+    override suspend fun createParentInvite(familyId: String): ParentInvite = auth.withAccessToken {
+        requireUuid(familyId)
+        json.decodeFromString<ParentInvite>(
+            client.functions.invoke("create-parent-invite", buildJsonObject { put("familyId", familyId) }, headers = jsonHeaders).bodyAsText())
+    }
+
+    override suspend fun acceptParentInvite(code: String): JoinedFamily = auth.withAccessToken {
+        val entered = code.trim()
+        require(entered.length <= 32)
+        try {
+            json.decodeFromString<JoinedFamily>(
+                client.functions.invoke("accept-parent-invite", buildJsonObject { put("code", entered) }, headers = jsonHeaders).bodyAsText())
+        } catch (failure: RestException) {
+            // A wrong, used or expired code and a locked account are the only answers a parent can act on.
+            if (failure.statusCode == 400) throw ParentInviteRejected(locked = false)
+            if (failure.statusCode == 403) throw ParentInviteRejected(locked = true)
             throw failure
         }
     }

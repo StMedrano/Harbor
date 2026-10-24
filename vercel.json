@@ -42,15 +42,5 @@
         }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/fn/:name",
-      "destination": "https://bfvybxkjxilntjgndsrm.supabase.co/functions/v1/:name"
-    },
-    {
-      "source": "/api/fn/:name/",
-      "destination": "https://bfvybxkjxilntjgndsrm.supabase.co/functions/v1/:name"
-    }
   ]
 }

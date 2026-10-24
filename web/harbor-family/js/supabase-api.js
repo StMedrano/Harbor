@@ -2,8 +2,8 @@
  * Harbor Family data layer on the development backend (Supabase). The UI calls `api.*` (api.js) and nothing else.
  *
  *  PARENT  Supabase Auth email/password. Families, members, children and phones are read through Row Level Security.
- *          Everything else goes through Harbor's functions, which this site reaches at /api/fn/<name> (a same-site
- *          forwarder to Supabase), so the browser never needs Supabase's own list of allowed web origins.
+ *          Everything else goes through Harbor's functions, reached through the backend's own `harbor-web` gateway,
+ *          which names this app's origins and forwards server side. Each function still checks the caller's token.
  *          A new account starts a family or joins one with a parent's invite code; it never gets one by surprise.
  *  CHILD   (development preview only) anonymous identity + P-256 device key, paired with a parent's 6-digit code.
  *
@@ -52,7 +52,7 @@ async function fn(name, body, { token, headers = {} } = {}) {
   if (!t) { const { data: { session } } = await sb().auth.getSession(); t = session && session.access_token; }
   if (!t) throw fail('unauthenticated');
   let r;
-  try { r = await fetch(`/api/fn/${name}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${t}`, apikey: SUPABASE_ANON_KEY, ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) }); }
+  try { r = await fetch(`${SUPABASE_URL}/functions/v1/harbor-web/${name}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${t}`, apikey: SUPABASE_ANON_KEY, ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) }); }
   catch { throw fail('network'); }
   const j = await r.json().catch(() => ({}));
   if (r.ok) return j;

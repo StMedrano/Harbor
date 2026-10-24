@@ -19,6 +19,7 @@ import java.time.Instant
 fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: String?,
     onRefresh: () -> Unit, onSelectFamily: (String) -> Unit, onSelectChild: (String) -> Unit,
     onCreateFamily: () -> Unit, onAddChild: () -> Unit, onPair: () -> Unit, onDevice: (DevicePublicV1) -> Unit,
+    onInviteParent: (() -> Unit)? = null, onJoinFamily: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null,
     sharing: ParentSharingUi? = null) {
     val snapshot = state.snapshot
@@ -37,8 +38,12 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
         }
         if (snapshot == null) {
             HarborCard {
-                HarborEmptyState("Get started", art = HarborArt.ANCHOR, body = "Create or select a family to get started.",
-                    action = "Create family", onAction = onCreateFamily, actionEnabled = online)
+                HarborEmptyState("Get started", art = HarborArt.ANCHOR,
+                    body = "Start your own family, or join one another parent already set up.",
+                    action = "Start a family", onAction = onCreateFamily, actionEnabled = online)
+                if (onJoinFamily != null) HarborSecondaryButton(onJoinFamily, enabled = online, modifier = Modifier.fillMaxWidth()) {
+                    Text("I have an invite code")
+                }
             }
         } else {
             if (snapshot.children.isEmpty()) HarborCard {
@@ -68,7 +73,13 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
             }
             HarborButton(onAddChild, enabled = online, modifier = Modifier.fillMaxWidth()) { Text("Add child") }
             HarborSecondaryButton(onPair, enabled = online && selectedChildId != null, modifier = Modifier.fillMaxWidth()) { Text("Pair device") }
-            TextButton(onCreateFamily, enabled = online) { Text("Create family") }
+            // Every parent of a family sees the same children and phones and can change the same controls.
+            if (onInviteParent != null) HarborCard(title = "Parents") {
+                Text("${snapshot.membership.role.replaceFirstChar(Char::uppercase)} of this family. Another adult joins with a code and sees everything you see.",
+                    style = MaterialTheme.typography.bodyMedium, color = harbor.ink2)
+                HarborSecondaryButton(onInviteParent, enabled = online, modifier = Modifier.fillMaxWidth()) { Text("Invite a parent") }
+            }
+            TextButton(onCreateFamily, enabled = online) { Text("Start another family") }
         }
         HarborOutlinedButton(onRefresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Refresh family") }
         if (snapshot != null && sharing != null) ParentSharingPanel(sharing)

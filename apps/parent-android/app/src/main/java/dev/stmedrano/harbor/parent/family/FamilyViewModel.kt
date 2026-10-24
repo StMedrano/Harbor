@@ -81,6 +81,30 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
         }
     }
     suspend fun cancelFamily(identity: ParentIdentity) = operation(identity) { store.write("pending-family:${identity.userId}", null) }
+
+    /** A code for another adult to join this family as a parent. It is shown once and never stored on this phone. */
+    suspend fun inviteParent(identity: ParentIdentity): ParentInvite? {
+        var invite: ParentInvite? = null
+        operation(identity) {
+            requireOnline()
+            val familyId = checkNotNull(repository.state.value.snapshot).family.id
+            val issued = api.createParentInvite(familyId)
+            requireCurrent(identity)
+            invite = issued
+        }
+        return invite
+    }
+
+    /** Joins the family another parent's code names, and shows it. Throws [ParentInviteRejected] for a code that does not work. */
+    suspend fun joinFamily(identity: ParentIdentity, code: String) = operation(identity) {
+        val joined = api.acceptParentInvite(code)
+        requireCurrent(identity)
+        store.write("selected-family:${identity.userId}", joined.familyId)
+        val families = api.listFamilies()
+        requireCurrent(identity)
+        mutableState.value = state.value.copy(families = families)
+        selectUnlocked(identity, joined.familyId)
+    }
     suspend fun submitChild(identity: ParentIdentity, name: String) = operation(identity) {
         requireOnline()
         val familyId = checkNotNull(repository.state.value.snapshot).family.id
