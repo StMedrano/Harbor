@@ -19,7 +19,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.stmedrano.harbor.parent.ParentApplication
 import dev.stmedrano.harbor.parent.familymap.FamilyMapPerson
+import dev.stmedrano.harbor.parent.auth.ParentIdentity
 import dev.stmedrano.harbor.parent.familymap.FamilyMapUiState
+import dev.stmedrano.harbor.parent.familymap.ParentFamilyMapModel
+import dev.stmedrano.harbor.parent.familymap.ParentFamilyMapState
 import dev.stmedrano.harbor.parent.familymap.PersonKind
 import dev.stmedrano.harbor.parent.location.locationAgeLabel
 import dev.stmedrano.harbor.parent.location.locationInstantMs
@@ -45,6 +48,67 @@ fun rememberChildFamilyMapUi(graph: ParentApplication, lease: ProfileLease, resu
     val scope = rememberCoroutineScope()
     val active = model ?: return null
     return ChildFamilyMapUi(active.state.collectAsState().value) { scope.launch { active.refresh(lease) } }
+}
+
+/**
+ * The family on one map for a parent: every child in the family, and every parent sharing right now. Children never
+ * choose — their phones report — while a parent is here only when they share, and then the whole family sees them.
+ * Nothing is drawn until the first read answers, so an empty map never reads as "nobody is anywhere".
+ */
+@Composable
+fun ParentFamilyMapSection(state: ParentFamilyMapState, onRefresh: (() -> Unit)?) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(30_000); now = System.currentTimeMillis() } }
+    if (!state.peopleLoaded && !state.peopleOffline) return
+    val kids = state.people.filter { it.kind == PersonKind.CHILD }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+        if (state.peopleOffline) HarborNote("Showing the last family map that loaded. It could not be refreshed just now.", HarborTone.WARN)
+        val shown = mapPeople(state.people, now)
+        if (shown.isNotEmpty()) PeopleMap(shown)
+        HarborCard {
+            if (state.people.isEmpty()) {
+                Text("Nobody to show yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            state.people.forEachIndexed { index, person ->
+                val fix = person.fix
+                HarborRow(
+                    if (person.self) "${person.name} (you)" else person.name,
+                    divider = index > 0,
+                    subtitle = when {
+                        fix != null -> "Seen ${locationAgeLabel(now - locationInstantMs(fix.at))}"
+                        person.kind == PersonKind.PARENT -> "Sharing, no place yet"
+                        else -> "No place yet"
+                    },
+                    leading = {
+                        HarborAvatar(person.name, 36.dp,
+                            if (person.kind == PersonKind.PARENT) HarborParentColor else HarborKid.color(kids.indexOf(person)))
+                    },
+                    trailing = { if (person.kind == PersonKind.PARENT) HarborTag("Parent") },
+                )
+            }
+        }
+        if (onRefresh != null) HarborOutlinedButton(onRefresh, Modifier.fillMaxWidth()) { Text("Refresh the family map") }
+    }
+}
+
+/** Re-reads the family map while the Map tab is open, and again when the app comes back to the front. */
+@Composable
+fun rememberParentFamilyPeople(
+    model: ParentFamilyMapModel?,
+    identity: ParentIdentity,
+    familyId: String?,
+    active: Boolean,
+    resumeTick: Int,
+): ParentFamilyMapState? {
+    val state = model?.state?.collectAsState()?.value
+    LaunchedEffect(model, identity, familyId, active, resumeTick) {
+        if (model == null || familyId == null || !active) return@LaunchedEffect
+        while (true) {
+            model.refreshPeople(identity, familyId)
+            delay(60_000)
+        }
+    }
+    return state
 }
 
 /** A place older than this is drawn grey, like the parent's map. */

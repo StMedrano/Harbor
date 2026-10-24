@@ -14,6 +14,28 @@ import kotlinx.serialization.json.Json
 @Serializable data class FamilyMapFix(val at: String, val latitude: Double, val longitude: Double, val accuracyM: Int)
 @Serializable data class FamilyMapPerson(val id: String, val kind: PersonKind, val name: String, val self: Boolean, val fix: FamilyMapFix?)
 @Serializable data class FamilyMapReplyV1(val enabled: Boolean, val people: List<FamilyMapPerson>)
+
+/**
+ * One row of public.family_places, a parent's own read of the family map. The child's phone gets the same picture
+ * from get-family-map, which it may call because it carries a device proof; a parent reads this view instead.
+ */
+@Serializable data class FamilyPlaceRow(
+    val kind: PersonKind,
+    @SerialName("person_id") val personId: String,
+    @SerialName("user_id") val userId: String? = null,
+    val name: String,
+    @SerialName("fix_at") val fixAt: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerialName("accuracy_m") val accuracyM: Int? = null,
+) {
+    /** Null when this person has sent no place yet; they are still listed, never dropped. */
+    fun person(selfUserId: String): FamilyMapPerson = FamilyMapPerson(
+        personId, kind, name,
+        self = kind == PersonKind.PARENT && userId != null && userId == selfUserId,
+        fix = if (fixAt != null && latitude != null && longitude != null) FamilyMapFix(fixAt, latitude, longitude, accuracyM ?: 0) else null,
+    )
+}
 @Serializable data class ParentLocationReportV1(val version: Int, val familyId: String, val label: String, val fix: FamilyMapFix)
 @Serializable data class ParentLocationReceiptV1(val confirmed: Boolean, val receivedAt: String)
 @Serializable data class MySharing(val label: String, val lastAt: String)

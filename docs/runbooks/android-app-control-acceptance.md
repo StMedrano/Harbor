@@ -83,6 +83,24 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
+## 0.35: the family map on the phone, and the text that was left behind (2026-10-24)
+
+**This one needs a new APK.** Same signing key as 0.32, so it installs over 0.34 with no uninstall and no re-pair.
+
+**The phone's Map tab now opens on the family.** Everyone in the family is drawn on one map — each child, and each parent sharing right now — and the selected child's own places follow underneath, exactly as before. It reads `public.family_places` through postgrest, the same view the web app uses; the pins and the person rows are the ones the child's family map already draws, so the two pages agree by construction. The map refreshes while the tab is open and when the app comes back to the front, and a failed read keeps the last answer and says so rather than showing an empty map, which would read as "nobody is anywhere".
+
+**The text that was left behind.** 0.34 shipped before the sharing rule changed, so the phone still says a shared place is never shown to the other parents, which stopped being true when the family map arrived. The About page, the privacy policy and the **Share my location** row are now corrected on the phone as they already are in the web app. This is the same failure 0.34 itself fixed, one release later, which is why the check below is worth doing properly.
+
+A note on the timestamp: the view first returned a raw timestamptz, which both apps refuse — they parse an instant strictly, and postgrest's `+00:00` form fails the check. Migration `20261024200000` makes the view emit the same `YYYY-MM-DDTHH:MM:SSZ` the child-facing function already does.
+
+Check on the phones:
+
+- **The family is on the Map tab.** Open **Map**: every child in the family is listed, with or without a place, and every parent who is sharing. The selected child's own places are still underneath.
+- **A second parent appears.** With the other parent sharing (from their phone or the web app), they appear on your map by name. Have them stop: they leave it within a minute.
+- **You are marked.** When you share, your own row reads "(you)".
+- **The text matches.** **About Harbor › Your place** and **Privacy policy** both say a shared place is seen by the whole family, and the **Share my location** row no longer says "Children see it". Nothing anywhere claims the other parents cannot see it.
+- **A stale place is honest.** A place older than 30 minutes is drawn grey and reads as last known, not as where someone is now.
+
 ## The family on one map, for parents too (2026-10-24)
 
 **Android is unchanged; there is no new APK.** Web app and database only.

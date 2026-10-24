@@ -121,6 +121,9 @@ data class ParentChildData(
     val onAnswerAccess: ((dev.stmedrano.harbor.parent.access.AccessRequestItem, Boolean) -> Unit)? = null,
     val activity: dev.stmedrano.harbor.parent.activity.ActivityViewState? = null, val activityToday: java.time.LocalDate = java.time.LocalDate.now(),
     val onActivityDay: (java.time.LocalDate) -> Unit = {}, val onRefreshActivity: (() -> Unit)? = null,
+    /** Everyone in the family, for the Map tab; null when that page is not open. */
+    val familyMap: dev.stmedrano.harbor.parent.familymap.ParentFamilyMapState? = null,
+    val onRefreshFamilyMap: (() -> Unit)? = null,
 )
 
 /** One tab's page for one child. Detail text lives in About and the policies; the page shows only what the phone reported. */
@@ -137,6 +140,8 @@ fun ParentChildPage(tab: ParentTab, child: ChildV1, device: DevicePublicV1?, dat
         }
         when (tab) {
             ParentTab.MAP -> {
+                // The whole family first, then this child's own places behind it.
+                data.familyMap?.let { ParentFamilyMapSection(it, data.onRefreshFamilyMap) }
                 data.location?.let { ParentLocationScreen(it, data.onRefreshLocation, accent) }
                 if (data.checkIn != null && device.status == "active") ParentCheckInScreen(data.checkIn, child.displayName, data.onAskCheckIn)
             }

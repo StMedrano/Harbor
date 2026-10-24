@@ -89,11 +89,14 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
         } else {
             val phone = activeDevice(snapshot.devices, child.id)
             val today = remember(resumeTick) { java.time.LocalDate.now() }
+            val familyPeople = rememberParentFamilyPeople(familyMapModel, identity, snapshot.family.id, tab == ParentTab.MAP, resumeTick)
             var activityDay by remember(phone?.id) { mutableStateOf(today) }
             // Each page reads only what it shows, so an idle tab makes no requests.
             val data = if (phone == null) ParentChildData() else ParentChildData(
                 location = if (tab == ParentTab.MAP) rememberParentLocationView(locationModel, identity, phone.id, resumeTick) else null,
                 onRefreshLocation = locationModel?.let { m -> { scope.launch { m.load(identity, phone.id) } } },
+                familyMap = if (tab == ParentTab.MAP) familyPeople else null,
+                onRefreshFamilyMap = familyMapModel?.let { m -> { scope.launch { m.refreshPeople(identity, snapshot.family.id) } } },
                 alerts = if (tab == ParentTab.ALERTS) rememberParentAlertsView(alertsModel, identity, phone.id, resumeTick) else null,
                 onRefreshAlerts = alertsModel?.let { m -> { scope.launch { m.load(identity, phone.id) } } },
                 usage = if (tab == ParentTab.ACTIVITY || tab == ParentTab.CONTROLS) rememberParentUsageView(usageModel, identity, phone.id, resumeTick) else null,

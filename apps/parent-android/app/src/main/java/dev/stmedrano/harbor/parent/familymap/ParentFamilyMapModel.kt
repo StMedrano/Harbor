@@ -13,6 +13,9 @@ interface ParentFamilyMapApi {
     suspend fun setChildrenCanView(familyId: String, value: Boolean): FamilyMapSettingsV1
     suspend fun report(report: ParentLocationReportV1): ParentLocationReceiptV1
     suspend fun stop(familyId: String): ParentLocationReceiptV1
+
+    /** The family on one map. Defaults to nothing so an implementation that does not read it still compiles. */
+    suspend fun people(familyId: String, selfUserId: String): List<FamilyMapPerson> = emptyList()
 }
 
 enum class FamilyMapProblem { COULD_NOT_LOAD, COULD_NOT_SAVE, COULD_NOT_SHARE }
@@ -26,6 +29,11 @@ data class ParentFamilyMapState(
     val mySharing: MySharing? = null,
     val busy: Boolean = false,
     val problem: FamilyMapProblem? = null,
+    /** Everyone in the family: each child, and each parent sharing right now. */
+    val people: List<FamilyMapPerson> = emptyList(),
+    val peopleLoaded: Boolean = false,
+    /** True when the last read of the map failed and [people] is the previous answer. */
+    val peopleOffline: Boolean = false,
 )
 
 /**
@@ -47,7 +55,8 @@ class ParentFamilyMapModel(private val api: ParentFamilyMapApi, private val curr
         mutable.value = before
         try {
             val reply = api.settings(familyId)
-            if (live()) mutable.value = ParentFamilyMapState(familyId, loaded = true, childrenCanView = reply.childrenCanView, mySharing = reply.mySharing)
+            if (live()) mutable.value = ParentFamilyMapState(familyId, loaded = true, childrenCanView = reply.childrenCanView, mySharing = reply.mySharing,
+                people = before.people, peopleLoaded = before.peopleLoaded, peopleOffline = before.peopleOffline)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: FamilyAccessDenied) { if (live()) mutable.value = ParentFamilyMapState(familyId, problem = FamilyMapProblem.COULD_NOT_LOAD) }
         catch (_: Exception) { if (live()) mutable.value = before.copy(problem = FamilyMapProblem.COULD_NOT_LOAD) }
@@ -58,7 +67,8 @@ class ParentFamilyMapModel(private val api: ParentFamilyMapApi, private val curr
         mutable.value = before.copy(busy = true, problem = null)
         try {
             val reply = api.setChildrenCanView(familyId, value)
-            if (currentIdentity() == identity && scoped(familyId) != null) mutable.value = ParentFamilyMapState(familyId, loaded = true, childrenCanView = reply.childrenCanView, mySharing = reply.mySharing)
+            if (currentIdentity() == identity && scoped(familyId) != null) mutable.value = ParentFamilyMapState(familyId, loaded = true, childrenCanView = reply.childrenCanView, mySharing = reply.mySharing,
+                people = before.people, peopleLoaded = before.peopleLoaded, peopleOffline = before.peopleOffline)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { if (currentIdentity() == identity && scoped(familyId) != null) mutable.value = before.copy(busy = false, problem = FamilyMapProblem.COULD_NOT_SAVE) }
     }
@@ -94,6 +104,24 @@ class ParentFamilyMapModel(private val api: ParentFamilyMapApi, private val curr
             if (currentIdentity() == identity && scoped(familyId) != null) mutable.value = mutable.value.copy(busy = false, mySharing = null)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { if (currentIdentity() == identity && scoped(familyId) != null) mutable.value = before.copy(busy = false, problem = FamilyMapProblem.COULD_NOT_SHARE) }
+    }
+
+    /**
+     * Re-reads the family map. It never clears what is already shown: a failed read keeps the last answer and marks
+     * it, because an empty map would read as "nobody is anywhere" rather than "this did not load".
+     */
+    suspend fun refreshPeople(identity: ParentIdentity, familyId: String) {
+        try {
+            val people = api.people(familyId, identity.userId)
+            if (currentIdentity() == identity && mutable.value.familyId == familyId) {
+                mutable.value = mutable.value.copy(people = people, peopleLoaded = true, peopleOffline = false)
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            if (currentIdentity() == identity && mutable.value.familyId == familyId) {
+                mutable.value = mutable.value.copy(peopleOffline = true)
+            }
+        }
     }
 
     /** Sign-out, membership loss or role change: drop everything and invalidate in-flight calls. */

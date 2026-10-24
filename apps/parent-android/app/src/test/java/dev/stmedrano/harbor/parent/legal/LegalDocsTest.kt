@@ -47,6 +47,13 @@ class LegalDocsTest {
         assertTrue(asset(LegalDoc.PRIVACY).contains("including the other children"))
         assertTrue(asset(LegalDoc.PRIVACY).contains("after 24 hours"))
         assertTrue(asset(LegalDoc.TERMS).contains("family map"))
+        // A parent who shares is seen by the whole family, the other parents included. The documents promised the
+        // older, narrower rule for a release after it changed, so both halves are held here.
+        assertTrue(parent.contains("everyone in your family sees it"))
+        assertTrue(asset(LegalDoc.PRIVACY).contains("the other parents included"))
+        val all = LegalDoc.values().joinToString("\n") { asset(it) }.lowercase()
+        listOf("does not show it to other parents", "shared place to other parents", "other parents never see")
+            .forEach { assertFalse(it, all.contains(it)) }
     }
     @Test fun theDocumentsNeverPromiseWhatHarborDoesNotDo() {
         val child = asset(LegalDoc.CHILD_ABOUT)

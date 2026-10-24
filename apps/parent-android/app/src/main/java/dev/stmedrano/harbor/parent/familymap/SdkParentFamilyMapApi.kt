@@ -5,6 +5,7 @@ import dev.stmedrano.harbor.parent.family.FamilyAccessDenied
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.functions.functions
+import io.github.jan.supabase.postgrest.postgrest
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.headersOf
@@ -42,6 +43,10 @@ class SdkParentFamilyMapApi(private val client: SupabaseClient, private val auth
             put("version", 1); put("familyId", family(report.familyId)); put("label", report.label)
             put("fix", buildJsonObject { put("at", report.fix.at); put("latitude", report.fix.latitude); put("longitude", report.fix.longitude); put("accuracyM", report.fix.accuracyM) })
         }))
+    override suspend fun people(familyId: String, selfUserId: String): List<FamilyMapPerson> =
+        client.postgrest.from("family_places").select { filter { eq("family_id", familyId) } }
+            .decodeList<FamilyPlaceRow>().map { it.person(selfUserId) }
+
     override suspend fun stop(familyId: String): ParentLocationReceiptV1 =
         decodeParentLocationReceipt(call("stop-parent-location", buildJsonObject { put("version", 1); put("familyId", family(familyId)) }))
 }
