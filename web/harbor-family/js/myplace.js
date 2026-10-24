@@ -3,7 +3,7 @@
  * on, the latest place only, sent only while Harbor is on the screen, and nothing kept in the background. Turning it
  * off deletes the place Harbor holds.
  *
- * Children see this on their Family map; other parents do not.
+ * While a parent shares, the whole family sees them on the family map: the children and the other parents.
  */
 import { api } from './api.js';
 

@@ -11,11 +11,12 @@ import {
 } from './controls.js';
 import { $, e, clock, when, ago, minutes, icon, brand, empty, header, btn, note, tag, sw, fld, form, avatar, crew, busy, open, shut, toast, greeting } from './common.js';
 import { pushState, enablePush, disablePush } from './push.js';
+import { toFamilyMap, renderFamilyMap, statusOf } from './family-map.js';
 import { geoSupported, sharingState, showStored, startSharing, stopSharing, resumeIfGranted, onSharingChange } from './myplace.js';
 
 const TABS = [['map', 'Map'], ['alerts', 'Alerts'], ['controls', 'Controls'], ['activity', 'Activity'], ['family', 'Family']];
 const HEAD = { map: 'Family overview', alerts: ['What needs attention', 'Beacon alerts'], controls: ['Family boundaries', 'Steady guidance'], activity: ['Daily patterns', 'A day at a glance'], family: ['Your circle', 'Your crew'] };
-const S = { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', day: null, timelineOpen: false, mapTitle: '', push: null, place: null };
+const S = { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', day: null, timelineOpen: false, mapTitle: '', push: null, place: null, places: null, mapWho: null };
 let cb = {}, controls = null, timer = null, seq = 0;
 const cache = new Map(); // `${kind}|${deviceId}` → { reply, loading, offline, denied }
 const kid = () => (S.family && S.family.children.find(c => c.id === S.k)) || null;
@@ -42,6 +43,22 @@ async function loadFamily() {
  * This browser's own two rows: whether notifications are on here, and what Harbor holds for this parent's place.
  * It does not take a \`seq\` turn, so it never cancels a family load running beside it.
  */
+async function loadPlaces(force = false) {
+  const family = S.familyId;
+  if (!family) return;
+  if (S.places && S.places.loading && !force) return;
+  S.places = { rows: (S.places && S.places.rows) || null, loading: true, offline: false };
+  try {
+    const rows = await api.familyPlaces(family);
+    if (S.familyId !== family) return;
+    S.places = { rows, loading: false, offline: false };
+  } catch (x) {
+    if (handle(x)) return;
+    S.places = { rows: (S.places && S.places.rows) || null, loading: false, offline: true };
+  }
+  if (S.familyId === family && S.tab === 'map') render();
+}
+
 async function loadMine() {
   const family = S.familyId;
   try { S.push = await pushState(); } catch { S.push = { supported: false, configured: false, permission: 'unsupported', on: false }; }
@@ -82,7 +99,7 @@ async function togglePlace(on) {
     return;
   }
   const suggested = (S.place && S.place.label) || S.user.name || '';
-  open('<h2>Share my location</h2><p class="hf-muted">Your children see this on their Family map, and only while Harbor is open on this device. The latest place is the only one kept, turning it off deletes it, and the other parents never see it.</p>'
+  open('<h2>Share my location</h2><p class="hf-muted">Your family sees this on their map, children and the other parents alike, and only while Harbor is open on this device. The latest place is the only one kept, and turning it off deletes it.</p>'
     + form('myplace', fld('label', 'Name your children see', 'text', 'off', suggested, 'maxlength="40"'), 'Start sharing'));
   // Until they confirm, the switch belongs in its old position.
   render();
@@ -116,8 +133,9 @@ function syncControls() {
   controls = d ? new DeviceControls(api, S.familyId, d, () => { if (S.tab === 'controls') render(); }) : null;
 }
 function loadTab(force = false) {
+  if (S.tab === 'map') loadPlaces(force);
   const k = kid(); if (!k || !k.device) return;
-  if (S.tab === 'map') { load('location', { force }); load('checkins', { force }); }
+  if (S.tab === 'map' && S.mapWho) { load('location', { force }); load('checkins', { force }); }
   if (S.tab === 'alerts') load('alerts', { force });
   if (S.tab === 'controls') { if (controls && (force || controls.view.status === 'loading')) controls.load(); load('requests', { force }); load('usage'); load('activity', { force }); }
   if (S.tab === 'activity') { load('usage', { force }); load('activity', { force }); }
@@ -175,9 +193,40 @@ function checkIns(k) {
   }
   return `<div class="hb-card"><h3>Check-ins</h3>${body}</div>`;
 }
-function mapView(k) {
-  return deviceSection('location', 'location', (reply, offline) => renderLocationView(toLocationView(reply, Date.now(), { offline }), { name: k.name, color: crew(k.index), initial: (k.name.trim()[0] || '').toUpperCase() }))
+function childPlace(k) {
+  const back = `<div class="hf-back">${btn('Everyone in the family', 'data-a="everyone"', 'outline', 'hb-btn-small')}</div>`;
+  if (!k.device) return back + noPhone(k);
+  return back
+    + deviceSection('location', 'location', (reply, offline) => renderLocationView(toLocationView(reply, Date.now(), { offline }), { name: k.name, color: crew(k.index), initial: (k.name.trim()[0] || '').toUpperCase() }))
     + checkIns(k);
+}
+
+/**
+ * Everyone in the family on one map. A child is here whenever their phone has sent a place — they never choose —
+ * and a parent only while they are sharing, which the whole family then sees.
+ */
+function mapView() {
+  const k = kid();
+  if (S.mapWho && k) return childPlace(k);
+  const loaded = S.places;
+  if (!loaded || (loaded.loading && !loaded.rows)) return loadingCard('Loading your family’s places…');
+  const view = toFamilyMap(loaded.rows || [], { userId: S.user.id, nowMs: Date.now() });
+  const indexOf = id => { const c = S.family.children.find(x => x.id === id); return c ? c.index : 0; };
+  const colorOf = p => p.kind === 'child' ? crew(indexOf(p.id)) : 'var(--brand)';
+  const rows = view.people.map(p => {
+    const who = p.self ? `${p.name} (you)` : p.name;
+    const side = p.kind === 'child'
+      ? btn('Open', `data-a="person" data-id="${e(p.id)}"`, 'outline', 'hb-btn-small')
+      : tag(p.self ? 'You’re sharing' : 'Sharing', 'low');
+    return `<div class="hb-row"><div class="hb-rm">${avatar(p.name, colorOf(p), 'hb-av-lg')}<div><span class="hf-rt">${e(who)}</span><span class="hb-rs">${e(statusOf(p, { ago }))}</span></div></div>${side}</div>`;
+  }).join('');
+  const offline = loaded.offline ? note('<b>Can’t reach Harbor.</b> Showing the last places received.', true) : '';
+  const hint = view.people.some(p => p.self) ? ''
+    : note('<b>You’re not on the map.</b> Turn on <b>Share my location</b> under Family › On this device, and your family sees you while Harbor is open.');
+  return (view.centre ? renderFamilyMap(view, { colorOf }) : '')
+    + `<div class="hb-card"><h3>Everyone in your family</h3>${rows || '<p>Nobody to show yet.</p>'}</div>`
+    + offline + hint
+    + '<p class="hf-small">Children are on the map whenever their phone has sent a place; they don’t choose. A parent is here only while they share, and then the whole family sees them. Places arrive every few minutes, so this isn’t live tracking.</p>';
 }
 
 /* ───────────── Alerts ───────────── */
@@ -342,9 +391,10 @@ function render(enter) {
   let body;
   if (S.tab === 'family') body = familyView();
   else if (!S.family) body = loadingCard('Loading your family…');
+  else if (S.tab === 'map') body = mapView();
   else if (!k) body = `<div class="hb-card">${empty('Add your first child', 'Pair a child’s phone to see places, alerts, screen time and controls.', { art: 'anchor', action: btn('Add a child', 'data-a="addkid"') })}</div>`;
   else if (!k.device) body = noPhone(k);
-  else body = { map: mapView, alerts: alertsView, controls: controlsView, activity: activityView }[S.tab](k);
+  else body = { alerts: alertsView, controls: controlsView, activity: activityView }[S.tab](k);
   view.className = 'hf-view' + (enter ? ' in' : '');
   view.innerHTML = tabHeader(k) + body;
   if (!enter) window.scrollTo(0, keep);
@@ -366,9 +416,11 @@ const onClick = async ev => {
     switch (a) {
       case 'x': shut(); return;
       case 'signout': await api.signOut(); cb.onSignOut && cb.onSignOut(); return;
-      case 'tab': if (S.tab === v) return; S.tab = v; if (v === 'map') S.mapTitle = greeting(S.user.name); render(true); loadTab(); return;
-      case 'kid': S.k = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
-      case 'family': api.chooseFamily(t.dataset.id); S.familyId = t.dataset.id; S.family = null; S.k = null; cache.clear(); syncControls(); render(true); await loadFamily(); loadTab(true); loadMine(); return;
+      case 'tab': if (S.tab === v) return; S.tab = v; if (v === 'map') { S.mapWho = null; S.mapTitle = greeting(S.user.name); } render(true); loadTab(); return;
+      case 'person': S.k = t.dataset.id; S.mapWho = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
+      case 'everyone': S.mapWho = null; render(true); loadPlaces(true); return;
+      case 'kid': S.k = t.dataset.id; if (S.tab === 'map') S.mapWho = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
+      case 'family': api.chooseFamily(t.dataset.id); S.familyId = t.dataset.id; S.family = null; S.k = null; S.places = null; S.mapWho = null; cache.clear(); syncControls(); render(true); await loadFamily(); loadTab(true); loadMine(); return;
       case 'refresh': if (v === 'controls' && controls) controls.load(); else load(v, { force: true }); return;
       case 'day': S.day = v; S.timelineOpen = false; render(); load('activity'); return;
       case 'timeline': S.timelineOpen = !S.timelineOpen; render(); return;
@@ -511,7 +563,7 @@ export function unmountParent() {
   // Signing out stops sharing a place, and deletes the one Harbor holds, before the session goes.
   onSharingChange(null); if (sharingState().on) stopSharing().catch(() => {});
   clearInterval(timer); seq++; if (controls) controls.dispose(); controls = null; cache.clear();
-  Object.assign(S, { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', push: null, place: null });
+  Object.assign(S, { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', push: null, place: null, places: null, mapWho: null });
   shut(); $('#shell').hidden = true;
   // Wipe the rendered family data so nothing lingers in the page after sign-out (shared phones).
   for (const id of ['#view', '#kids', '#tabs', '#brand']) $(id).innerHTML = '';

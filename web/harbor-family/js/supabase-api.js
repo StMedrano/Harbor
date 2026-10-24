@@ -146,6 +146,10 @@ export const supabaseApi = {
   async registerWebPush({ clientInstallationId, endpoint, keys }) { return fn('register-web-push', { clientInstallationId, endpoint, keys }); },
   async removeWebPush({ clientInstallationId, endpoint }) { return fn('remove-web-push', { clientInstallationId, endpoint }); },
   async mapSettings(familyId) { return fn('get-family-map-settings', { version: 1, familyId }); },
+  /** The family on one map. The view decides who may read it; a parent who is not sharing is simply not in it. */
+  async familyPlaces(familyId) {
+    return ok(await sb().from('family_places').select('kind,person_id,user_id,name,fix_at,latitude,longitude,accuracy_m').eq('family_id', familyId));
+  },
   async reportMyLocation({ familyId, label, fix }) { return fn('report-parent-location', { version: 1, familyId, label, fix }); },
   async stopMyLocation(familyId) { return fn('stop-parent-location', { version: 1, familyId }); },
 

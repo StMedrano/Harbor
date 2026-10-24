@@ -80,3 +80,6 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 .hf-hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .hb-card .hb-req-line{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:13px;line-height:18px;color:var(--ink2)}
 .hb-card .hb-req-line svg{flex:none}
+
+/* Back from one person to the whole family on the map. */
+.hf-back{margin-bottom:10px}

@@ -83,6 +83,24 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
+## The family on one map, for parents too (2026-10-24)
+
+**Android is unchanged; there is no new APK.** Web app and database only.
+
+A parent could never see their family on one map. `get-family-map` sits behind a **device proof**, so only a paired child's phone can call it: children had the family map and parents had a per-child Map tab. The new view `public.family_places` (migration `20261024190000`) gives a parent the same picture — every child in the family, and every parent sharing right now. It is security definer so it can read `private.parent_location_sharing` and `private.device_location_fixes`, and every branch is gated on the caller being an active owner or parent of that same family, so a child cannot read it and a stranger sees nothing. No edge function and no gateway entry: the web app reads the view directly, as it already reads `family_members` and `devices_public`.
+
+**A parent who shares is now seen by the whole family, the other parents included.** That is a deliberate change from the old rule, where a shared place went to children only. The About page, the privacy policy, the Android sharing row and the web app's own sheet all said the opposite and have been corrected. A parent who does not share is not on the map at all — children never choose, because their phones report.
+
+**The Map tab** now opens on everyone, with the map zooming out as far as it needs to fit the family, and every person listed underneath with their own status. Opening a child gives the detail that was there before — recent places, check-ins, the 30-day history — behind **Everyone in the family**.
+
+Check in a browser, signed in as a parent:
+
+- **Everyone is there.** The **Map** tab lists every child in the family, whether or not their phone has sent a place, and every parent who is sharing. A child with no place reads "No place yet" rather than vanishing.
+- **A second parent shows up.** With the other parent sharing from their phone, they appear on your map by name with their own pin. Have them stop: they leave your map.
+- **You appear when you share.** Before sharing, the map says you are not on it and points at Family › On this device. Turn sharing on: you appear, marked as you.
+- **The map fits the family.** With a child and a parent far apart, the map zooms out so both pins are visible rather than cropping one out.
+- **A child still opens.** Tap **Open** on a child: their places, check-ins and history are as before, and **Everyone in the family** goes back.
+
 ## Web app: notifications, and sharing your own place (2026-10-24)
 
 **Android is unchanged by this; there is no new APK.** It is a web-app release, so it arrives at **harbor-family-dev.vercel.app** on the next deployment. The phone app stays at 0.34.
@@ -91,7 +109,7 @@ Until now the web app had no service worker at all, so a parent working in a bro
 
 **Notifications.** `public/sw.js` shows them. A Harbor push carries a route and no content, so the worker chooses the words from the kind alone — the same words the Android parent app uses — and a lock screen still never shows a child's name, an app, an alert category or any part of a message. Tapping one focuses an open tab and lands on the screen that answers it (an alert on Alerts, a request on Controls). It caches nothing: the app is online-only, and a stale cached shell would be worse than no offline support.
 
-**Your own place.** **Family › On this device › Share my location**, off until a parent turns it on, matching the phone: the parent names what their children see, only the latest place is kept, it is sent only while Harbor is on the screen, and turning it off deletes the place Harbor holds. Switching to another family stops it rather than leaving a place behind, and signing out stops it too. Other parents never see it; children do.
+**Your own place.** **Family › On this device › Share my location**, off until a parent turns it on, matching the phone: the parent names what their children see, only the latest place is kept, it is sent only while Harbor is on the screen, and turning it off deletes the place Harbor holds. Switching to another family stops it rather than leaving a place behind, and signing out stops it too. While a parent shares, the whole family sees them.
 
 Both switches are per browser, not per account, and both are off until pressed. The browser's own permission prompts are only ever opened from a press.
 

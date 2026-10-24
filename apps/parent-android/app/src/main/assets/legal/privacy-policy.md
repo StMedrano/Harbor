@@ -23,7 +23,7 @@ Harbor Family is one app. A parent or guardian creates an account and adds child
 ## Who can see it
 Parents and guardians who are active members of the family can see their children's shared information. A child can see what their own phone shares in the app's About page.
 
-Children in a family can see a family map in the app. It shows the latest place of each child in the family, including the other children, and of any parent who chose to share. It shows no trail or history. A parent can turn the family map off for children at any time. The app does not show a parent's shared place to other parents. Information is not shown to anyone outside the family through the app.
+Everyone in a family can see a family map in the app: the children and the parents. It shows the latest place of each child in the family, and of any parent who chose to share. It shows no trail or history. A parent can turn the family map off for children at any time. A parent who shares is shown to the whole family, the other parents included; a parent who does not share is not on the map at all. Information is not shown to anyone outside the family through the app.
 
 ## Stopping sharing
 A child cannot turn sharing off in the app. A parent stops it by removing the device in the Family tab. If a permission is turned off on the phone or Harbor is removed, sharing stops and the parent app shows that.
