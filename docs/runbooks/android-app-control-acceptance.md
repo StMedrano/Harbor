@@ -98,6 +98,30 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
+## 0.36: the phone was throwing away its own notifications (2026-10-24)
+
+**A new APK.** Same signing key, so it installs over 0.35.
+
+A parent stopped seeing message alerts, and the backend was doing everything right: the alert was captured, queued to the live registration and accepted by FCM on the first attempt. The phone was discarding it on arrival.
+
+`ParentNotifications.onMessage` judged the push against the loaded family **before** the refresh that loads the family:
+
+    if (!allowed(identity, hint) ...) return false   // needs familyId == currentFamily()
+    if (!refreshed(hint)) return false               // this is what loads the family
+
+`currentFamily()` reads the family snapshot, and a push that wakes a **closed** app arrives before there is one — so it returned null, the check failed, and the push was dropped one line before the call that would have made it valid. Alerts therefore arrived while the app happened to be open and were silently lost the rest of the time, which is exactly when a notification matters. This is the same shape as the 0.28 fix, which settled the *registration* but left the family check in front of the refresh. It was present in 0.28 through 0.35.
+
+The check is now split. `addressed` decides whether a push is worth refreshing for — right parent, right registration, and not for a family the app has loaded and knows is the wrong one — and the family itself is judged by `allowed` after the refresh, but only when none was loaded to begin with. A push for the wrong family still costs no network call when a family is loaded, which a test asserts; a push for a family this parent is not in is still refused, because `refreshHint` returns `matchesFamily`.
+
+Two tests hold it: a cold-start push is shown once the refresh loads the family, and a push for another family is refused when nothing has loaded.
+
+Check on the phones:
+
+- **Alerts with the app closed.** Swipe Harbor away from recent apps. Send the child a flagged RCS message. The notification arrives anyway, and tapping it opens the right child's Alerts. This is the whole fix.
+- **Alerts with the app open** still work, as before.
+- **A request with the app closed.** On the child's phone tap **Ask to use an app**: the request notification arrives with Harbor closed.
+- **Nothing extra.** No duplicate notifications, and nothing appears for a family you are not showing.
+
 ## 0.35: the family map on the phone, and the text that was left behind (2026-10-24)
 
 **This one needs a new APK.** Same signing key as 0.32, so it installs over 0.34 with no uninstall and no re-pair.

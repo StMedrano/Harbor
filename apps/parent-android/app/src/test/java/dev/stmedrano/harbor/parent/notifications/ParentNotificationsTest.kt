@@ -35,8 +35,37 @@ class ParentNotificationsTest {
     }
     private fun notifications(api: Api, tokens: Tokens, store: ParentRegistrationStore,
         identity: () -> ParentIdentity? = { parent }, permission: () -> Boolean = { true },
-        refresh: suspend (ParentHint) -> Boolean = { true }, render: (ParentHint) -> Unit = {}) =
-        ParentNotifications(api, tokens, store, identity, { FAMILY }, permission, refresh, render)
+        refresh: suspend (ParentHint) -> Boolean = { true }, render: (ParentHint) -> Unit = {},
+        family: () -> String? = { FAMILY }) =
+        ParentNotifications(api, tokens, store, identity, family, permission, refresh, render)
+
+    /**
+     * The case that matters most and was broken: a push that wakes a closed app. The family is not loaded yet, so
+     * the family cannot be judged on arrival — the refresh this push triggers is what loads it. Checking the family
+     * first dropped exactly these pushes, which is why alerts arrived while the app was open and never otherwise.
+     */
+    @Test fun APushThatWakesAClosedAppIsShownOnceTheRefreshLoadsTheFamily() = runTest {
+        val api = Api(); val tokens = Tokens(); val store = ParentRegistrationStore(Values()) { "installation" }
+        var loadedFamily: String? = null
+        val shown = mutableListOf<ParentHint>()
+        val notifications = notifications(api, tokens, store,
+            refresh = { loadedFamily = FAMILY; true }, render = { shown += it }, family = { loadedFamily })
+        notifications.enable()
+        assertNull(loadedFamily)
+        assertTrue(notifications.onMessage(envelope()))
+        assertEquals(1, shown.size)
+    }
+
+    /** A push for a family this parent is not in is still refused, which is what the refresh decides. */
+    @Test fun APushForAnotherFamilyIsRefusedEvenBeforeAnythingHasLoaded() = runTest {
+        val api = Api(); val tokens = Tokens(); val store = ParentRegistrationStore(Values()) { "installation" }
+        val shown = mutableListOf<ParentHint>()
+        val notifications = notifications(api, tokens, store,
+            refresh = { false }, render = { shown += it }, family = { null })
+        notifications.enable()
+        assertFalse(notifications.onMessage(envelope()))
+        assertTrue(shown.isEmpty())
+    }
 
     @Test fun PermissionDenialNeverFetchesTokenOrRegisters() = runTest {
         val api = Api(); val tokens = Tokens(); val store = ParentRegistrationStore(Values()) { "installation" }

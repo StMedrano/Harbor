@@ -101,7 +101,10 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
         val hint = ParentMessageParser.parse(data) ?: return false
         val identity = currentIdentity() ?: return false
         settle()
-        if (!allowed(identity, hint) || synchronized(lock) { hint in seen }) return false
+        // Who it is for can be judged now; which family it belongs to cannot. A push that wakes a closed app arrives
+        // before the family has loaded, so [currentFamily] is still null and a family check here would drop exactly
+        // the pushes that matter most. Refreshing is what loads the family, so that part waits until after it.
+        if (!addressed(identity, hint) || synchronized(lock) { hint in seen }) return false
         if (!refreshed(hint)) return false
         settle()
         return synchronized(lock) {
@@ -114,15 +117,25 @@ class ParentNotifications(private val api: ParentFcmApi, private val tokens: Fir
     suspend fun onTap(hint: ParentHint): Boolean {
         val identity = currentIdentity() ?: return false
         settle()
-        return allowed(identity, hint) && refreshed(hint) && allowed(identity, hint)
+        return addressed(identity, hint) && refreshed(hint) && allowed(identity, hint)
     }
     private suspend fun settle() { withTimeoutOrNull(20000) { operations.withLock { } } }
     private suspend fun refreshed(hint: ParentHint) = try {
         withTimeoutOrNull(10000) { refresh(hint) } == true
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { false }
-    private fun allowed(identity: ParentIdentity, hint: ParentHint) = currentIdentity() == identity &&
-        hint.route.familyId != null && hint.route.familyId == currentFamily() && store.marker(identity)?.registrationId == hint.registrationId
+    /**
+     * Whether this push is worth refreshing for: it is for this parent and this registration, and it is not for a
+     * family this app has loaded and knows is the wrong one. A loaded family is still judged here, so a push that is
+     * not for it costs nothing. Only when no family is loaded — a push waking a closed app — is that decision left
+     * to [allowed] after the refresh, because the refresh is what loads the family in the first place.
+     */
+    private fun addressed(identity: ParentIdentity, hint: ParentHint) = currentIdentity() == identity &&
+        store.marker(identity)?.registrationId == hint.registrationId && hint.route.familyId != null &&
+        currentFamily().let { it == null || it == hint.route.familyId }
+
+    private fun allowed(identity: ParentIdentity, hint: ParentHint) = addressed(identity, hint) &&
+        hint.route.familyId != null && hint.route.familyId == currentFamily()
     private fun current(identity: ParentIdentity, ticket: Long) = synchronized(lock) { generation == ticket && currentIdentity() == identity }
     private fun failed(identity: ParentIdentity, ticket: Long) = synchronized(lock) {
         if (current(identity, ticket)) mutableState.value = ParentNotificationState(message = "Registration is unconfirmed. Retry when connected.")
