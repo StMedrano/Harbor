@@ -48,6 +48,10 @@ Deno.test("harbor-web reaches only the functions it lists, only by POST", async 
   assertEquals(r.calls.length, 0);
   assertEquals(targetFunction(`${BASE}/functions/v1/harbor-web/create-family/`), "create-family");
   assertEquals(targetFunction(`${BASE}/functions/v1/harbor-web/report-message-alert`), null);
+  // The web app's own notifications and place; a missing entry here is a 404 the browser cannot explain.
+  for (const name of ["register-web-push", "remove-web-push", "report-parent-location", "stop-parent-location", "get-family-map-settings"]) {
+    assertEquals(targetFunction(`${BASE}/functions/v1/harbor-web/${name}`), name, name);
+  }
 });
 
 Deno.test("harbor-web answers only the web app's own origins", async () => {

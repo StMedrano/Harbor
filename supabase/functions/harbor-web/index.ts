@@ -14,6 +14,7 @@ const FUNCTIONS = new Set([
   "create-family", "create-child", "create-device-pairing", "create-parent-invite", "accept-parent-invite", "revoke-device",
   "get-device-usage", "get-device-location", "get-message-alerts", "get-device-activity", "get-device-checkins", "request-device-checkin",
   "get-device-controls", "update-device-state", "get-access-requests", "decide-access-request",
+  "register-web-push", "remove-web-push", "report-parent-location", "stop-parent-location", "get-family-map-settings",
   "device-claim", "device-sync",
 ]);
 const PASS = ["authorization", "apikey", "content-type", "x-harbor-device-id", "x-harbor-timestamp", "x-harbor-nonce", "x-harbor-signature"];

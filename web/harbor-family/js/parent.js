@@ -10,10 +10,12 @@ import {
   withGrant, withoutGrant, liveGrants,
 } from './controls.js';
 import { $, e, clock, when, ago, minutes, icon, brand, empty, header, btn, note, tag, sw, fld, form, avatar, crew, busy, open, shut, toast, greeting } from './common.js';
+import { pushState, enablePush, disablePush } from './push.js';
+import { geoSupported, sharingState, showStored, startSharing, stopSharing, resumeIfGranted, onSharingChange } from './myplace.js';
 
 const TABS = [['map', 'Map'], ['alerts', 'Alerts'], ['controls', 'Controls'], ['activity', 'Activity'], ['family', 'Family']];
 const HEAD = { map: 'Family overview', alerts: ['What needs attention', 'Beacon alerts'], controls: ['Family boundaries', 'Steady guidance'], activity: ['Daily patterns', 'A day at a glance'], family: ['Your circle', 'Your crew'] };
-const S = { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', day: null, timelineOpen: false, mapTitle: '' };
+const S = { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', day: null, timelineOpen: false, mapTitle: '', push: null, place: null };
 let cb = {}, controls = null, timer = null, seq = 0;
 const cache = new Map(); // `${kind}|${deviceId}` → { reply, loading, offline, denied }
 const kid = () => (S.family && S.family.children.find(c => c.id === S.k)) || null;
@@ -22,6 +24,8 @@ const possessive = n => `${n}’${/s$/i.test(n) ? '' : 's'}`;
 
 function handle(x) { if (x && x.code === 'unauthenticated') { cb.onExpired && cb.onExpired(); return true; } return false; }
 const failText = x => x instanceof ApiError ? x.message : 'Something went wrong. Please try again.';
+// Turning notifications or sharing on fails with a plain Error carrying its own wording; keep it rather than hide it.
+const msg = x => x instanceof ApiError ? x.message : (x && x.message) || 'Something went wrong. Please try again.';
 
 /* ───────────── loading ───────────── */
 async function loadFamily() {
@@ -34,6 +38,56 @@ async function loadFamily() {
   } catch (x) { if (!handle(x) && !S.family) toast('Couldn’t load your family', { tone: 'review', detail: 'Check your connection and try again.' }); }
   syncControls(); render();
 }
+/**
+ * This browser's own two rows: whether notifications are on here, and what Harbor holds for this parent's place.
+ * It does not take a \`seq\` turn, so it never cancels a family load running beside it.
+ */
+async function loadMine() {
+  const family = S.familyId;
+  try { S.push = await pushState(); } catch { S.push = { supported: false, configured: false, permission: 'unsupported', on: false }; }
+  const live = sharingState();
+  // Sharing belongs to one family; switching away from it stops it rather than leaving a place behind elsewhere.
+  if (live.on && live.familyId !== family) { try { await stopSharing(); } catch { /* the place expires on its own within a day */ } }
+  if (family) {
+    try {
+      const settings = await api.mapSettings(family);
+      if (S.familyId !== family) return;
+      S.place = showStored(settings && settings.mySharing);
+      // Already allowed in this browser? Pick sharing back up, as the phone app does when it reopens.
+      if (settings && settings.mySharing) S.place = await resumeIfGranted(family, settings.mySharing.label);
+    } catch { S.place = sharingState(); }
+  } else S.place = sharingState();
+  if (S.familyId === family) render();
+}
+
+async function togglePush(on) {
+  try {
+    S.push = on ? await enablePush() : await disablePush();
+    render();
+    if (on && !S.push.on) {
+      toast('Notifications were not allowed', { tone: 'info',
+        detail: S.push.permission === 'denied' ? 'Your browser is blocking them for this site.' : 'You can turn them on again whenever you like.' });
+    } else toast(on ? 'Notifications on in this browser' : 'Notifications off in this browser');
+  } catch (x) {
+    try { S.push = await pushState(); } catch { /* keep what was shown */ }
+    render();
+    if (!handle(x)) toast(msg(x), { tone: 'review' });
+  }
+}
+
+async function togglePlace(on) {
+  if (!on) {
+    try { S.place = await stopSharing(); render(); toast('You stopped sharing your location', { detail: 'Harbor deleted the place it held.' }); }
+    catch (x) { S.place = sharingState(); render(); if (!handle(x)) toast(msg(x), { tone: 'review' }); }
+    return;
+  }
+  const suggested = (S.place && S.place.label) || S.user.name || '';
+  open('<h2>Share my location</h2><p class="hf-muted">Your children see this on their Family map, and only while Harbor is open on this device. The latest place is the only one kept, turning it off deletes it, and the other parents never see it.</p>'
+    + form('myplace', fld('label', 'Name your children see', 'text', 'off', suggested, 'maxlength="40"'), 'Start sharing'));
+  // Until they confirm, the switch belongs in its old position.
+  render();
+}
+
 const LOADERS = {
   location: d => api.getDeviceLocation(d), alerts: d => api.getDeviceAlerts(d), usage: d => api.getDeviceUsage(d),
   requests: d => api.getRequests(d), checkins: d => api.getCheckIns(d),
@@ -235,7 +289,33 @@ function familyView() {
       + `<div class="hb-row">${btn('Join another family with a code', 'data-a="joinfam"', 'outline', 'hb-btn-block')}</div></div>`
     + '<p class="hf-small">Every parent sees the same children and phones and can change the same controls. When two parents change a rule at the same time, both changes are kept.</p>'
     + others
+    + mineSection()
     + `<div class="hf-section">Account</div><div class="hb-panel"><div class="hb-row"><div><span class="hf-rt">${e(S.user.name || 'Signed in')}</span><span class="hb-rs">${e(S.user.email || '')}</span></div>${btn('Sign out', 'data-a="signout"', 'outline', 'hb-btn-small')}</div></div>`;
+}
+
+/** Notifications and location are per browser, not per account, so they sit in their own section. */
+function mineSection() {
+  const plain = (title, sub) => `<div class="hb-row"><div><span class="hf-rt">${e(title)}</span><span class="hb-rs">${e(sub)}</span></div></div>`;
+  const p = S.push;
+  let pushRow;
+  if (!p) pushRow = plain('Notifications', 'Checking…');
+  else if (!p.supported) pushRow = plain('Notifications', 'This browser cannot show them. Your Android app still does.');
+  else if (!p.configured) pushRow = plain('Notifications', 'Not set up on this site yet.');
+  else if (p.permission === 'denied') pushRow = plain('Notifications', 'Blocked for this site in your browser settings.');
+  else pushRow = `<div class="hb-row"><div><span class="hf-rt">Notifications</span><span class="hb-rs">${p.on ? 'On in this browser' : 'Off. Requests and alerts show only while Harbor is open.'}</span></div>${sw('push', p.on, 'Notifications')}</div>`;
+
+  const pl = S.place;
+  let placeRow;
+  if (!geoSupported()) placeRow = plain('Share my location', 'This browser cannot share a place.');
+  else if (!pl) placeRow = plain('Share my location', 'Checking…');
+  else if (pl.on) {
+    const sub = `Sharing as ${pl.label}${pl.lastAt ? ' · sent ' + ago(pl.lastAt) : ' · waiting for a place'}`;
+    placeRow = `<div class="hb-row"><div><span class="hf-rt">Share my location</span><span class="hb-rs">${e(sub)}</span></div>${sw('place', true, 'Share my location')}</div>`;
+  } else placeRow = `<div class="hb-row"><div><span class="hf-rt">Share my location</span><span class="hb-rs">Off. Your children see you on their map only while you share.</span></div>${sw('place', false, 'Share my location')}</div>`;
+
+  const warn = pl && pl.on && pl.error ? note(`<b>${e(pl.error)}</b> Harbor keeps the last place it took.`, true) : '';
+  return `<div class="hf-section">On this device</div><div class="hb-panel">${pushRow}${placeRow}</div>${warn}`
+    + '<p class="hf-small">Both of these are for this browser only, and are off until you turn them on. Notifications never carry a name, an app or any part of a message — they say only that something needs you.</p>';
 }
 
 /* ───────────── sheets ───────────── */
@@ -288,7 +368,7 @@ const onClick = async ev => {
       case 'signout': await api.signOut(); cb.onSignOut && cb.onSignOut(); return;
       case 'tab': if (S.tab === v) return; S.tab = v; if (v === 'map') S.mapTitle = greeting(S.user.name); render(true); loadTab(); return;
       case 'kid': S.k = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
-      case 'family': api.chooseFamily(t.dataset.id); S.familyId = t.dataset.id; S.family = null; S.k = null; cache.clear(); syncControls(); render(true); await loadFamily(); loadTab(true); return;
+      case 'family': api.chooseFamily(t.dataset.id); S.familyId = t.dataset.id; S.family = null; S.k = null; cache.clear(); syncControls(); render(true); await loadFamily(); loadTab(true); loadMine(); return;
       case 'refresh': if (v === 'controls' && controls) controls.load(); else load(v, { force: true }); return;
       case 'day': S.day = v; S.timelineOpen = false; render(); load('activity'); return;
       case 'timeline': S.timelineOpen = !S.timelineOpen; render(); return;
@@ -335,6 +415,8 @@ const onClick = async ev => {
 const onChange = ev => {
   const c = ev.target.dataset.c; if (!c || !$('#shell').contains(ev.target)) return;
   const val = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
+  if (c === 'push') { togglePush(val); return; }
+  if (c === 'place') { togglePlace(val); return; }
   if (c === 'daily') writeControls(x => withDailyLimit(x, val === 'off' ? null : Number(val)));
   if (c === 'bed') writeControls(x => withBedtime(x, { enabled: val }), val ? 'Bedtime on' : 'Bedtime off');
   if (c === 'bed-start') writeControls(x => withBedtime(x, { start: val }));
@@ -347,7 +429,7 @@ const onChange = ev => {
 const onSubmit = async ev => {
   const f = ev.target.closest('#mod form[data-form]'); if (!f) return;
   const kind = f.dataset.form;
-  if (!['addchild', 'myname', 'joinfam'].includes(kind)) return;
+  if (!['addchild', 'myname', 'joinfam', 'myplace'].includes(kind)) return;
   ev.preventDefault();
   const d = Object.fromEntries(new FormData(f)), err = f.querySelector('.hb-err'), b = f.querySelector('[type=submit]');
   const fail = text => { err.textContent = text; err.hidden = false; };
@@ -357,6 +439,17 @@ const onSubmit = async ev => {
     busy(b, true);
     try { await api.setMyName(d.name); shut(); await loadFamily(); toast('Your name is saved'); }
     catch (x) { if (!handle(x)) fail(failText(x)); }
+    finally { busy(b, false); }
+    return;
+  }
+  if (kind === 'myplace') {
+    if (!(d.label || '').trim()) return fail('Enter the name your children will see.');
+    busy(b, true);
+    try {
+      S.place = await startSharing(S.familyId, d.label);
+      shut(); render();
+      toast('You are sharing your location', { detail: 'It updates while Harbor is open on this device.' });
+    } catch (x) { if (!handle(x)) fail(msg(x)); }
     finally { busy(b, false); }
     return;
   }
@@ -387,6 +480,17 @@ function tick() {
   loadTab(true);
 }
 const onVisible = () => { if (document.visibilityState === 'visible') { tick(); loadFamily(); } };
+/** sw.js speaks to the app: a push refreshes what is open, and a tapped notification lands on the screen that answers it. */
+const onWorkerMessage = event => {
+  const m = event && event.data;
+  if (!m || (m.type !== 'harbor-push' && m.type !== 'harbor-open')) return;
+  if (m.type === 'harbor-push') { loadTab(true); return; }
+  const child = m.childId && S.family && S.family.children.find(c => c.id === m.childId);
+  if (child) { S.k = child.id; S.timelineOpen = false; }
+  if (m.kind === 'device.alert.created') S.tab = 'alerts';
+  else if (m.kind === 'device.access.requested' || m.kind === 'device.controls.off') S.tab = 'controls';
+  syncControls(); render(true); loadTab(true);
+};
 
 /* ───────────── lifecycle ───────────── */
 export async function mountParent(session, callbacks) {
@@ -394,15 +498,20 @@ export async function mountParent(session, callbacks) {
   Object.assign(S, { user: session.user, families: session.families, familyId: session.familyId, family: null, k: null, tab: 'map', day: localDate(), timelineOpen: false, mapTitle: greeting(session.user.name) });
   document.addEventListener('click', onClick); document.addEventListener('change', onChange); document.addEventListener('submit', onSubmit);
   document.addEventListener('visibilitychange', onVisible);
+  onSharingChange(state => { S.place = state; if (S.tab === 'family') render(); });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', onWorkerMessage);
   $('#shell').hidden = false; render(true);
-  await loadFamily(); loadTab(true);
+  await loadFamily(); loadTab(true); loadMine();
   // Controls and requests refresh every 15 seconds while open, so a change from the other parent shows up.
   timer = setInterval(tick, 15000);
 }
 export function unmountParent() {
   document.removeEventListener('click', onClick); document.removeEventListener('change', onChange); document.removeEventListener('submit', onSubmit); document.removeEventListener('visibilitychange', onVisible);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onWorkerMessage);
+  // Signing out stops sharing a place, and deletes the one Harbor holds, before the session goes.
+  onSharingChange(null); if (sharingState().on) stopSharing().catch(() => {});
   clearInterval(timer); seq++; if (controls) controls.dispose(); controls = null; cache.clear();
-  Object.assign(S, { user: null, families: [], familyId: null, family: null, k: null, tab: 'map' });
+  Object.assign(S, { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', push: null, place: null });
   shut(); $('#shell').hidden = true;
   // Wipe the rendered family data so nothing lingers in the page after sign-out (shared phones).
   for (const id of ['#view', '#kids', '#tabs', '#brand']) $(id).innerHTML = '';

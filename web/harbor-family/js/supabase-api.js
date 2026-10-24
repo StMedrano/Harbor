@@ -142,6 +142,13 @@ export const supabaseApi = {
   /** A one-day code another adult enters to join this family as a parent. */
   async createInvite(familyId) { return fn('create-parent-invite', { familyId }); },
 
+  /* ── this parent's own notifications and place ── */
+  async registerWebPush({ clientInstallationId, endpoint, keys }) { return fn('register-web-push', { clientInstallationId, endpoint, keys }); },
+  async removeWebPush({ clientInstallationId, endpoint }) { return fn('remove-web-push', { clientInstallationId, endpoint }); },
+  async mapSettings(familyId) { return fn('get-family-map-settings', { version: 1, familyId }); },
+  async reportMyLocation({ familyId, label, fix }) { return fn('report-parent-location', { version: 1, familyId, label, fix }); },
+  async stopMyLocation(familyId) { return fn('stop-parent-location', { version: 1, familyId }); },
+
   /** Everyone and every phone in one family, as this parent may see them. */
   async loadFamily(familyId) {
     const [members, kids, devs] = await Promise.all([

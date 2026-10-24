@@ -83,6 +83,29 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
+## Web app: notifications, and sharing your own place (2026-10-24)
+
+**Android is unchanged by this; there is no new APK.** It is a web-app release, so it arrives at **harbor-family-dev.vercel.app** on the next deployment. The phone app stays at 0.34.
+
+Until now the web app had no service worker at all, so a parent working in a browser saw a request or an alert only while sitting on the right screen, and could not share their own place as they can on the phone. Four things stood in the way, and all four are done: there was no service worker and nothing asked for notification permission; the page's `default-src 'none'` content-security policy had no `worker-src`, so registering one would have been refused outright; and the gateway's allowlist did not name the functions the browser needs.
+
+**Notifications.** `public/sw.js` shows them. A Harbor push carries a route and no content, so the worker chooses the words from the kind alone — the same words the Android parent app uses — and a lock screen still never shows a child's name, an app, an alert category or any part of a message. Tapping one focuses an open tab and lands on the screen that answers it (an alert on Alerts, a request on Controls). It caches nothing: the app is online-only, and a stale cached shell would be worse than no offline support.
+
+**Your own place.** **Family › On this device › Share my location**, off until a parent turns it on, matching the phone: the parent names what their children see, only the latest place is kept, it is sent only while Harbor is on the screen, and turning it off deletes the place Harbor holds. Switching to another family stops it rather than leaving a place behind, and signing out stops it too. Other parents never see it; children do.
+
+Both switches are per browser, not per account, and both are off until pressed. The browser's own permission prompts are only ever opened from a press.
+
+**One step by hand before notifications can work:** the Vercel project needs `VITE_VAPID_PUBLIC_KEY` set to the **public** half of the backend's VAPID pair — the same value as the `VAPID_PUBLIC_KEY` function secret. It is a public key by design and belongs in the browser; the private half stays a secret. Without it the app runs normally and the Notifications row reads "Not set up on this site yet" instead of failing when a parent presses it.
+
+Check in a browser, signed in as a parent, with a child's phone paired:
+
+- **Notifications.** **Family › On this device**: turn **Notifications** on and allow the browser's prompt. The row reads "On in this browser". From the child's phone, tap **Ask to use <app>** on a block screen. The browser shows a notification titled "Request from your child" with no app name and no child's name in it. Tap it: the tab comes forward on that child's **Controls**, with the request under **Requests**. Turn the switch off: the row reads off, and a further request raises no notification.
+- **Notifications with the tab closed.** With notifications on, close the tab (leave the browser running) and ask again from the phone. The notification still arrives — that is the whole point of the service worker. Installed to the home screen, the same holds with the app closed.
+- **Nothing leaks.** No notification text names a child, an app, an alert category or any part of a message. An alert reads only "Harbor flagged a possible concern. Open to review."
+- **Share my location.** Turn **Share my location** on, allow the browser's prompt, and keep the name offered or change it. The row reads "Sharing as <name> · sent just now". On the child's phone, **Family** shows that name on the map. Leave the tab in the background for a few minutes: the child's map stops getting new places, and returning to the tab sends a fresh one at once.
+- **Stopping deletes it.** Turn the switch off: the child's map no longer shows that parent. Sign out while sharing: the same.
+- **Refused permission is honest.** Block notifications (or location) for the site in the browser, reload, and open **Family**: the row says it is blocked in the browser's settings rather than offering a switch that cannot work.
+
 ## 0.34: the app's own documents match what it does (2026-10-24)
 
 Harbor's About pages, privacy policy and terms all said it never blocks or limits apps. That stopped being true in 0.28 and 0.29, which added blocked apps, per-app and daily limits, bedtime, and the guard over removing an app. The child's About page was the worst of the four: it opens by promising to explain everything Harbor does, and then told the child no app would ever be blocked.
