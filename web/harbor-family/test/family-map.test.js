@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toFamilyMap, fitZoom, pinsFor, renderFamilyMap, statusOf, STALE_AFTER_MS } from '../js/family-map.js';
+import { toFamilyMap, fitZoom, pinsFor, renderFamilyMap, statusOf, pos, STALE_AFTER_MS } from '../js/family-map.js';
 
 const NOW = Date.UTC(2026, 9, 24, 12, 0, 0);
 const iso = ms => new Date(ms).toISOString();
@@ -66,6 +66,20 @@ test('every pin that is drawn sits inside the window', () => {
     assert.ok(Math.abs(pin.dx) <= 400 && Math.abs(pin.dy) <= 140, 'drawn pins stay in the frame');
   }
   assert.ok(pins.some(p => p.inside));
+});
+
+test('tiles and pins are placed from the middle of the map, as the single-child map places them', () => {
+  const v = toFamilyMap([child('c1', 'Leo', 40.7128, -74.006), parent('m1', 'u1', 'Olivia', 40.7138, -74.005)], { userId: 'u1', nowMs: NOW });
+  const html = renderFamilyMap(v);
+  // Every tile and every pin is anchored to the centre. An unanchored transform puts them all at the top-left corner,
+  // which drew the tiles in one corner and the pins off the map.
+  const styles = [...html.matchAll(/class="(?:tile|pin[^"]*)"[^>]*style="([^"]*)"/g)].map(m => m[1]);
+  assert.ok(styles.length >= 3, 'tiles and pins are drawn');
+  for (const style of styles) {
+    assert.match(style, /^left:calc\(50% \+ -?\d+px\);top:calc\(50% \+ -?\d+px\)/);
+    assert.ok(!style.includes('transform'), style);
+  }
+  assert.equal(pos(0, 0), 'left:calc(50% + 0px);top:calc(50% + 0px)');
 });
 
 test('a name cannot inject markup into the map', () => {

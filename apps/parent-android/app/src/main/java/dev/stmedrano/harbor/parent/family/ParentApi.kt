@@ -34,6 +34,9 @@ class ParentInviteRejected(val locked: Boolean) : IllegalStateException(if (lock
 class FamilyAccessDenied : IllegalStateException("Family access is no longer available")
 class PendingChildConflict : IllegalStateException("Cancel the pending child request before changing its name")
 
+/** What leaving a family did. [KEPT]: this parent is its only one and it has children, so nothing changed. */
+enum class LeaveOutcome { LEFT, DELETED, KEPT }
+
 interface ParentApi {
     suspend fun listFamilies(): List<FamilyV1>
     suspend fun createFamily(name: String, key: String): CreatedFamily
@@ -46,6 +49,7 @@ interface ParentApi {
     /** Default: only the live backend issues and accepts invites, so test doubles need not implement them. */
     suspend fun createParentInvite(familyId: String): ParentInvite = throw UnsupportedOperationException()
     suspend fun acceptParentInvite(code: String): JoinedFamily = throw UnsupportedOperationException()
+    suspend fun leaveFamily(familyId: String): LeaveOutcome = throw UnsupportedOperationException()
 }
 
 class SdkParentApi(private val client: SupabaseClient, private val auth: ParentAuthRepository,
@@ -111,6 +115,21 @@ class SdkParentApi(private val client: SupabaseClient, private val auth: ParentA
             // A wrong, used or expired code and a locked account are the only answers a parent can act on.
             if (failure.statusCode == 400) throw ParentInviteRejected(locked = false)
             if (failure.statusCode == 403) throw ParentInviteRejected(locked = true)
+            throw failure
+        }
+    }
+
+    override suspend fun leaveFamily(familyId: String): LeaveOutcome = auth.withAccessToken {
+        requireUuid(familyId)
+        try {
+            when (val answer = client.postgrest.rpc("leave_family", buildJsonObject { put("p_family_id", familyId) }).decodeAs<String>()) {
+                "left" -> LeaveOutcome.LEFT
+                "deleted" -> LeaveOutcome.DELETED
+                "last_parent_with_children" -> LeaveOutcome.KEPT
+                else -> error("Unexpected answer from leave_family: $answer")
+            }
+        } catch (failure: RestException) {
+            if (failure.statusCode in setOf(401, 403)) throw FamilyAccessDenied()
             throw failure
         }
     }

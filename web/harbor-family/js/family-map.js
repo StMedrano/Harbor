@@ -8,7 +8,12 @@
 import { project, tileGrid, TILE } from './location-view.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const pos = (dx, dy) => `transform:translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+/**
+ * Offsets are from the middle of the map, exactly as the single-child map places them (location-view.js): a tile's
+ * corner, or a pin's centre once its own CSS margin pulls it back by half its size. A transform with no anchor puts
+ * everything relative to the top-left corner instead, which is how this map first shipped.
+ */
+export const pos = (dx, dy) => `left:calc(50% + ${dx}px);top:calc(50% + ${dy}px)`;
 
 /** Nothing new for this long and a place is shown as last known rather than current. */
 export const STALE_AFTER_MS = 30 * 60 * 1000;

@@ -74,6 +74,27 @@ fun JoinFamilySheet(code: String, busy: Boolean, error: String?, onCode: (String
         }, confirmButton = { TextButton(onClose, enabled = !busy) { Text("Close") } })
 }
 
+/**
+ * Asks before leaving [familyName]. [leaving] is false when this parent is its only one, which can only be offered
+ * when it has no children, so the family is deleted instead; the server makes the final call either way.
+ */
+@Composable
+fun LeaveFamilySheet(familyName: String, leaving: Boolean, busy: Boolean, error: String?, onLeave: () -> Unit, onClose: () -> Unit) {
+    AlertDialog(onDismissRequest = { if (!busy) onClose() }, containerColor = harbor.s2,
+        title = { Text(if (leaving) "Leave $familyName?" else "Delete $familyName?", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(if (leaving) "You'll stop seeing its children, their places, alerts and controls on this account, and anything you were sharing on its map is removed. The other parents keep everything. A new invite code brings you back."
+                    else "You're its only parent and it has no children, so there's nothing in it to keep. This can't be undone.",
+                    color = harbor.ink2)
+                if (error != null) HarborNote(error, HarborTone.DANGER, emphasis = true)
+                HarborDestructiveButton(onLeave, Modifier.fillMaxWidth(), enabled = !busy) {
+                    Text(if (leaving) "Leave family" else "Delete family")
+                }
+            }
+        }, confirmButton = { TextButton(onClose, enabled = !busy) { Text("Cancel") } })
+}
+
 /** Eight characters read as 4 + 4, the way the code is shown and spoken. */
 fun inviteCodeText(code: String): String {
     val plain = code.filter { it.isLetterOrDigit() }

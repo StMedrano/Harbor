@@ -129,6 +129,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onCreateFamily = { sheet = "family"; error = null },
             onInviteParent = { sheet = "invite"; error = null; invite = null; submit { invite = model.inviteParent(identity) } },
             onJoinFamily = { sheet = "join"; error = null; name = "" },
+            onLeaveFamily = { sheet = "leave"; error = null },
             onMyName = { sheet = "myname"; error = null; name = family.snapshot?.profile?.displayName.orEmpty() },
             onAddChild = { sheet = "child"; error = null },
             onPair = { sheet = "pair"; submit { model.issuePairing(identity) } },
@@ -152,6 +153,28 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
             onSave = { scope.launch { if (request { model.setMyName(identity, name) }) { sheet = null; name = "" } } })
         "invite" -> InviteParentSheet(invite, control.busy, error,
             onRetry = { submit { invite = model.inviteParent(identity) } }, onClose = { sheet = null; invite = null })
+        "leave" -> family.snapshot?.let { current ->
+            LeaveFamilySheet(current.family.name, leaving = current.parents.any { it.userId != current.membership.userId },
+                busy = control.busy, error = error, onClose = { sheet = null },
+                onLeave = { scope.launch {
+                    error = null
+                    var outcome: dev.stmedrano.harbor.parent.family.LeaveOutcome? = null
+                    try {
+                        withContext(Dispatchers.IO) {
+                            if (runtime == null) outcome = model.leaveFamily(identity, current.family.id)
+                            else runtime.authAction { outcome = model.leaveFamily(identity, current.family.id) }
+                        }
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { error = "Couldn't leave. Check your connection and try again." }
+                    when (outcome) {
+                        null -> {}
+                        // Another parent left in the meantime: the server kept the family, and says why.
+                        dev.stmedrano.harbor.parent.family.LeaveOutcome.KEPT ->
+                            error = "You're its only parent now, and it has children. Invite another parent first."
+                        else -> sheet = null
+                    }
+                } })
+        }
         "join" -> JoinFamilySheet(name, control.busy, error, onCode = { name = it }, onClose = { sheet = null; name = "" },
             onJoin = { scope.launch {
                 error = null

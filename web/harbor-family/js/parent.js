@@ -223,8 +223,9 @@ function mapView() {
   const offline = loaded.offline ? note('<b>Can’t reach Harbor.</b> Showing the last places received.', true) : '';
   const hint = view.people.some(p => p.self) ? ''
     : note('<b>You’re not on the map.</b> Turn on <b>Share my location</b> under Family › On this device, and your family sees you while Harbor is open.');
-  return (view.centre ? renderFamilyMap(view, { colorOf }) : '')
-    + `<div class="hb-card"><h3>Everyone in your family</h3>${rows || '<p>Nobody to show yet.</p>'}</div>`
+  const list = `<div class="hb-card"><h3>Everyone in your family</h3>${rows || '<p>Nobody to show yet.</p>'}</div>`;
+  // On a wide screen the map and the people sit side by side; on a phone they stack, as before.
+  return (view.centre ? `<div class="hf-split">${renderFamilyMap(view, { colorOf })}${list}</div>` : list)
     + offline + hint
     + '<p class="hf-small">Children are on the map whenever their phone has sent a place; they don’t choose. A parent is here only while they share, and then the whole family sees them. Places arrive every few minutes, so this isn’t live tracking.</p>';
 }
@@ -338,8 +339,24 @@ function familyView() {
       + `<div class="hb-row">${btn('Join another family with a code', 'data-a="joinfam"', 'outline', 'hb-btn-block')}</div></div>`
     + '<p class="hf-small">Every parent sees the same children and phones and can change the same controls. When two parents change a rule at the same time, both changes are kept.</p>'
     + others
+    + leaveSection()
     + mineSection()
     + `<div class="hf-section">Account</div><div class="hb-panel"><div class="hb-row"><div><span class="hf-rt">${e(S.user.name || 'Signed in')}</span><span class="hb-rs">${e(S.user.email || '')}</span></div>${btn('Sign out', 'data-a="signout"', 'outline', 'hb-btn-small')}</div></div>`;
+}
+
+/**
+ * Leaving the family being shown, or deleting it when nobody else is in it and it is empty. The server makes the
+ * call; this only offers the action that will apply, so nobody is shown a button that will be refused.
+ */
+function leaveSection() {
+  const fam = e(famName());
+  const others = S.family.parents.filter(p => p.userId !== S.user.id).length;
+  const row = (title, sub, action) => `<div class="hb-row"><div><span class="hf-rt">${title}</span><span class="hb-rs">${sub}</span></div>${action}</div>`;
+  let body;
+  if (others > 0) body = row(`Leave ${fam}`, 'The other parents keep everything. A new invite code brings you back.', btn('Leave', 'data-a="leave"', 'outline', 'hb-btn-small'));
+  else if (!S.family.children.length) body = row(`Delete ${fam}`, 'You’re its only parent and it has no children.', btn('Delete', 'data-a="leave"', 'outline', 'hb-btn-small'));
+  else body = row('You’re its only parent', 'A family with children always keeps a parent. Invite another parent before you leave.', '');
+  return `<div class="hf-section">This family</div><div class="hb-panel">${body}</div>`;
 }
 
 /** Notifications and location are per browser, not per account, so they sit in their own section. */
@@ -438,6 +455,32 @@ const onClick = async ev => {
         // A parent who already has an account, and a family of their own, still joins another with a code.
         open('<h2>Join a family</h2><p class="hf-muted">Ask the other parent for a code: in Harbor Family, Family › Invite a parent. A code works once, for one day.</p>'
           + form('joinfam', `<div class="hf-code">${fld('code', 'Invite code', 'text', 'off', '', 'autocapitalize="characters" maxlength="12" placeholder="ABCD-EFGH" spellcheck="false"')}</div>`, 'Join family'));
+        return;
+      }
+      case 'leave': {
+        const fam = e(famName());
+        const leaving = S.family.parents.some(p => p.userId !== S.user.id);
+        const acts = label => `<div class="hf-acts">${btn(label, 'data-a="leave-yes"', 'danger', 'hb-btn-block')}${btn('Cancel', 'data-a="x"', 'outline', 'hb-btn-block')}</div>`;
+        open(leaving
+          ? `<h2>Leave ${fam}?</h2><p class="hf-muted">You’ll stop seeing its children, their places, alerts and controls on this account, and anything you were sharing on its map is removed. The other parents keep everything. A new invite code brings you back.</p>` + acts('Leave family')
+          : `<h2>Delete ${fam}?</h2><p class="hf-muted">You’re its only parent and it has no children, so there’s nothing in it to keep. This can’t be undone.</p>` + acts('Delete family'));
+        return;
+      }
+      case 'leave-yes': {
+        const fam = famName();
+        busy(t, true);
+        try {
+          const outcome = await api.leaveFamily(S.familyId);
+          shut();
+          if (outcome === 'last_parent_with_children') {
+            // Another parent left in the meantime: the server kept the family, and says why.
+            toast('You’re its only parent now', { tone: 'review', detail: 'A family with children always keeps a parent. Invite another parent first.' });
+            loadFamily();
+            return;
+          }
+          toast(outcome === 'deleted' ? `${fam} is deleted` : `You left ${fam}`);
+          cb.onFamiliesChanged && cb.onFamiliesChanged();
+        } finally { busy(t, false); }
         return;
       }
       case 'copy': try { await navigator.clipboard.writeText(v); toast('Code copied'); } catch { toast('Couldn’t copy', { tone: 'info', detail: 'Select the code and copy it instead.' }); } return;

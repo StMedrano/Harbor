@@ -83,3 +83,27 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 
 /* Back from one person to the whole family on the map. */
 .hf-back{margin-bottom:10px}
+
+/* ───────── Desktop ─────────
+   The same app laid out for a wide screen. None of this applies below 960px, so the phone layout and the installed
+   app are exactly as they were. The dock becomes a rail down the left, the content keeps a readable width rather than
+   stretching across the screen, sheets open as centred dialogs, and the family map sits beside the list of people
+   instead of above it. */
+@media (min-width:960px){
+  #app{max-width:1240px;box-shadow:none}
+  .hf-shell{display:grid;grid-template-columns:220px minmax(0,1fr);grid-template-rows:auto 1fr;align-items:start}
+  .hf-top{grid-column:2;grid-row:1}
+  .hf-view{grid-column:2;grid-row:2;width:100%;max-width:980px;padding:24px 40px 56px}
+  .hb-appbar{padding:14px 40px}
+  .hf-kids{padding:10px 40px}
+  .hf-dock{position:sticky;top:0;grid-column:1;grid-row:1 / span 2;align-self:stretch;height:100vh;height:100dvh;max-width:none;margin:0;padding:16px 12px;border-right:1px solid var(--line);background:var(--s)}
+  .hf-dock .hb-tabs{flex-direction:column;gap:4px;margin:0;padding:0;border:0;border-radius:0;background:none}
+  .hf-dock .hb-tab{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;padding:10px 14px;font-size:15px;line-height:20px;border-radius:var(--radius-md)}
+  .hf-dock .hb-tab .hb-badge{position:static;margin-left:auto}
+  .hf-mod{align-items:center}
+  .hf-mod .hb-sheet{max-width:540px;max-height:80vh;border-bottom:1px solid var(--line);border-radius:var(--radius-dock)}
+  .hf-toast{bottom:28px}
+  .hf-auth{max-width:460px;margin:0 auto;padding-top:72px}
+  .hf-split{display:grid;grid-template-columns:minmax(0,3fr) minmax(300px,2fr);gap:20px;align-items:start}
+  .hf-split .hb-card{margin:0}
+}

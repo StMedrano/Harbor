@@ -103,6 +103,29 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
         repository.state.value.snapshot?.family?.id?.let { repository.refresh(identity, it) }
     }
 
+    /**
+     * Leaves [familyId], or deletes it when this parent is its only one and it has no children; the server decides.
+     * Afterwards the next family this parent belongs to is shown, or none — which the Family screen shows as
+     * "Get started". [LeaveOutcome.KEPT] changes nothing, and the family is re-read so the screen says why.
+     */
+    suspend fun leaveFamily(identity: ParentIdentity, familyId: String): LeaveOutcome {
+        var outcome = LeaveOutcome.KEPT
+        operation(identity) {
+            requireOnline()
+            outcome = api.leaveFamily(familyId)
+            requireCurrent(identity)
+            if (outcome == LeaveOutcome.KEPT) { repository.refresh(identity, familyId); return@operation }
+            val key = "selected-family:${identity.userId}"
+            if (store.read(key) == familyId) store.write(key, null)
+            val families = api.listFamilies()
+            requireCurrent(identity)
+            mutableState.value = state.value.copy(families = families, selectedChildId = null)
+            val next = families.firstOrNull()
+            if (next != null) selectUnlocked(identity, next.id) else repository.clearAll()
+        }
+        return outcome
+    }
+
     /** Joins the family another parent's code names, and shows it. Throws [ParentInviteRejected] for a code that does not work. */
     suspend fun joinFamily(identity: ParentIdentity, code: String) = operation(identity) {
         val joined = api.acceptParentInvite(code)

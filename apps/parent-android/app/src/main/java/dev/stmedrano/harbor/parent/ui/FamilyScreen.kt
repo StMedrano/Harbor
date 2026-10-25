@@ -16,11 +16,29 @@ import dev.stmedrano.harbor.parent.family.*
 import dev.stmedrano.harbor.parent.legal.LegalDoc
 import java.time.Instant
 
+/** Leaving the family on screen, or deleting it when nobody else is in it and it is empty; nothing that would be refused is offered. */
+@Composable
+private fun LeaveFamilyCard(snapshot: dev.stmedrano.harbor.parent.data.FamilySnapshot, online: Boolean, onLeave: () -> Unit) {
+    val others = snapshot.parents.count { it.userId != snapshot.membership.userId }
+    val name = snapshot.family.name
+    HarborCard {
+        when {
+            others > 0 -> HarborRow("Leave $name", subtitle = "The other parents keep everything. A new invite code brings you back.",
+                onClick = if (online) onLeave else null, trailing = { HarborChevron() })
+            snapshot.children.isEmpty() -> HarborRow("Delete $name", subtitle = "You're its only parent and it has no children.",
+                onClick = if (online) onLeave else null, trailing = { HarborChevron() })
+            else -> HarborRow("You're its only parent",
+                subtitle = "A family with children always keeps a parent. Invite another parent before you leave.")
+        }
+    }
+}
+
 @Composable
 fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: String?,
     onRefresh: () -> Unit, onSelectFamily: (String) -> Unit, onSelectChild: (String) -> Unit,
     onCreateFamily: () -> Unit, onAddChild: () -> Unit, onPair: () -> Unit, onDevice: (DevicePublicV1) -> Unit,
     onInviteParent: (() -> Unit)? = null, onJoinFamily: (() -> Unit)? = null, onMyName: (() -> Unit)? = null,
+    onLeaveFamily: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null,
     sharing: ParentSharingUi? = null) {
     val snapshot = state.snapshot
@@ -102,6 +120,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
                 }
             }
             TextButton(onCreateFamily, enabled = online) { Text("Start another family") }
+            if (onLeaveFamily != null) LeaveFamilyCard(snapshot, online, onLeaveFamily)
         }
         HarborOutlinedButton(onRefresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Refresh family") }
         if (snapshot != null && sharing != null) ParentSharingPanel(sharing)

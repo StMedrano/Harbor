@@ -43,9 +43,10 @@ class SdkParentFamilyMapApi(private val client: SupabaseClient, private val auth
             put("version", 1); put("familyId", family(report.familyId)); put("label", report.label)
             put("fix", buildJsonObject { put("at", report.fix.at); put("latitude", report.fix.latitude); put("longitude", report.fix.longitude); put("accuracyM", report.fix.accuracyM) })
         }))
-    override suspend fun people(familyId: String, selfUserId: String): List<FamilyMapPerson> =
-        client.postgrest.from("family_places").select { filter { eq("family_id", familyId) } }
+    override suspend fun people(familyId: String, selfUserId: String): List<FamilyMapPerson> = auth.withAccessToken {
+        client.postgrest.rpc("family_places", buildJsonObject { put("p_family_id", familyId) })
             .decodeList<FamilyPlaceRow>().map { it.person(selfUserId) }
+    }
 
     override suspend fun stop(familyId: String): ParentLocationReceiptV1 =
         decodeParentLocationReceipt(call("stop-parent-location", buildJsonObject { put("version", 1); put("familyId", family(familyId)) }))

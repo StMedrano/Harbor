@@ -20,6 +20,56 @@ class FamilyViewModelTest {
         override fun decrypt(slot: String, value: ByteArray) = value
     })
 
+    private fun model(api: TestParentApi): Pair<FamilyViewModel, FamilyRepository> {
+        val dao = MemoryFamilyDao(); val repository = FamilyRepository(api, dao) { identity }
+        return FamilyViewModel(api, repository, PendingChildCreation(api, dao, { identity }), PairingModel(api, { identity }), store(), { identity }) to repository
+    }
+
+    @Test fun leavingShowsTheNextFamilyThisParentBelongsTo() = runTest {
+        var families = listOf(snapshot(family = "family-a").family, snapshot(family = "family-b").family)
+        val left = mutableListOf<String>()
+        val (model, repository) = model(object : TestParentApi() {
+            override suspend fun listFamilies() = families
+            override suspend fun leaveFamily(familyId: String): LeaveOutcome {
+                left += familyId; families = families.filter { it.id != familyId }; return LeaveOutcome.LEFT
+            }
+        })
+        model.load(identity)
+        assertEquals("family-a", repository.state.value.snapshot?.family?.id)
+        assertEquals(LeaveOutcome.LEFT, model.leaveFamily(identity, "family-a"))
+        assertEquals(listOf("family-a"), left)
+        assertEquals("family-b", repository.state.value.snapshot?.family?.id)
+        assertEquals(listOf("family-b"), model.state.value.families.map { it.id })
+    }
+
+    /** Nothing left to show is the state the Family screen draws as "Get started": start a family, or join one. */
+    @Test fun deletingTheOnlyFamilyLeavesNoneShown() = runTest {
+        var families = listOf(snapshot(family = "family-a").family)
+        val (model, repository) = model(object : TestParentApi() {
+            override suspend fun listFamilies() = families
+            override suspend fun leaveFamily(familyId: String): LeaveOutcome { families = emptyList(); return LeaveOutcome.DELETED }
+        })
+        model.load(identity)
+        assertEquals(LeaveOutcome.DELETED, model.leaveFamily(identity, "family-a"))
+        assertNull(repository.state.value.snapshot)
+        assertTrue(model.state.value.families.isEmpty())
+    }
+
+    /** The server kept the family (last parent, children in it): nothing moves, and it is read again so the screen is current. */
+    @Test fun aFamilyTheServerKeepsStaysShown() = runTest {
+        var reads = 0
+        val (model, repository) = model(object : TestParentApi() {
+            override suspend fun leaveFamily(familyId: String) = LeaveOutcome.KEPT
+            override suspend fun readFamily(familyId: String) = super.readFamily(familyId).also { reads++ }
+        })
+        model.load(identity)
+        val before = reads
+        assertEquals(LeaveOutcome.KEPT, model.leaveFamily(identity, "family-a"))
+        assertEquals("family-a", repository.state.value.snapshot?.family?.id)
+        assertEquals(listOf("family-a"), model.state.value.families.map { it.id })
+        assertEquals(before + 1, reads)
+    }
+
     @Test fun confirmedFamilyCreationClosesCreateFlowWhenFollowupReadFails() = runTest {
         var creates = 0
         val api = object : TestParentApi() {

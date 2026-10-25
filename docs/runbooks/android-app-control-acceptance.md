@@ -98,6 +98,35 @@ Not covered (the parent's notification "App controls were turned off" covers the
 
 **Two parents changing the same rule.** Each change is written on top of the version the server holds. If the other parent changed the same phone's controls first, the change is applied again on top of theirs rather than overwriting them, so neither parent's change is lost. Both apps refresh Controls every 15 seconds while the tab is open.
 
+## 0.37: leaving a family, and the web app on a wide screen (2026-10-25)
+
+**A new APK**, same signing key, installs over 0.36. The web app changes arrive at **harbor-family-dev.vercel.app** on their own.
+
+**Leaving a family.** A parent who joined a family, or started one by mistake, had no way out. **Family › This family** now offers the one action that applies, and `public.leave_family` (migration `20261025090000`) decides:
+
+- **Other parents remain** → you leave. Your membership becomes `removed`, so you stop seeing its children; anything you were sharing on its map is deleted by the existing membership trigger. The family, its children and their phones stay with the other parents, and a new invite code brings you back — accepting an invite already reactivates a removed membership.
+- **You're the only parent and it has no children** → the family is deleted outright. There is nothing in it to keep.
+- **You're the only parent and it has children** → nothing changes, and the screen says why. Ending the monitoring of a child's phone from one tap needs its own deliberate path, so this one never does it.
+
+"Owner" is not handed on when its holder leaves: it records who started the family, and moving it would make that untrue. Nothing in the backend needs a family to have an owner — every check is `role in ('owner','parent')`.
+
+It is the first function the apps call through PostgREST rather than an edge function. It is security definer and checks what the parent functions check — a current parent session (`session_id` from the token) and an active membership — through `harbor_family_parent_check`, and it locks the family row first, so two parents leaving at once are taken in turn and cannot both conclude the other is staying. Dry-run against the real families before it was applied, every case rolled back: your empty "Olivia Pitre family" → deleted; Medrano's with two parents → left; leaving again → refused; the last parent of Medrano's → kept, with its children; someone else's session → refused.
+
+**The family map is a function now, and checks the session.** The database advisor rated the `public.family_places` view an error, and behind the warning was a real gap: it checked membership but not that the parent still held a current session, so a signed-out parent's token kept answering until it expired. `public.family_places(p_family_id)` (migration `20261025091000`) checks both, and refuses a family the caller is not in rather than answering with nothing. **The old view is still there only because 0.36 on the phones reads it — drop it once 0.37 is installed on both.**
+
+**The web family map was drawn wrong** from the day it shipped. Its tiles and pins were positioned with an unanchored transform, so everything was placed from the top-left corner: the tiles sat in one corner and the pins fell off the map. It now places them from the centre exactly as the single-child map does, and a test holds that. The phone's map uses its own renderer and was never affected.
+
+**A desktop view.** Above 960px the dock becomes a rail down the left, the content keeps a readable width, sheets open as centred dialogs, and on the Map tab the family map sits beside the list of people. Below 960px nothing changes, so the phone and the installed PWA look exactly as before.
+
+Check:
+
+- **Leave a family you share** (phone or web). Family › This family › Leave, then confirm. The other parent still sees everything, you no longer see that family, and the app shows your other family. Ask them for a new code and join again: you're back.
+- **Delete your empty family.** "Olivia Pitre family" offers **Delete**, because you're its only parent and it has no children. Confirm: it's gone, and the app shows Medrano's.
+- **The only parent of a family with children** sees "You're its only parent" and no button.
+- **Leave your last family**: the app lands on Get started — start a family, or join one with a code.
+- **The web app on a laptop**: the rail on the left, the map beside the people on the Map tab, and the leave confirmation as a dialog in the middle. On a phone it looks as it always did.
+- **The web map** fills its frame, with every person's pin on it.
+
 ## 0.36: the phone was throwing away its own notifications (2026-10-24)
 
 **A new APK.** Same signing key, so it installs over 0.35.

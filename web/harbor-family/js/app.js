@@ -13,6 +13,11 @@ let role = null;
 const hooks = {
   onSignOut: () => { unmountAll(); showAuth('signin'); },
   onExpired: () => { unmountAll(); showAuth('signin'); toast('Please sign in again', { tone: 'info', detail: 'Your session ended.' }); },
+  // After leaving a family: show another this parent belongs to, or the start-or-join screen when there is none.
+  onFamiliesChanged: async () => {
+    try { const s = await api.getSession(); if (s) return await route(s); } catch { /* fall through to sign-in */ }
+    unmountAll(); showAuth('signin');
+  },
 };
 function unmountAll() { unmountParent(); unmountChild(); role = null; }
 

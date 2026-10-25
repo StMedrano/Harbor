@@ -161,7 +161,14 @@ export const supabaseApi = {
   async mapSettings(familyId) { return fn('get-family-map-settings', { version: 1, familyId }); },
   /** The family on one map. The view decides who may read it; a parent who is not sharing is simply not in it. */
   async familyPlaces(familyId) {
-    return ok(await sb().from('family_places').select('kind,person_id,user_id,name,fix_at,latitude,longitude,accuracy_m').eq('family_id', familyId));
+    return ok(await sb().rpc('family_places', { p_family_id: familyId }));
+  },
+  /**
+   * Leaves a family, or deletes it when this parent is its only one and it has no children. The server decides which
+   * and answers 'left', 'deleted', or 'last_parent_with_children' when it changed nothing.
+   */
+  async leaveFamily(familyId) {
+    return ok(await sb().rpc('leave_family', { p_family_id: familyId }));
   },
   async reportMyLocation({ familyId, label, fix }) { return fn('report-parent-location', { version: 1, familyId, label, fix }); },
   async stopMyLocation(familyId) { return fn('stop-parent-location', { version: 1, familyId }); },
