@@ -68,6 +68,31 @@ test('every pin that is drawn sits inside the window', () => {
   assert.ok(pins.some(p => p.inside));
 });
 
+test('on a phone-sized map, everyone stays fully on screen', () => {
+  const phone = { width: 331, height: 260 };
+  for (const rows of [
+    [child('c1', 'Leo', 40.7128, -74.006), parent('m1', 'u2', 'Jordan', 40.72, -73.95)], // across town, east to west
+    [child('c1', 'Leo', 40.7128, -74.006), child('c2', 'Maya', 40.7129, -74.0061), parent('m1', 'u2', 'Jordan', 40.75, -73.9)], // two together, one far
+    [child('c1', 'Leo', 40.7128, -74.006), parent('m1', 'u2', 'Jordan', 34.0522, -118.2437)], // across the country
+  ]) {
+    const v = toFamilyMap(rows, { nowMs: NOW });
+    const html = renderFamilyMap(v, phone);
+    const pins = [...html.matchAll(/class="pin[^"]*"[^>]*style="left:calc\(50% \+ (-?\d+)px\);top:calc\(50% \+ (-?\d+)px\)/g)];
+    assert.equal(pins.length, rows.length, 'nobody is dropped');
+    for (const [, dx, dy] of pins) {
+      assert.ok(Math.abs(+dx) + 22 <= phone.width / 2 && Math.abs(+dy) + 22 <= phone.height / 2, `pin at ${dx},${dy} is cut off`);
+    }
+  }
+});
+
+test('a narrower map zooms out further and asks for fewer tiles than a wide one', () => {
+  const rows = [child('c1', 'Leo', 40.7128, -74.006), parent('m1', 'u2', 'Jordan', 40.72, -73.95)];
+  const v = toFamilyMap(rows, { nowMs: NOW });
+  const count = html => (html.match(/class="tile"/g) || []).length;
+  assert.ok(fitZoom(v.placed, { width: 331, height: 260 }) < fitZoom(v.placed, { width: 800, height: 280 }));
+  assert.ok(count(renderFamilyMap(v, { width: 331, height: 260 })) < count(renderFamilyMap(v)));
+});
+
 test('tiles and pins are placed from the middle of the map, as the single-child map places them', () => {
   const v = toFamilyMap([child('c1', 'Leo', 40.7128, -74.006), parent('m1', 'u1', 'Olivia', 40.7138, -74.005)], { userId: 'u1', nowMs: NOW });
   const html = renderFamilyMap(v);

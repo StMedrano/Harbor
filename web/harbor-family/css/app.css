@@ -76,11 +76,13 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 .hf-applied.pending i{background:var(--warn)}
 
 /* Map */
+/* A parent's colour in both themes, the same one as the Android app. --brand is almost black in daylight, under dark text. */
+:root{--parent-pin:#79d5c5}
 .hf-map{position:relative;height:260px;overflow:hidden;border-radius:var(--radius-map);background:var(--water);border:1px solid var(--line)}
 .hf-map .tile{position:absolute;transform:translate(0,0);filter:saturate(.75)}
 .hf-map .trail{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--acc);opacity:.6}
 .hf-map .pin{position:absolute;display:grid;place-items:center;width:var(--avatar);height:var(--avatar);margin:calc(var(--avatar) / -2) 0 0 calc(var(--avatar) / -2);border-radius:50%;border:3px solid var(--pin-ring);color:var(--on-color);font-size:13px;font-weight:700}
-.hf-map .pin.old{background:var(--ink3)}
+.hf-map .pin.old{background:var(--s2);color:var(--ink2)}
 .hf-map .osm{position:absolute;right:8px;bottom:6px;font-size:10px;color:var(--ink3);background:var(--s);padding:1px 6px;border-radius:6px}
 .hf-map-empty{display:grid;place-items:center;text-align:center;padding:16px;color:var(--ink2);font-size:14px}
 

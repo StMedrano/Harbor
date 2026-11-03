@@ -18,6 +18,9 @@ const TABS = [['map', 'Map'], ['alerts', 'Alerts'], ['controls', 'Controls'], ['
 const HEAD = { map: 'Family overview', alerts: ['What needs attention', 'Beacon alerts'], controls: ['Family boundaries', 'Steady guidance'], activity: ['Daily patterns', 'A day at a glance'], family: ['Your circle', 'Your crew'] };
 const S = { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', day: null, timelineOpen: false, mapTitle: '', push: null, place: null, places: null, mapWho: null };
 let cb = {}, controls = null, timer = null, seq = 0;
+let painted = new WeakMap(), renderLater = false, heldSince = 0, settled = null, wasSaving = false, mapToDraw = null;
+const HOLD_MS = 60_000;
+const deciding = new Set(); // requests with an answer on its way, so a second tap can't answer twice
 const cache = new Map(); // `${kind}|${deviceId}` → { reply, loading, offline, denied }
 const kid = () => (S.family && S.family.children.find(c => c.id === S.k)) || null;
 const famName = () => (S.families.find(f => f.id === S.familyId) || {}).name || 'Your family';
@@ -34,10 +37,10 @@ async function loadFamily() {
   try {
     const fam = await api.loadFamily(S.familyId);
     if (mine !== seq) return;
-    S.family = fam;
+    S.family = fam; S.familyFailed = false;
     if (!fam.children.some(c => c.id === S.k)) S.k = fam.children[0] ? fam.children[0].id : null;
-  } catch (x) { if (!handle(x) && !S.family) toast('Couldn’t load your family', { tone: 'review', detail: 'Check your connection and try again.' }); }
-  syncControls(); render();
+  } catch (x) { if (mine !== seq || handle(x)) return; if (!S.family) S.familyFailed = true; }
+  syncControls(); refresh();
 }
 /**
  * This browser's own two rows: whether notifications are on here, and what Harbor holds for this parent's place.
@@ -56,7 +59,7 @@ async function loadPlaces(force = false) {
     if (handle(x)) return;
     S.places = { rows: (S.places && S.places.rows) || null, loading: false, offline: true };
   }
-  if (S.familyId === family && S.tab === 'map') render();
+  if (S.familyId === family && S.tab === 'map') refresh();
 }
 
 async function loadMine() {
@@ -121,7 +124,7 @@ async function load(kind, { force = false } = {}) {
     if (handle(x)) return;
     cache.set(key, ['forbidden', 'not_found', 'device_revoked'].includes(x && x.code) ? { reply: null, denied: true } : { reply: prev ? prev.reply : null, offline: true });
   }
-  if (keyOf(kind, (kid() && kid().device && kid().device.id) || '') === key) render();
+  if (keyOf(kind, (kid() && kid().device && kid().device.id) || '') === key) refresh();
 }
 const got = kind => { const k = kid(); return k && k.device ? cache.get(keyOf(kind, k.device.id)) || null : null; };
 
@@ -130,7 +133,13 @@ function syncControls() {
   const k = kid(), d = k && k.device ? k.device.id : null;
   if (controls && controls.deviceId === d && controls.familyId === S.familyId) return;
   if (controls) controls.dispose();
-  controls = d ? new DeviceControls(api, S.familyId, d, () => { if (S.tab === 'controls') render(); }) : null;
+  controls = d ? new DeviceControls(api, S.familyId, d, onControlsChange) : null;
+}
+/** A change being saved shows at once; what arrives from a background refresh can wait for a dropdown to close. */
+function onControlsChange() {
+  const saving = !!(controls && controls.view.saving), mine = saving || wasSaving;
+  wasSaving = saving;
+  if (S.tab === 'controls') { if (mine) render(); else refresh(); }
 }
 function loadTab(force = false) {
   if (S.tab === 'map') loadPlaces(force);
@@ -151,7 +160,7 @@ function kidSwitcher() {
     + `<div class="hb-ks-name"><b>${e(k.name)}</b><span>${meta}</span></div><button class="hb-ks-add" data-a="addkid" aria-label="Add a child">${icon('plus', 20)}</button></div>`;
 }
 function tabHeader(k) {
-  if (S.tab === 'map') return header(HEAD.map, S.mapTitle, k && k.device ? `${possessive(k.name)} ${k.device.name || 'phone'}` : famName());
+  if (S.tab === 'map') return header(HEAD.map, S.mapTitle, S.mapWho && k && k.device ? `${possessive(k.name)} ${k.device.name || 'phone'}` : famName());
   const [eb, t] = HEAD[S.tab];
   return header(eb, t, S.tab === 'family' ? famName() : k ? (k.device ? `${possessive(k.name)} ${k.device.name || 'phone'}` : `${k.name} has no phone paired yet`) : '');
 }
@@ -163,6 +172,8 @@ const LOADER = '<svg class="hb-ld" width="120" height="88" viewBox="0 0 120 88" 
   + '<g fill="none" stroke="var(--acc)" stroke-width="2.6" stroke-linecap="round"><path class="hb-ld-w1" d="M-48 77q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0"/>'
   + '<path class="hb-ld-w2" d="M-24 84q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0"/></g></svg>';
 const loadingCard = what => `<div class="hb-loading hf-loader">${LOADER}<span class="hb-loading-t" role="status">${e(what)}</span></div>`;
+const familyFailed = () => note('<b>Couldn’t load your family.</b> Check your connection and try again.', true) + btn('Try again', 'data-a="retryfamily"', 'outline', 'hb-btn-block');
+const familyLoading = () => S.familyFailed ? familyFailed() : loadingCard('Loading your family…');
 const refreshBtn = (kind, label) => btn(`Refresh ${label}`, `data-a="refresh" data-v="${kind}"`, 'outline', 'hb-btn-block');
 
 function noPhone(k) {
@@ -219,7 +230,7 @@ function mapView() {
   if (!loaded || (loaded.loading && !loaded.rows)) return loadingCard('Loading your family’s places…');
   const view = toFamilyMap(loaded.rows || [], { userId: S.user.id, nowMs: Date.now() });
   const indexOf = id => { const c = S.family.children.find(x => x.id === id); return c ? c.index : 0; };
-  const colorOf = p => p.kind === 'child' ? crew(indexOf(p.id)) : 'var(--brand)';
+  const colorOf = p => p.kind === 'child' ? crew(indexOf(p.id)) : 'var(--parent-pin)';
   const rows = view.people.map(p => {
     const who = p.self ? `${p.name} (you)` : p.name;
     const side = p.kind === 'child'
@@ -232,7 +243,10 @@ function mapView() {
     : note('<b>You’re not on the map.</b> Turn on <b>Share my location</b> under Family › On this device, and your family sees you while Harbor is open.');
   const list = `<div class="hb-card"><h3>Everyone in your family</h3>${rows || '<p>Nobody to show yet.</p>'}</div>`;
   // On a wide screen the map and the people sit side by side; on a phone they stack, as before.
-  return (view.centre ? `<div class="hf-split">${renderFamilyMap(view, { colorOf })}${list}</div>` : list)
+  // The map is drawn into this slot once it has a size (see render); data-who means a moved pin still counts as a change.
+  mapToDraw = view.centre ? { view, colorOf } : null;
+  const slot = `<div class="hf-map" id="map-slot" data-who="${e(JSON.stringify(view.placed.map(p => [p.id, p.lat, p.lng, p.stale])))}"></div>`;
+  return (view.centre ? `<div class="hf-split">${slot}${list}</div>` : list)
     + offline + hint
     + '<p class="hf-small">Children are on the map whenever their phone has sent a place; they don’t choose. A parent is here only while they share, and then the whole family sees them. Places arrive every few minutes, so this isn’t live tracking.</p>';
 }
@@ -276,7 +290,7 @@ function requestsPanel(k) {
   const pending = reqs.filter(r => r.status === 'pending'), done = reqs.filter(r => r.status !== 'pending').slice(0, 3);
   if (!pending.length && !done.length) return '';
   return '<div class="hb-card"><h3>Requests</h3>' + pending.map(r => `<div class="hb-req"><div class="hb-req-h">${avatar(k.name, crew(k.index))}<div><div class="hb-req-t">${e(requestTitle(r))}</div><div class="hb-req-s">${e(k.name)} asked ${e(ago(r.requestedAt))}</div></div>${tag('Request', 'low')}</div>`
-    + `<div class="hb-req-a">${btn('Allow 15 min', `data-a="req" data-rid="${e(r.requestId)}" data-ok="1"`, 'primary', 'hb-btn-small')}${btn('Deny', `data-a="req" data-rid="${e(r.requestId)}"`, 'outline', 'hb-btn-small')}</div></div>`).join('<hr class="hf-hr">')
+    + `<div class="hb-req-a">${btn('Allow 15 min', `data-a="req" data-rid="${e(r.requestId)}" data-ok="1"${deciding.has(r.requestId) ? ' disabled' : ''}`, 'primary', 'hb-btn-small')}${btn('Deny', `data-a="req" data-rid="${e(r.requestId)}"${deciding.has(r.requestId) ? ' disabled' : ''}`, 'outline', 'hb-btn-small')}</div></div>`).join('<hr class="hf-hr">')
     + (pending.length ? '' : '<p>No requests waiting.</p>')
     + done.map(r => `<div class="hb-req-line">${icon(r.status === 'approved' ? 'check' : 'hourglass', 16)}<span>${{ approved: 'Allowed 15 min', denied: 'Said no' }[r.status] || 'Not answered in time'} · ${e(requestTitle(r))} · ${e(ago(r.requestedAt))}</span></div>`).join('')
     + '</div>';
@@ -294,7 +308,7 @@ function controlsView(k) {
   const paused = c.pause.active;
   const pause = paused
     ? `<div class="hb-ban"><span>${name}’s phone is paused</span>${btn('Resume phone', 'data-a="resume"', 'outline', 'hb-btn-small')}</div>`
-    : `<div class="hf-two">${btn('Pause phone now', 'data-a="pause"')}${btn('Give 15 more min', `data-a="extra" ${c.dailyLimit ? '' : 'disabled title="Set a daily limit first"'}`, 'secondary')}</div>`;
+    : `<div class="hf-two">${btn('Pause phone now', 'data-a="pause"')}${btn('Give 15 more min', `data-a="extra" ${c.dailyLimit ? (v.saving ? 'disabled' : '') : 'disabled title="Set a daily limit first"'}`, 'secondary')}</div>`;
   const grants = liveGrants(c, now);
   const allowed = grants.length ? `<div class="hb-panel">${grants.map(g => `<div class="hb-row"><div><span class="hf-rt">${e(g.appLabel || (g.packageName === 'com.google.android.packageinstaller' || g.packageName === 'com.android.packageinstaller' ? 'Removing apps' : cat.label(g.packageName)))}</span><span class="hb-rs">Until ${e(clock(g.until))} (you said yes)</span></div>${btn('End now', `data-a="endgrant" data-v="${e(g.packageName)}"`, 'outline', 'hb-btn-small')}</div>`).join('')}</div><p class="hf-small">Pausing the phone or changing an app’s rule also ends its extra time.</p>` : '';
   const used = cat.screenTime ? Math.round(cat.screenTime.totalMs / 60000) : null;
@@ -330,7 +344,7 @@ function activityView(k) {
 
 /* ───────────── Family ───────────── */
 function familyView() {
-  if (!S.family) return loadingCard('Loading your family…');
+  if (!S.family) return familyLoading();
   const kids = S.family.children, parents = S.family.parents;
   const kidRows = kids.map(c => `<div class="hb-row"><div class="hb-rm">${avatar(c.name, crew(c.index), 'hb-av-lg')}<div><span class="hf-rt">${e(c.name)}</span><span class="hb-rs">${c.device ? `${e(c.device.name || 'Phone')}${c.device.lastSeenAt ? ' · seen ' + e(ago(c.device.lastSeenAt)) : ''}` : 'No phone paired yet'}</span></div></div>${c.device ? tag('Paired', 'low') : btn('Pair a phone', `data-a="code" data-id="${e(c.id)}"`, 'secondary', 'hb-btn-small')}</div>`).join('');
   const parentRows = parents.map(p => {
@@ -338,7 +352,7 @@ function familyView() {
     const shown = named || (you ? 'You' : 'A parent');
     const role = p.role === 'owner' ? 'Started this family' : 'Parent';
     // Only your own name is yours to change; the others set theirs where they sign in.
-    return `<div class="hb-row"><div class="hb-rm">${avatar(shown, 'var(--brand)', 'hb-av-lg')}<div><span class="hf-rt">${e(shown)}${you && named ? ' (you)' : ''}</span><span class="hb-rs">${role}</span></div></div>${you ? btn(named ? 'Change' : 'Add your name', 'data-a="myname"', 'outline', 'hb-btn-small') : ''}</div>`;
+    return `<div class="hb-row"><div class="hb-rm">${avatar(shown, 'var(--parent-pin)', 'hb-av-lg')}<div><span class="hf-rt">${e(shown)}${you && named ? ' (you)' : ''}</span><span class="hb-rs">${role}</span></div></div>${you ? btn(named ? 'Change' : 'Add your name', 'data-a="myname"', 'outline', 'hb-btn-small') : ''}</div>`;
   }).join('');
   const others = S.families.length > 1 ? `<div class="hf-section">Families</div><div class="hb-panel">${S.families.map(f => `<div class="hb-row"><div><span class="hf-rt">${e(f.name)}</span><span class="hb-rs">${f.role === 'owner' ? 'You started it' : 'You joined'}</span></div>${f.id === S.familyId ? tag('Showing', 'low') : btn('Show', `data-a="family" data-id="${e(f.id)}"`, 'outline', 'hb-btn-small')}</div>`).join('')}</div>` : '';
   return `<div class="hf-section">Children</div><div class="hb-panel">${kidRows || `<div class="hb-row"><p>No children yet.</p></div>`}<div class="hb-row">${btn('Add a child', 'data-a="addkid"', 'secondary', 'hb-btn-block')}</div></div>`
@@ -406,25 +420,60 @@ function inviteSheet(invite) {
 }
 
 /* ───────────── render ───────────── */
+/** Rebuilds a part of the page only when it changed, so a refresh that found nothing new disturbs nothing. */
+function paint(node, html, force = false) {
+  if (!force && painted.get(node) === html) return false;
+  painted.set(node, html); node.innerHTML = html;
+  return true;
+}
+/**
+ * Something in the page is being used: a dropdown can be open, and rebuilding it would snap it shut. A dropdown that
+ * has just been answered keeps focus but is closed (`settled`), and a switch has nothing to snap shut.
+ */
+const editing = () => {
+  const a = document.activeElement;
+  return !!a && a !== settled && a.type !== 'checkbox' && $('#view').contains(a) && ['SELECT', 'INPUT', 'TEXTAREA'].includes(a.tagName);
+};
+/** Waits for the person, though not forever: focus left on a dropdown must not freeze the page. */
+function refresh() {
+  if (editing()) {
+    if (!renderLater) { renderLater = true; heldSince = Date.now(); }
+    if (Date.now() - heldSince < HOLD_MS) return;
+  }
+  render();
+}
+const onFocusOut = () => { settled = null; setTimeout(() => { if (renderLater && !editing()) render(); }); };
+const onPress = () => { settled = null; }; // pressed again, so it may be opening again
+const focusKey = node => ['a', 'c', 'v', 'id', 'rid'].filter(k => node.dataset[k] !== undefined).map(k => `[data-${k}="${CSS.escape(node.dataset[k])}"]`).join('');
+const onResize = () => { if (S.tab === 'map' && !S.mapWho && $('#map') && $('#map').clientWidth !== S.mapWidth) { painted.delete($('#view')); render(); } };
+
 function render(enter) {
   const k = kid();
-  $('#brand').innerHTML = `${brand()}<span class="hf-sub">${e(famName())}</span>`;
-  $('#kids').innerHTML = kidSwitcher();
+  renderLater = false;
+  paint($('#brand'), `${brand()}<span class="hf-sub">${e(famName())}</span>`);
+  paint($('#kids'), kidSwitcher());
   $('#kids').hidden = !$('#kids').innerHTML;
   const view = $('#view'), keep = window.scrollY;
+  const focused = document.activeElement && view.contains(document.activeElement) ? focusKey(document.activeElement) : '';
+  mapToDraw = null;
   let body;
   if (S.tab === 'family') body = familyView();
-  else if (!S.family) body = loadingCard('Loading your family…');
+  else if (!S.family) body = familyLoading();
   else if (S.tab === 'map') body = mapView();
   else if (!k) body = `<div class="hb-card">${empty('Add your first child', 'Pair a child’s phone to see places, alerts, screen time and controls.', { art: 'anchor', action: btn('Add a child', 'data-a="addkid"') })}</div>`;
   else if (!k.device) body = noPhone(k);
   else body = { alerts: alertsView, controls: controlsView, activity: activityView }[S.tab](k);
   view.className = 'hf-view' + (enter ? ' in' : '');
   if (enter) { arrive(view, S.enterFrom || 0); S.enterFrom = 0; $('#tabs').classList.add('in'); } else $('#tabs').classList.remove('in');
-  view.innerHTML = tabHeader(k) + body;
-  if (!enter) window.scrollTo(0, keep);
+  if (paint(view, tabHeader(k) + body, !!enter)) {
+    const slot = mapToDraw && $('#map-slot');
+    if (slot) { S.mapWidth = slot.clientWidth; slot.outerHTML = renderFamilyMap(mapToDraw.view, { colorOf: mapToDraw.colorOf, width: slot.clientWidth, height: slot.clientHeight }); }
+    if (!enter) window.scrollTo(0, keep);
+    const again = !enter && focused && view.querySelector(focused);
+    if (again) { again.focus({ preventScroll: true }); settled = again; }
+  }
   const n = recentAlerts();
-  $('#tabs').innerHTML = `<div class="hb-tabs hb-tabs-dock">${TABS.map(([t, label]) => `<button class="hb-tab" data-a="tab" data-v="${t}" ${S.tab === t ? 'aria-current="page"' : ''}>${icon(t, 22, S.tab === t ? 2.3 : 1.8)}<span>${label}</span>${t === 'alerts' && n ? `<i class="hb-badge" style="font-style:normal">${n}</i>` : ''}</button>`).join('')}</div>`;
+  paint($('#tabs'), `<div class="hb-tabs hb-tabs-dock">${TABS.map(([t, label]) => `<button class="hb-tab" data-a="tab" data-v="${t}" ${S.tab === t ? 'aria-current="page"' : ''}>${icon(t, 22, S.tab === t ? 2.3 : 1.8)}<span>${label}</span>${t === 'alerts' && n ? `<i class="hb-badge" style="font-style:normal">${n}</i>` : ''}</button>`).join('')}</div>`);
 }
 
 /* ───────────── events ───────────── */
@@ -451,6 +500,7 @@ const onClick = async ev => {
       case 'everyone': S.mapWho = null; render(true); loadPlaces(true); return;
       case 'kid': S.k = t.dataset.id; if (S.tab === 'map') S.mapWho = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
       case 'family': api.chooseFamily(t.dataset.id); S.familyId = t.dataset.id; S.family = null; S.k = null; S.places = null; S.mapWho = null; cache.clear(); syncControls(); render(true); await loadFamily(); loadTab(true); loadMine(); return;
+      case 'retryfamily': S.familyFailed = false; render(); retryFamily(); return;
       case 'refresh': if (v === 'controls' && controls) controls.load(); else load(v, { force: true }); return;
       case 'day': S.day = v; S.timelineOpen = false; render(); load('activity'); return;
       case 'timeline': S.timelineOpen = !S.timelineOpen; render(); return;
@@ -507,13 +557,15 @@ const onClick = async ev => {
       case 'req': {
         const reqs = (got('requests') || {}).reply, r = reqs && reqs.requests.find(x => x.requestId === t.dataset.rid); if (!r) return;
         const approve = !!t.dataset.ok;
+        if (deciding.has(r.requestId)) return;
+        deciding.add(r.requestId);
         busy(t, true);
         try {
           // Yes = a 15-minute grant for that app, written to the phone's controls before the answer is recorded.
           if (approve && !(controls && await controls.write(c => withGrant(c, r.packageName, Date.now() + GRANT_MS, Date.now())))) { toast('Harbor couldn’t give the extra time', { tone: 'review', detail: 'Check your connection and try again.' }); return; }
           try { await api.decideRequest(r.requestId, approve); toast(approve ? `${k.name} can use ${r.appLabel} for 15 minutes` : 'Request declined'); }
           catch (x) { if (x && x.code === 'stale') toast('That request was already answered or has expired', { tone: 'info' }); else throw x; }
-        } finally { busy(t, false); load('requests', { force: true }); }
+        } finally { deciding.delete(r.requestId); busy(t, false); load('requests', { force: true }); }
         return;
       }
       default: return;
@@ -597,11 +649,14 @@ const onSubmit = async ev => {
   } catch (x) { if (!handle(x)) fail(failText(x)); }
   finally { busy(b, false); }
 };
+async function retryFamily() { await loadFamily(); if (S.family) loadTab(true); }
 function tick() {
   if (document.visibilityState !== 'visible' || !$('#mod').hidden) return;
+  // Nothing else can load until the family has, so keep asking: the page recovers by itself when the connection does.
+  if (!S.family) { retryFamily(); return; }
   loadTab(true);
 }
-const onVisible = () => { if (document.visibilityState === 'visible') { tick(); loadFamily(); } };
+const onVisible = () => { if (document.visibilityState === 'visible') { tick(); if (S.family) loadFamily(); } };
 /** sw.js speaks to the app: a push refreshes what is open, and a tapped notification lands on the screen that answers it. */
 const onWorkerMessage = event => {
   const m = event && event.data;
@@ -620,6 +675,7 @@ export async function mountParent(session, callbacks) {
   Object.assign(S, { user: session.user, families: session.families, familyId: session.familyId, family: null, k: null, tab: 'map', day: localDate(), timelineOpen: false, mapTitle: greeting(session.user.name) });
   document.addEventListener('click', onClick); document.addEventListener('change', onChange); document.addEventListener('submit', onSubmit);
   document.addEventListener('visibilitychange', onVisible);
+  $('#view').addEventListener('focusout', onFocusOut); $('#view').addEventListener('pointerdown', onPress); $('#view').addEventListener('keydown', onPress); window.addEventListener('resize', onResize);
   onSharingChange(state => { S.place = state; if (S.tab === 'family') render(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', onWorkerMessage);
   $('#shell').hidden = false; render(true);
@@ -629,14 +685,16 @@ export async function mountParent(session, callbacks) {
 }
 export function unmountParent() {
   document.removeEventListener('click', onClick); document.removeEventListener('change', onChange); document.removeEventListener('submit', onSubmit); document.removeEventListener('visibilitychange', onVisible);
+  $('#view').removeEventListener('focusout', onFocusOut); $('#view').removeEventListener('pointerdown', onPress); $('#view').removeEventListener('keydown', onPress); window.removeEventListener('resize', onResize);
   if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onWorkerMessage);
   // Signing out stops sharing a place, and deletes the one Harbor holds, before the session goes.
   onSharingChange(null); if (sharingState().on) stopSharing().catch(() => {});
-  clearInterval(timer); seq++; if (controls) controls.dispose(); controls = null; cache.clear();
-  Object.assign(S, { user: null, families: [], familyId: null, family: null, k: null, tab: 'map', push: null, place: null, places: null, mapWho: null });
+  clearInterval(timer); seq++; renderLater = false; wasSaving = false; deciding.clear(); if (controls) controls.dispose(); controls = null; cache.clear();
+  Object.assign(S, { user: null, families: [], familyId: null, family: null, familyFailed: false, k: null, tab: 'map', push: null, place: null, places: null, mapWho: null });
   shut(); $('#shell').hidden = true;
   // Wipe the rendered family data so nothing lingers in the page after sign-out (shared phones).
   for (const id of ['#view', '#kids', '#tabs', '#brand']) $(id).innerHTML = '';
+  painted = new WeakMap();
 }
 /** Android back button: returns true if the app handled it. */
 export function parentBack() {
