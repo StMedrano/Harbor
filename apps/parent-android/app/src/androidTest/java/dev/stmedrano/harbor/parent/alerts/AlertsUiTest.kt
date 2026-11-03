@@ -21,7 +21,7 @@ class AlertsUiTest {
         val ui = mutableStateOf(ChildAlertsUi(AlertAccess(false, false), AlertHostState(), { notificationTaps++ }, {}, {}))
         compose.setContent { HarborTheme { ParentApp(showBrand = false) { HarborCard { MessageAlertsSection(ui.value) } } } }
         compose.onNodeWithText("Notification access off").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Text message access off").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Text message", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Message access enabled").assertDoesNotExist()
         compose.onNodeWithText("Turn on notification access").performScrollTo().performClick()
         assertEquals(1, notificationTaps)

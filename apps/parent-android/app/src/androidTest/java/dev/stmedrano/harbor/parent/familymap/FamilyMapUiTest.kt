@@ -37,7 +37,7 @@ class FamilyMapUiTest {
         compose.onNodeWithText("Jo").assertExists()
         compose.onNodeWithText("No place yet").assertExists()
         compose.onNodeWithText("Alex").assertExists()
-        compose.onNodeWithText("Parent").assertExists()
+        compose.onNodeWithText("PARENT").assertExists()
         compose.onNodeWithContentDescription("Zoom in").assertExists()
         compose.onNodeWithContentDescription("Zoom out").assertExists()
         compose.onNodeWithText("Refresh").performScrollTo().performClick()
@@ -55,7 +55,7 @@ class FamilyMapUiTest {
     }
     @Test fun loadingAndOfflineAreHonest() {
         show(FamilyMapUiState())
-        compose.onNodeWithText("Loading…").assertExists()
+        compose.onNodeWithText("Loading the family map…").assertExists()
     }
     @Test fun failureBeforeAnyAnswerNeverClaimsAnEmptyFamily() {
         show(FamilyMapUiState(offline = true))

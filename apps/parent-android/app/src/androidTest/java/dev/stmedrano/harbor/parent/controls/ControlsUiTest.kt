@@ -26,7 +26,10 @@ class ControlsUiTest {
         compose.onNodeWithText("Blocked: TikTok.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("YouTube: 60 min a day — 25 min left today").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("App controls are off", substring = true).performScrollTo().assertIsDisplayed()
+        // The disclosure comes first, and only agreeing goes on to Android's screen.
         compose.onNodeWithText("Turn on app controls").performScrollTo().performClick()
+        assertEquals(0, taps)
+        compose.onNodeWithText("Agree and continue").performClick()
         assertEquals(1, taps)
         for (word in listOf("Turn off", "Disable", "Stop", "Pause controls")) compose.onNodeWithText(word, substring = true).assertDoesNotExist()
 

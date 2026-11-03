@@ -110,14 +110,17 @@ class FamilyRouteTest {
         compose.onNodeWithText("Last seen: ${formatTimestamp(date)}").assertExists()
         offline.set(true)
         kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
-        compose.onNodeWithText("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(1234)}. Connect to make changes.").assertExists()
+        // A failed refresh keeps what this session already read, and never calls it a saved copy.
+        compose.onNodeWithText("Updated phone").assertExists()
+        compose.onNodeWithText("Cached view", substring = true).assertDoesNotExist()
         denied.set(true)
         kotlinx.coroutines.runBlocking { runCatching { model.refresh(identity) } }
         compose.onNodeWithText("This device is unavailable. Refresh your family.").assertExists()
         compose.onNodeWithText("Updated phone").assertDoesNotExist()
         instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
-        compose.onNodeWithText("Refresh family").performScrollTo().assertIsDisplayed()
+        // Access was denied, so nothing is kept: the page offers another read rather than a refresh of old data.
+        compose.onNodeWithText("Try again").performScrollTo().assertIsDisplayed()
         saveScreenshot("family-large-text.png")
     }
 

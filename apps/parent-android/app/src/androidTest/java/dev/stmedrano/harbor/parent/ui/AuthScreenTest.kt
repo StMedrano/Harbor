@@ -122,6 +122,7 @@ class AuthScreenTest {
         compose.waitUntil(5000) { compose.onAllNodesWithText("Request failed. Check your connection, or cancel the email flow and request a fresh link.").fetchSemanticsNodes().size == 1 }
         compose.onNodeWithText("Parent session verified").assertDoesNotExist()
         compose.onNodeWithText("Create account").performScrollTo().performClick()
+        compose.onNodeWithText("Your name").performScrollTo().performTextInput("Synthetic Parent")
         compose.onNodeWithText("Password").performScrollTo().performTextInput("synthetic-new")
         compose.onNodeWithText("Confirm password").performScrollTo().performTextInput("different")
         compose.onNodeWithTag("auth-submit").assertIsNotEnabled()

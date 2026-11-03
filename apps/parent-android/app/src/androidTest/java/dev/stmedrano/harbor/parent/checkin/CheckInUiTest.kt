@@ -53,7 +53,7 @@ class CheckInUiTest {
         compose.onNodeWithText("Earlier").assertExists()
         compose.onNodeWithText("Checked in, I’m okay").assertExists()
         compose.onNodeWithText("Checked in, running late").assertExists()
-        compose.onNodeWithText("Place sent").assertExists()
+        compose.onNodeWithText("PLACE SENT").assertExists()
     }
 
     @Test fun answeringIsDisabledWhileSendingAndProblemsAreExplained() {

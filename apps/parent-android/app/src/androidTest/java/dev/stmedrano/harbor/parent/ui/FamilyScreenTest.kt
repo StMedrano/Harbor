@@ -20,7 +20,7 @@ class FamilyScreenTest {
         FamilyMemberV1(1, "membership", "family", "parent", "owner", "active", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"),
         listOf(ChildV1(1, "child", "family", "Child", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z")), emptyList(), 1234)
 
-    @Test fun frontendChildSelectorTracksSelectionWithoutEnablingCachedMutation() {
+    @Test fun frontendChildSelectorTracksSelection() {
         val first = snapshot()
         val snapshot = first.copy(children = first.children + first.children.first().copy(id = "second", displayName = "Second child"))
         val selected = mutableStateOf("child")
@@ -39,8 +39,6 @@ class FamilyScreenTest {
         compose.onNode(hasText("Second child") and isSelectable()).performScrollTo().performClick()
         compose.onNode(hasText("Second child") and isSelectable()).assertIsSelected()
         compose.onNode(hasText("Child") and isSelectable()).assertIsNotSelected()
-        compose.onNodeWithText("Add child").assertIsNotEnabled()
-        compose.onNodeWithText("Pair device").assertIsNotEnabled()
         compose.runOnIdle { dark.value = true }
         compose.onNodeWithText(snapshot.family.name).performScrollTo()
         compose.onRoot().captureToImage().asAndroidBitmap().let { image ->
@@ -48,18 +46,18 @@ class FamilyScreenTest {
         }
     }
 
-    @Test fun cachedFamilyLabelsStalenessAndDisablesMutations() {
+    @Test fun refreshingDisablesMutations() {
         val snapshot = snapshot()
         compose.setContent {
             HarborTheme { ParentApp {
-                FamilyScreen(FamilyState(snapshot), listOf(snapshot.family), "child",
+                FamilyScreen(FamilyState(snapshot, loading = true), listOf(snapshot.family), "child",
                     onRefresh = {}, onSelectFamily = {}, onSelectChild = {}, onCreateFamily = {}, onAddChild = {}, onPair = {}, onDevice = {})
             } }
         }
-        compose.onNodeWithText("Cached view", substring = true).assertExists()
+        compose.onNodeWithText("Cached view", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Add child").assertIsNotEnabled()
         compose.onNodeWithText("Pair device").assertIsNotEnabled()
-        compose.onNodeWithText("Create family").assertIsNotEnabled()
+        compose.onNodeWithText("Start another family").assertIsNotEnabled()
     }
 
     @Test fun revokedDevicesDisappearFromTheFamilyList() {

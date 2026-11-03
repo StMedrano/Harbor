@@ -33,7 +33,12 @@ class ChildSetupGateUiTest {
         compose.onNodeWithText("Measure screen time. Never blocks apps.").assertExists()
         compose.onNodeWithText("Finish setup").assertIsNotEnabled()
         compose.onNodeWithText("Turn on everything above to continue.").assertExists()
+        // Location explains itself first, and declining asks Android for nothing.
         compose.onNodeWithContentDescription("Turn on Location").performClick()
+        compose.onNodeWithText("Not now").performClick()
+        assertEquals(emptyList<SetupStepId>(), asked)
+        compose.onNodeWithContentDescription("Turn on Location").performClick()
+        compose.onNodeWithText("Agree and continue").performClick()
         compose.onNodeWithContentDescription("Turn on Notifications").performClick()
         assertEquals(listOf(SetupStepId.LOCATION, SetupStepId.NOTIFICATIONS), asked)
     }

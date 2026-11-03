@@ -68,7 +68,7 @@ run_test coldAmbiguousStartupPreservesStoresAndHidesRuntime dev.stmedrano.harbor
 
 frontend_status=0
 run_test offlineFixtureCannotSendCredentialsAndRecoveryControlsAreLabelled dev.stmedrano.harbor.parent.ui.AuthScreenTest || frontend_status=1
-run_test frontendChildSelectorTracksSelectionWithoutEnablingCachedMutation dev.stmedrano.harbor.parent.ui.FamilyScreenTest || frontend_status=1
+run_test frontendChildSelectorTracksSelection dev.stmedrano.harbor.parent.ui.FamilyScreenTest || frontend_status=1
 [[ "$frontend_status" == 0 ]]
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/frontend-family-light.png keystore-evidence/
 adb pull /sdcard/Android/data/dev.stmedrano.harbor.parent/files/frontend-family-dark.png keystore-evidence/
@@ -81,7 +81,7 @@ run_test credentialsAreExcludedFromLegacyCloudAndDeviceTransfer
 run_test failedSignInCannotLeaveVerifiedSessionTitleVisible dev.stmedrano.harbor.parent.ui.AuthScreenTest
 run_test otherSubjectCannotReadCachedFamily dev.stmedrano.harbor.parent.data.FamilyCacheTest
 run_test concurrentPendingOperationsKeepOneDurableKeyAcrossReopen dev.stmedrano.harbor.parent.data.FamilyCacheTest
-run_test cachedFamilyLabelsStalenessAndDisablesMutations dev.stmedrano.harbor.parent.ui.FamilyScreenTest
+run_test refreshingDisablesMutations dev.stmedrano.harbor.parent.ui.FamilyScreenTest
 run_test deviceViewReportsActualMetadataWithoutClaimingAppliedPolicy dev.stmedrano.harbor.parent.ui.FamilyScreenTest
 run_test notificationControlsReportUnconfirmedCleanupAndDisableDuringLogout dev.stmedrano.harbor.parent.notifications.ParentNotificationUiTest
 notification_status=0
