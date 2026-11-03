@@ -73,14 +73,14 @@ fun HarborField(value: String, onValueChange: (String) -> Unit, label: String, m
     val c = harbor
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val border = when { error != null -> c.dan; focused -> c.brand; else -> c.line }
+    val border = harborColor(when { error != null -> c.dan; focused -> c.brand; else -> c.line })
     BasicTextField(value, onValueChange, modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.5f)
         .semantics { if (error != null) this.error(error) },
         enabled = enabled, singleLine = singleLine, keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
         textStyle = textStyle.copy(color = c.ink), cursorBrush = SolidColor(c.brand), interactionSource = interaction,
         decorationBox = { inner ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(harborResize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // Shown in capitals; read as written.
                 Box(Modifier.clearAndSetSemantics { text = AnnotatedString(label) }) {
                     Text(label.uppercase(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = c.ink2)

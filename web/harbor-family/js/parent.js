@@ -9,7 +9,7 @@ import {
   DeviceControls, GRANT_MS, WEEKDAYS, ruleOf, withAppRule, withPauseNow, withResume, withExtraTime, withDailyLimit, withBedtime,
   withGrant, withoutGrant, liveGrants,
 } from './controls.js';
-import { $, e, clock, when, ago, minutes, icon, brand, empty, header, btn, note, tag, sw, fld, form, avatar, crew, busy, open, shut, toast, greeting } from './common.js';
+import { $, e, clock, when, ago, minutes, icon, brand, empty, header, btn, note, tag, sw, fld, form, avatar, crew, busy, open, shut, arrive, toast, greeting } from './common.js';
 import { pushState, enablePush, disablePush } from './push.js';
 import { toFamilyMap, renderFamilyMap, statusOf } from './family-map.js';
 import { geoSupported, sharingState, showStored, startSharing, stopSharing, resumeIfGranted, onSharingChange } from './myplace.js';
@@ -420,6 +420,7 @@ function render(enter) {
   else if (!k.device) body = noPhone(k);
   else body = { alerts: alertsView, controls: controlsView, activity: activityView }[S.tab](k);
   view.className = 'hf-view' + (enter ? ' in' : '');
+  if (enter) { arrive(view, S.enterFrom || 0); S.enterFrom = 0; $('#tabs').classList.add('in'); } else $('#tabs').classList.remove('in');
   view.innerHTML = tabHeader(k) + body;
   if (!enter) window.scrollTo(0, keep);
   const n = recentAlerts();
@@ -445,7 +446,7 @@ const onClick = async ev => {
           + '<p class="hf-muted">Any family where you’re the only parent is deleted too: its children, their phones, and every place, alert and report those phones sent. Those phones stop sharing. This can’t be undone.</p>'
           + form('deleteaccount', fld('confirm', 'Type DELETE to confirm', 'text', 'off'), 'Delete my account'));
         return;
-      case 'tab': if (S.tab === v) return; S.tab = v; if (v === 'map') { S.mapWho = null; S.mapTitle = greeting(S.user.name); } render(true); loadTab(); return;
+      case 'tab': if (S.tab === v) return; S.enterFrom = Math.sign(TABS.findIndex(x => x[0] === v) - TABS.findIndex(x => x[0] === S.tab)); S.tab = v; if (v === 'map') { S.mapWho = null; S.mapTitle = greeting(S.user.name); } render(true); loadTab(); return;
       case 'person': S.k = t.dataset.id; S.mapWho = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
       case 'everyone': S.mapWho = null; render(true); loadPlaces(true); return;
       case 'kid': S.k = t.dataset.id; if (S.tab === 'map') S.mapWho = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;

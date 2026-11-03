@@ -122,7 +122,7 @@ fun ControlsPanel(ui: ChildControlsUi) {
             if (asking) HarborConsentDialog(ACCESSIBILITY_DISCLOSURE, onAgree = { asking = false; ui.onTurnOn() }, onDecline = { asking = false })
             HarborButton({ asking = true }, Modifier.fillMaxWidth()) { Text("Turn on app controls") }
         }
-        Text("Harbor only sees which app is open, never what's on the screen. Removing an app needs a parent's OK. Only your parents can change these rules.",
+        Text("Harbor only sees which app is open, never what's on the screen. Only your parents can change these rules.",
             style = MaterialTheme.typography.bodySmall)
     }
 }

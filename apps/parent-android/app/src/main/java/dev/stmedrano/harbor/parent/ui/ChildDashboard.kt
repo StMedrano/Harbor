@@ -32,13 +32,16 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
     var localTab by remember(binding.deviceId) { mutableStateOf("Today") }
     var legalDoc by remember(binding.deviceId) { mutableStateOf<LegalDoc?>(null) }
     val openDoc = legalDoc
-    if (openDoc != null) { LegalScreen(openDoc) { legalDoc = null }; return }
     val current = tab ?: localTab
+    // Tabs slide by their place in the dock; a document comes in from the right.
+    val tabs = childTabs(checkIn != null, familyMap != null)
+    val arrival = rememberHarborArrival(openDoc ?: current, if (openDoc != null) tabs.size else tabs.indexOf(current), playFirst = false)
+    if (openDoc != null) { Column(arrival) { LegalScreen(openDoc) { legalDoc = null } }; return }
     val selectTab: (String) -> Unit = { name -> if (onSelectTab != null) { onSelectTab(name) } else { localTab = name } }
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(arrival, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val (eyebrow, title) = childHeader(current)
         HarborScreenHeader(eyebrow, title ?: rememberGreeting(GreetingAudience.CHILD))
-        if (tab == null) HarborTabs(childTabs(checkIn != null, familyMap != null).map { title -> HarborTab(title, current == title) { localTab = title } })
+        if (tab == null) HarborTabs(tabs.map { title -> HarborTab(title, current == title) { localTab = title } })
         when (current) {
             "Today" -> {
                 HarborCard {
@@ -118,7 +121,7 @@ fun ChildTransparency(location: Boolean, usage: Boolean, alerts: Boolean, contro
     val can = buildList {
         if (location) add("Where this phone is, how accurate that is and when it was sent. Harbor keeps places for 30 days.")
         if (usage) add("How long you use this phone each day, and which apps.")
-        if (controls) add("Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work. Removing an app needs their OK.")
+        if (controls) add("Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work.")
         if (alerts) add("When a notification is flagged: the app, the time and the kind of concern.")
         if (checkIn) add("Your answer when a parent asks you to check in, with this phone's last known place.")
     }

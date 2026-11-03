@@ -19,7 +19,7 @@ export const SECTIONS = [
     title: 'App controls',
     lines: [
       'Which apps were open and when. Your parents can set daily time limits, app limits, bedtime and blocked apps, and pause the phone. When time is up, only apps set to Unlimited work.',
-      'Removing an app needs their OK. Harbor only sees which app is open, never what is on the screen.',
+      'Harbor only sees which app is open, never what is on the screen.',
     ],
   },
   {

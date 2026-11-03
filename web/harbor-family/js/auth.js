@@ -3,7 +3,7 @@
 import { api, ApiError } from './api.js';
 import { $, e, fld, pw, form, link, busy } from './common.js';
 
-let mode = 'signin', onSession = () => {}, pendingSession = null;
+let mode = 'signin', shownMode = null, onSession = () => {}, pendingSession = null;
 const lastEmail = () => { try { return localStorage.getItem('harbor.lastEmail') || ''; } catch { return ''; } };
 const MAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const em = v => fld('email', 'Email', 'email', 'username', v, 'inputmode="email" autocapitalize="none"');
@@ -35,6 +35,9 @@ export function showAuth(m) {
     start: ['Your circle', 'Start a family', 'You can add your children and invite another parent next.',
       form('start', fld('fname', 'Family name', 'text', 'off', first ? `${first}’s family` : ''), 'Start family', link('family', 'Back'))],
   }[mode];
+  // Only a different page arrives; re-showing the same one (after a failed sign-in, say) stays still.
+  $('#auth').classList.toggle('in', mode !== shownMode);
+  shownMode = mode;
   $('#auth').innerHTML = `${LOCKUP}<div class="hb-card"><header class="hb-sh"><div class="hb-eyebrow">${e(V[0])}</div><h1>${e(V[1])}</h1><p>${e(V[2])}</p></header>${V[3]}</div>`;
   themeLogo();
   $('#shell').hidden = true; $('#kshell').hidden = true; $('#auth').hidden = false;

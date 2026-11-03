@@ -3,8 +3,10 @@ package dev.stmedrano.harbor.parent.controls
 import java.time.ZonedDateTime
 
 /**
- * While Harbor's app controls run on a child's phone, removing an app needs a parent's OK, so Harbor cannot be removed
- * without one. Android asks "Do you want to uninstall this app?" on a screen of the phone's app installer. For the
+ * ON HOLD: the controls service does not call this, so removing an app is not guarded and the app must not say it is. The
+ * rest of this file stays so it can return, and so a request or timeline entry from an older version still reads properly.
+ *
+ * The design: while app controls run on a child's phone, removing an app needs a parent's OK. Android asks "Do you want to uninstall this app?" on a screen of the phone's app installer. For the
  * installer only, the controls service reads which of its screens came to the front (the screen's class name, never
  * what it shows). It therefore cannot tell which app is being removed and asks a parent for any of them. Installing
  * apps is not affected. A parent's yes (Allow 15 min) lets the child remove apps for 15 minutes.

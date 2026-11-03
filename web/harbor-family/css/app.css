@@ -3,7 +3,7 @@
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webkit-font-smoothing:antialiased}
 [hidden]{display:none!important}
-#app{max-width:var(--app-max);margin:0 auto;min-height:100%;background:var(--s);position:relative;box-shadow:var(--shadow-device)}
+#app{max-width:var(--app-max);margin:0 auto;min-height:100%;background:var(--s);position:relative;box-shadow:var(--shadow-device);overflow-x:clip}
 @media (max-width:440px){#app{box-shadow:none}}
 
 /* Shell: app bar, kid switcher, the screen, and the floating dock */
@@ -11,8 +11,14 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 .hf-top{position:sticky;top:0;z-index:20}
 /* The dock is fixed over the screen and grows by the phone's bottom inset, so the last card needs room to clear it. */
 .hf-view{flex:1;padding:18px 22px calc(140px + env(safe-area-inset-bottom))}
+/* A page arrives: it fades in and settles, sideways when moving between tabs, and rises otherwise. */
 .hf-view.in{animation:hf-in .26s var(--ease-settle)}
-@keyframes hf-in{from{opacity:.4;transform:translateY(6px)}}
+@keyframes hf-in{from{opacity:0;transform:translate(var(--hf-x,0),var(--hf-y,8px))}}
+.hf-dock.in .hb-tab[aria-current=page]{animation:hf-tab .32s var(--ease-spring)}
+@keyframes hf-tab{from{transform:scale(.9)}}
+.hf-view.in .hb-bar i{animation:hf-grow .5s var(--ease-settle);transform-origin:left}
+@keyframes hf-grow{from{transform:scaleX(0)}}
+#auth.in .hb-card{animation:hf-in .26s var(--ease-settle)}
 .hf-dock{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:var(--app-max);margin:0 auto;padding-bottom:env(safe-area-inset-bottom)}
 .hf-dock .hb-tabs{margin-bottom:max(14px,env(safe-area-inset-bottom))}
 .hf-kids{padding:10px 22px;background:var(--s);border-bottom:1px solid var(--line)}
@@ -20,7 +26,14 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 
 /* Sheet over a scrim */
 .hf-mod{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
-.hf-scrim{position:absolute;inset:0;background:var(--scrim)}
+.hf-scrim{position:absolute;inset:0;background:var(--scrim);animation:hf-fade var(--dur-base) var(--ease-tide)}
+@keyframes hf-fade{from{opacity:0}}
+/* Closing: the sheet sinks and the scrim clears (see shut() in common.js, which waits this long). */
+.hf-mod.out{pointer-events:none}
+.hf-mod.out .hf-scrim{animation:hf-fade-out var(--dur-fast) var(--ease-tide) forwards}
+.hf-mod.out .hb-sheet{animation:hf-sink var(--dur-fast) var(--ease-tide) forwards}
+@keyframes hf-fade-out{to{opacity:0}}
+@keyframes hf-sink{to{opacity:0;transform:translateY(32px)}}
 .hf-mod .hb-sheet{max-width:var(--app-max);max-height:88vh;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 .hf-acts{display:grid;gap:8px;margin-top:16px}
 .hf-acts-2{grid-template-columns:1fr 1fr}
@@ -109,5 +122,9 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
 }
 
 /* The loading screen: the lighthouse, centred where the page will appear. */
-.hf-loader{padding:48px 0;overflow:hidden}
+/* Waits a moment and fades up, so an answer that comes straight back doesn't flash a lighthouse. */
+.hf-loader{padding:48px 0;overflow:hidden;animation:hf-fade var(--dur-slow) var(--ease-tide) .12s both}
 .hf-loader .hb-ld{overflow:hidden}
+
+/* With motion turned off, pages and sheets simply appear. */
+@media(prefers-reduced-motion:reduce){.hf-view.in,.hf-view.in .hb-bar i,.hf-dock.in .hb-tab,#auth.in .hb-card,.hf-scrim,.hf-mod.out .hf-scrim,.hf-mod.out .hb-sheet,.hf-loader{animation:none!important}}

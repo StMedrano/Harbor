@@ -66,8 +66,22 @@ export const avatar = (name, color, cls = '') => `<span class="hb-av ${cls}" sty
 export function busy(button, on) { if (!button) return; button.disabled = on; button.classList.toggle('hb-btn-loading', on); const s = button.querySelector('.hb-spin'); if (on && !s) button.insertAdjacentHTML('afterbegin', '<i class="hb-spin" aria-hidden="true"></i>'); if (!on && s) s.remove(); }
 
 /* ── Sheets ── */
-export function open(h) { $('#card').innerHTML = h; $('#mod').hidden = false; const f = $('#card input,#card button'); f && f.focus(); }
-export const shut = () => { $('#mod').hidden = true; $('#card').innerHTML = ''; };
+let closing = 0;
+const close = () => { $('#mod').classList.remove('out'); $('#mod').hidden = true; $('#card').innerHTML = ''; };
+export function open(h) { clearTimeout(closing); $('#mod').classList.remove('out'); $('#card').innerHTML = h; $('#mod').hidden = false; const f = $('#card input,#card button'); f && f.focus(); }
+/** The sheet sinks away first (--dur-fast in app.css), unless motion is off. Opening another meanwhile cancels the close. */
+export const shut = () => {
+  const m = $('#mod');
+  clearTimeout(closing);
+  if (m.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) { close(); return; }
+  m.classList.add('out');
+  closing = setTimeout(close, 150);
+};
+/** How a page arrives: from the side when moving along the tabs, rising otherwise. */
+export function arrive(view, direction) {
+  view.style.setProperty('--hf-x', direction ? `${direction * 20}px` : '0px');
+  view.style.setProperty('--hf-y', direction ? '0px' : '8px');
+}
 
 /* ── Toasts: one at a time, a new one replaces only the same or lower priority (urgent > review > info > success) ── */
 const RANK = { success: 0, info: 1, review: 2, urgent: 3 };

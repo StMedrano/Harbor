@@ -59,9 +59,11 @@ fun rememberChildFamilyMapUi(graph: ParentApplication, lease: ProfileLease, resu
 fun ParentFamilyMapSection(state: ParentFamilyMapState, onRefresh: (() -> Unit)?) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = System.currentTimeMillis() } }
-    if (!state.peopleLoaded && !state.peopleOffline) { HarborLoadingScreen("Loading the family map…"); return }
+    val waiting = !state.peopleLoaded && !state.peopleOffline
+    val arrival = rememberHarborArrival(waiting, playFirst = false, toTop = false)
+    if (waiting) { HarborLoadingScreen("Loading the family map…"); return }
     val kids = state.people.filter { it.kind == PersonKind.CHILD }
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().then(arrival)) {
         if (state.peopleOffline) HarborNote("Showing the last family map that loaded. It could not be refreshed just now.", HarborTone.WARN)
         val shown = mapPeople(state.people, now)
         if (shown.isNotEmpty()) PeopleMap(shown)
@@ -130,7 +132,7 @@ fun FamilyMapScreen(ui: ChildFamilyMapUi) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = System.currentTimeMillis() } }
     val state = ui.state
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(rememberHarborArrival(state.loaded || state.offline, playFirst = false, toTop = false), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         when {
             !state.loaded && !state.offline -> HarborLoadingScreen("Loading the family map…")
             !state.loaded -> HarborNote("Could not load the family map. Check your connection.", HarborTone.WARN)

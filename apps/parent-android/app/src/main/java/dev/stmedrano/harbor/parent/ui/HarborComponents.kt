@@ -1,8 +1,10 @@
 package dev.stmedrano.harbor.parent.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -78,18 +81,18 @@ fun HarborScreenHeader(eyebrow: String?, title: String, modifier: Modifier = Mod
 
 data class HarborTab(val label: String, val selected: Boolean, val onClick: () -> Unit)
 
-/** Segmented control (design system `Segmented`): a harbor-surface track; the selected option is tinted sea glass. */
+/** Segmented control (design system `Segmented`): a harbor-surface track; a sea-glass tint slides to the selected option. */
 @Composable
 fun HarborTabs(tabs: List<HarborTab>, modifier: Modifier = Modifier) {
     val item = RoundedCornerShape(10.dp)
     Row(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(harbor.s2).border(1.dp, harbor.line, RoundedCornerShape(12.dp))
-        .padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        .padding(3.dp).then(rememberHarborPill(tabs.indexOfFirst { it.selected }, tabs.size, 2.dp, 10.dp, harbor.accs)),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         tabs.forEach { tab ->
             Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(item)
-                .background(if (tab.selected) harbor.accs else Color.Transparent)
                 .selectable(selected = tab.selected, role = Role.Tab, onClick = tab.onClick)
                 .padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text(tab.label, style = MaterialTheme.typography.labelMedium, color = if (tab.selected) harbor.acc else harbor.ink2,
+                Text(tab.label, style = MaterialTheme.typography.labelMedium, color = harborColor(if (tab.selected) harbor.acc else harbor.ink2),
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -127,7 +130,7 @@ fun HarborActionButton(onClick: () -> Unit, variant: HarborButtonVariant, modifi
     val press by animateFloatAsState(if (pressed) 0.96f else 1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "press")
     val active = enabled && !loading
     Button(onClick, modifier.heightIn(min = if (small) 36.dp else 48.dp).graphicsLayer { scaleX = press; scaleY = press }
-        .alpha(if (enabled || loading) 1f else 0.45f),
+        .alpha(harborFloat(if (enabled || loading) 1f else 0.45f)),
         enabled = active, shape = if (small) MaterialTheme.shapes.small else MaterialTheme.shapes.medium, border = border,
         colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = ink,
             disabledContainerColor = container, disabledContentColor = ink),
@@ -169,7 +172,7 @@ fun HarborCard(modifier: Modifier = Modifier, title: String? = null, tag: String
     border: Color = harbor.line, content: @Composable ColumnScope.() -> Unit) {
     Surface(shape = MaterialTheme.shapes.large, color = harbor.s2, contentColor = harbor.ink, border = BorderStroke(1.dp, border),
         modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(harborResize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tag != null || title != null) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (tag != null) HarborTag(tag, tagTone)
                 if (title != null) Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
@@ -230,7 +233,11 @@ fun HarborTag(text: String, tone: HarborTagTone = HarborTagTone.NEUTRAL, modifie
 @Composable
 fun HarborBadge(count: Int, modifier: Modifier = Modifier) {
     if (count <= 0) return
-    Box(modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(CircleShape).background(harbor.dan).padding(horizontal = 5.dp)
+    // Each new count lands with the design system's spring.
+    val reduced = rememberReducedMotion()
+    val pop = remember(count) { Animatable(if (reduced) 1f else 0.6f) }
+    LaunchedEffect(count) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+    Box(modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(CircleShape).background(harbor.dan).padding(horizontal = 5.dp)
         .clearAndSetSemantics { contentDescription = "$count new" }, contentAlignment = Alignment.Center) {
         Text(if (count > 99) "99+" else "$count", color = harbor.onDan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
@@ -268,11 +275,11 @@ fun HarborChevron() = HarborIcon(HarborGlyph.CHEVRON, harbor.ink3, Modifier.size
 fun HarborChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val c = harbor
     Box(modifier.heightIn(min = 40.dp).alpha(if (enabled) 1f else 0.45f).clip(CircleShape)
-        .background(if (selected) c.accs else Color.Transparent)
-        .border(1.dp, if (selected) c.acc else c.line, CircleShape)
+        .background(harborColor(if (selected) c.accs else Color.Transparent))
+        .border(1.dp, harborColor(if (selected) c.acc else c.line), CircleShape)
         .selectable(selected = selected, enabled = enabled, role = Role.Checkbox, onClick = onClick)
         .padding(horizontal = 14.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) c.acc else c.ink2)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = harborColor(if (selected) c.acc else c.ink2))
     }
 }
 
@@ -287,13 +294,17 @@ fun HarborSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifi
         disabledUncheckedThumbColor = c.ink.copy(alpha = 0.45f), disabledUncheckedTrackColor = c.line.copy(alpha = 0.45f)))
 }
 
-/** A meter (design system `ProgressBar`): an 8dp sea-glass fill on deep water, amber once over the limit. */
+/** A meter (design system `ProgressBar`): an 8dp sea-glass fill on deep water, amber once over the limit. It fills as it appears. */
 @Composable
 fun HarborMeter(fraction: Float, modifier: Modifier = Modifier, over: Boolean = false) {
     val c = harbor
+    val target = fraction.coerceIn(0f, 1f)
+    val reduced = rememberReducedMotion()
+    val fill = remember { Animatable(if (reduced) target else 0f) }
+    LaunchedEffect(target) { if (reduced) fill.snapTo(target) else fill.animateTo(target, tween(HarborDuration.METER, easing = HarborEasing.settle)) }
     Box(modifier.fillMaxWidth().height(8.dp).clip(MaterialTheme.shapes.extraSmall).background(c.s)) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).clip(MaterialTheme.shapes.extraSmall)
-            .background(if (over) c.warn else c.acc))
+        Box(Modifier.fillMaxHeight().fillMaxWidth(fill.value).clip(MaterialTheme.shapes.extraSmall)
+            .background(harborColor(if (over) c.warn else c.acc)))
     }
 }
 
@@ -312,22 +323,25 @@ data class HarborNavItem(val label: String, val glyph: HarborGlyph, val selected
 
 /**
  * Bottom navigation (design system `TabBar`, floating dock): a rounded harbor-surface dock lifted off the bottom edge.
- * Each tab is Harbor's line icon over a 10sp label; the current tab sits in a sea-glass tint with a heavier stroke.
+ * Each tab is Harbor's line icon over a 10sp label; a sea-glass tint slides to the current tab, whose icon lifts with a
+ * heavier stroke.
  */
 @Composable
 fun HarborBottomBar(items: List<HarborNavItem>) {
     val c = harbor
     Surface(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 14.dp), shape = MaterialTheme.shapes.extraLarge,
         color = c.s2, border = BorderStroke(1.dp, c.line)) {
-        Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 10.dp)
+            .then(rememberHarborPill(items.indexOfFirst { it.selected }, items.size, 2.dp, 12.dp, c.accs)),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             items.forEach { item ->
-                val tint = if (item.selected) c.acc else c.ink2
+                val tint = harborColor(if (item.selected) c.acc else c.ink2)
+                val lift by animateFloatAsState(if (item.selected) 1.08f else 1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "tab-lift")
                 Column(Modifier.weight(1f).heightIn(min = 52.dp).clip(MaterialTheme.shapes.medium)
-                    .background(if (item.selected) c.accs else Color.Transparent)
                     .selectable(selected = item.selected, role = Role.Tab, onClick = item.onClick).padding(horizontal = 2.dp, vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
                     Box {
-                        HarborIcon(item.glyph, tint, Modifier.size(22.dp), strokeWidth = if (item.selected) 2.3f else 1.8f)
+                        HarborIcon(item.glyph, tint, Modifier.size(22.dp).graphicsLayer { scaleX = lift; scaleY = lift }, strokeWidth = harborFloat(if (item.selected) 2.3f else 1.8f))
                         if (item.badge > 0) HarborBadge(item.badge, Modifier.align(Alignment.TopStart).offset(x = 15.dp, y = (-5).dp))
                     }
                     Text(item.label, color = tint, style = HarborType.nav,

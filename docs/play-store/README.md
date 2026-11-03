@@ -95,6 +95,6 @@
 `
 `## Not done yet
 `
-`- **The uninstall guard is on hold and still does not work.** Do not mention it in the listing. Its wording in the app and documents should be checked before submission, because they still say removing an app needs a parent's OK.
+`- **The uninstall guard is on hold.** Since 0.39 it is switched off and the app and its documents no longer mention it, so a child can remove Harbor like any other app, and the parent's app shows the phone has gone quiet. Do not mention it in the listing. The code is still in `UninstallGuard.kt` for when it returns; turning it back on needs the wording back too.
 `- **Code shrinking is off.** Play accepts this. It only makes the bundle larger, and turning it on needs a full pass through every screen.
 `- **\`public.family_places\` (the old view)** can be dropped once no phone runs 0.36. The advisor reports it as an error until then.

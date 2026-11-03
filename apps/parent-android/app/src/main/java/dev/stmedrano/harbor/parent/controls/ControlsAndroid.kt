@@ -44,7 +44,7 @@ object ExemptApps {
         try {
             app.getSystemService(InputMethodManager::class.java)?.enabledInputMethodList?.forEach { out += it.packageName }
         } catch (_: Exception) {}
-        // The installer is never blocked as an app; removing an app is guarded on its own (UninstallGuard).
+        // The installer is never blocked as an app; removing an app is not blocked at all while UninstallGuard is on hold.
         out += removalScreens(app).installers
         return out
     }

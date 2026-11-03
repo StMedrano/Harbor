@@ -136,7 +136,9 @@ class MainActivity : ComponentActivity() {
                 val childBar: (@Composable () -> Unit)? = if (destination == FamilyDestination.CHILD_HOME && !childGateVisible.value) {
                     @Composable { HarborBottomBar(childNavItems(childTab.value, withCheckIn = !BuildConfig.CI_FIXTURE, withFamily = !BuildConfig.CI_FIXTURE) { childTab.value = it }) }
                 } else null
-                HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar) {
+                HarborTheme { ParentApp(showBrand = destination == FamilyDestination.CHILD_HOME, centered = destination == FamilyDestination.ENTRY, bottomBar = childBar,
+                    // Further into setup comes in from the right, and Back from the left.
+                    screenKey = destination to (destination == FamilyDestination.CHILD_HOME && childGateVisible.value), screenOrder = destination.ordinal) {
                     transitionMessage.value?.let { Text(it, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     FamilyRoleContent(entryState,
                         entry = { FamilyEntryScreen(
@@ -292,8 +294,17 @@ class MainActivity : ComponentActivity() {
             androidx.activity.compose.BackHandler(profile == ProfileState.Setup && identity == null && setupRole.value == ProfileRole.PARENT) {
                 graph.closeParentSetup(); setupRole.value = null
             }
+            // Tabs animate inside FamilyRoute; these are the pages that replace the whole screen.
+            val (screen, screenOrder) = when {
+                runtime?.signingOut == true -> "signing-out" to 0
+                !parentHome -> "account" to 0
+                securityPage.value -> "security" to 2
+                tap.device != null -> "device" to 1
+                settingsPage.value -> "settings" to 1
+                else -> "home" to 0
+            }
             HarborTheme {
-                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar, scrollKey = effectiveTab) {
+                ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar, scrollKey = effectiveTab, screenKey = screen, screenOrder = screenOrder) {
                     if (runtime?.signingOut == true) Text("Signing out…")
                     else {
                         if (logoutRequested.value && identity == null) Text(if (runtime?.cleanupConfirmed == true) "Signed out. Current-device cleanup confirmed." else "Signed out locally. Remote cleanup is unconfirmed.")

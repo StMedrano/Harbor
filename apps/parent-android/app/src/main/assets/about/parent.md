@@ -20,8 +20,11 @@ Children see a Family tab with a map of every child in the family and any parent
 ## What your child sees
 Your child's phone shows a notification while location is shared, lists everything Harbor does in its About page, and cannot turn sharing off. Only you can stop it, by removing the device in the Family tab. Being open about it builds trust.
 
-## Removing apps
-While controls are on, removing any app from your child's phone needs your OK, so Harbor cannot be removed without one. Harbor cannot tell which app is being removed, so it asks for all of them. You are sent a notification, and a yes allows removing apps for 15 minutes. Installing apps is not affected. The phone, messages and Settings are never blocked, so the phone stays usable and emergency calls always work.
+## Apps that are never blocked
+The phone, messages and Settings are never blocked, so the phone stays usable and emergency calls always work.
+
+## If Harbor is removed
+Harbor can be removed from your child's phone like any other app. Sharing then stops, and this app shows that the phone has gone quiet.
 
 ## What Harbor does not do
 - It does not record the screen, camera or microphone.

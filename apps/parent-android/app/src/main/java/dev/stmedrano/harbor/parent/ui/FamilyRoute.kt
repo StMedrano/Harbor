@@ -63,22 +63,33 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     // A revoked phone is gone from the parent's view: close its page instead of showing a dead device.
     val openDeviceRevoked = deviceId != null && family.snapshot?.devices?.any { it.id == deviceId && it.status == "revoked" } == true
     LaunchedEffect(openDeviceRevoked) { if (openDeviceRevoked) deviceId = null }
+    val loadingFirstTime = family.snapshot == null && family.failure == null && (!control.loaded || family.loading || control.busy)
+    // A page within this route: tabs slide by their place in the dock, and a device or document comes in from the right.
+    val page: Any = when {
+        deviceId != null -> "device"
+        legalDoc != null -> "document"
+        tab != ParentTab.FAMILY && family.snapshot != null -> "$tab/${control.selectedChildId}"
+        loadingFirstTime -> "loading"
+        else -> "family"
+    }
+    val arrival = rememberHarborArrival(page, if (deviceId != null || legalDoc != null) ParentTab.values().size else tab.ordinal, playFirst = false)
+    val pageLayout = Modifier.fillMaxWidth().then(arrival)
     if (deviceId != null) {
-        if (device != null) {
+        if (device != null) Column(pageLayout) {
             DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } }) { deviceId = null }
-        } else Column {
+        } else Column(pageLayout) {
             Text("This device is unavailable. Refresh your family.")
             TextButton({ deviceId = null }) { Text("Back to family") }
         }
     } else if (legalDoc != null) {
-        LegalScreen(checkNotNull(legalDoc)) { legalDoc = null }
+        Column(pageLayout) { LegalScreen(checkNotNull(legalDoc)) { legalDoc = null } }
     } else if (tab != ParentTab.FAMILY && family.snapshot != null) {
         val snapshot = checkNotNull(family.snapshot)
         val online = family.failure == null && !family.loading && !control.busy
         val index = snapshot.children.indexOfFirst { it.id == control.selectedChildId }
         val child = snapshot.children.getOrNull(index)
         KidSwitcher(snapshot.children, control.selectedChildId, model::selectChild, { sheet = "child"; error = null }, addEnabled = online)
-        if (child == null) {
+        Column(pageLayout, verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) { if (child == null) {
             ParentTabHeader(tab, subtitle = snapshot.family.name)
             HarborCard {
                 HarborEmptyState("No children yet", art = HarborArt.ANCHOR, body = "Add a child, then pair their phone.",
@@ -118,11 +129,11 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
                 onRefreshActivity = activityModel?.let { m -> { scope.launch { m.load(identity, phone.id, activityDay) } } },
                 onAskCheckIn = checkInModel?.takeIf { online }?.let { m -> { scope.launch { m.ask(identity, phone.id) } } })
             ParentChildPage(tab, child, phone, data, HarborKid.color(index), onPair = if (online) ({ sheet = "pair"; submit { model.issuePairing(identity) } }) else null)
-        }
-    } else if (family.snapshot == null && family.failure == null && (!control.loaded || family.loading || control.busy)) {
+        } }
+    } else if (loadingFirstTime) {
         // Nothing has been read yet: the loading screen, never "get started" and never a saved copy.
         HarborLoadingScreen("Loading your family…")
-    } else {
+    } else Column(pageLayout, verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) {
         FamilyScreen(family.copy(loading = family.loading || control.busy), control.families, control.selectedChildId,
             onRefresh = { submit { if (family.snapshot == null) model.load(identity) else model.refresh(identity) } },
             onSelectFamily = { id -> submit { model.selectFamily(identity, id) } },

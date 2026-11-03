@@ -1,7 +1,7 @@
 // CHILD experience on the web (development preview): open about what parents can see. Mounted only for role === 'child'.
 // The Harbor Family Android app is what measures, shares and enforces; this browser shares nothing.
 import { api, ApiError } from './api.js';
-import { $, e, icon, brand, header, note, btn, fld, form, open, shut, toast, busy, empty } from './common.js';
+import { $, e, icon, brand, header, note, btn, fld, form, open, shut, arrive, toast, busy, empty } from './common.js';
 import { renderDisclosure } from './child-disclosure.js';
 
 const TABS = [['today', 'Today'], ['apps', 'Apps'], ['about', 'About']];
@@ -20,9 +20,12 @@ const about = () => header('What your parents see', 'About Harbor on your phone'
   + renderDisclosure()
   + `<div class="hf-section">Parents only</div>${btn('Remove Harbor Family from this phone', 'data-a="unpair"', 'outline', 'hb-btn-block')}`;
 
+let enterFrom = 0;
 function render(enter) {
   $('#kbrand').innerHTML = brand();
   const v = $('#kview'); v.className = 'hf-view' + (enter ? ' in' : '');
+  if (enter) { arrive(v, enterFrom); enterFrom = 0; }
+  $('#ktabs').classList.toggle('in', !!enter);
   v.innerHTML = { today, apps, about }[tab]();
   $('#ktabs').innerHTML = `<div class="hb-tabs hb-tabs-dock">${TABS.map(([t, l]) => `<button class="hb-tab" data-a="tab" data-v="${t}" ${tab === t ? 'aria-current="page"' : ''}>${icon(t, 22, tab === t ? 2.3 : 1.8)}<span>${l}</span></button>`).join('')}</div>`;
 }
@@ -34,7 +37,7 @@ const poll = () => { if ($('#mod').hidden && !document.hidden) load(); };
 const onClick = ev => {
   const t = ev.target.closest('[data-a]'); if (!t || !$('#kshell').contains(t) && !$('#mod').contains(t)) return;
   if (t.dataset.a === 'x') shut();
-  if (t.dataset.a === 'tab') { tab = t.dataset.v; render(true); }
+  if (t.dataset.a === 'tab') { enterFrom = Math.sign(TABS.findIndex(x => x[0] === t.dataset.v) - TABS.findIndex(x => x[0] === tab)); tab = t.dataset.v; render(true); }
   if (t.dataset.a === 'unpair') open(`<h2>Parents only</h2><p class="hf-muted">A parent signs in to remove Harbor Family from this phone.</p>` + form('unpair', fld('email', 'Parent email', 'email', 'off', '', 'inputmode="email" autocapitalize="none"') + `<div class="hb-fld"><label for="upw">Parent password</label><input id="upw" name="password" type="password" autocomplete="off" required></div>`, 'Remove Harbor Family'));
 };
 const onSubmit = async ev => {

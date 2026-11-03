@@ -1,5 +1,6 @@
 package dev.stmedrano.harbor.parent.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -16,11 +17,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -33,9 +37,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 /** The design system's `--dur-loading`: one full sweep of the beam, and one wave length of the water. */
 private const val LOADING_MS = 2400
+private const val LOADER_WAIT_MS = 120L
 
 /**
  * The design system's loader (`hb-ld` in harbor.css): a lighthouse whose two beams sweep in turn over moving water, drawn
@@ -102,10 +108,16 @@ fun HarborLoader(width: Dp = 120.dp, modifier: Modifier = Modifier) {
     }
 }
 
-/** What Harbor shows while it fetches live information. It never shows a saved copy in the meantime. */
+/**
+ * What Harbor shows while it fetches live information. It never shows a saved copy in the meantime. It waits a moment and
+ * then fades up, so an answer that comes straight back doesn't flash a lighthouse.
+ */
 @Composable
 fun HarborLoadingScreen(message: String, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally,
+    val reduced = rememberReducedMotion()
+    val shown = remember { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(Unit) { delay(LOADER_WAIT_MS); shown.animateTo(1f, tween(HarborDuration.SLOW, easing = HarborEasing.tide)) }
+    Column(modifier.fillMaxWidth().graphicsLayer { alpha = shown.value }.padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         HarborLoader()
         Text(message, style = MaterialTheme.typography.bodyMedium, color = harbor.ink2, textAlign = TextAlign.Center,

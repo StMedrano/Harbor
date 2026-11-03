@@ -110,6 +110,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
         }
     }
 
+    val arrival = rememberHarborArrival(if (!restored && repository != null) null else page, playFirst = false)
     // Until we know whether a sign-in is saved, the loading screen rather than a form that may vanish a moment later.
     if (!restored && repository != null) { HarborLoadingScreen("Opening Harbor…"); return }
     val enabled = repository != null && !busy && !closing
@@ -117,7 +118,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     val accountForm = page == AccountPage.SIGN_IN || page == AccountPage.SIGN_UP
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         HarborLogo(HarborLogoVariant.LOCKUP, 150.dp, Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally))
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(arrival, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             HarborEyebrow(if (page == AccountPage.SIGN_IN || page == AccountPage.SIGN_UP) "Parent account" else "Account recovery")
             Text(when (page) {
                 AccountPage.SIGN_IN -> "Welcome back"

@@ -26,7 +26,7 @@ export function activityLine(ev) {
   switch (ev.kind) {
     case 'app_session': return `${app} · ${Math.max(1, Math.floor((Date.parse(ev.endAt) - Date.parse(ev.at)) / 60000))} min`;
     case 'blocked_open':
-      if (ev.appLabel === REMOVAL_LABEL) return 'Tried to remove an app (needs your OK)';
+      if (ev.appLabel === REMOVAL_LABEL) return 'Tried to remove an app';
       return { paused: `Tried to open ${app} while the phone was paused`, bedtime: `Tried to open ${app} during bedtime`, limit_reached: `Tried to open ${app} after its time ran out` }[ev.reason] || `Tried to open ${app} (blocked)`;
     case 'limit_reached': return `${app} daily time limit reached`;
     case 'pause_started': return 'Phone paused';

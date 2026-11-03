@@ -43,7 +43,7 @@ class UninstallGuardTest {
         assertEquals("Remove an app (it could be Harbor)", accessRequestTitle(item))
         assertEquals("Use YouTube (blocked)", accessRequestTitle(item.copy(packageName = "com.google.android.youtube", appLabel = "YouTube")))
         val event = ActivityEvent("e", ActivityKind.BLOCKED_OPEN, noon.toInstant().toString(), null, installer, UninstallGuard.LABEL, BlockReason.BLOCKED_APP)
-        assertEquals("Tried to remove an app (needs your OK)", activityLine(event))
+        assertEquals("Tried to remove an app", activityLine(event))
         assertEquals("Tried to open TikTok (blocked)", activityLine(event.copy(packageName = "com.zhiliaoapp.musically", appLabel = "TikTok")))
     }
 }
