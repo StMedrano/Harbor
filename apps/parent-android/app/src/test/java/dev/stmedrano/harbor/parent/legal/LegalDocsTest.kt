@@ -55,6 +55,16 @@ class LegalDocsTest {
         listOf("does not show it to other parents", "shared place to other parents", "other parents never see")
             .forEach { assertFalse(it, all.contains(it)) }
     }
+    /** Harbor no longer reads SMS or contacts, which Play does not allow it to, so no document may say it does. */
+    @Test fun noDocumentClaimsToReadTextsOrContacts() {
+        val all = LegalDoc.values().joinToString("\n") { asset(it) }.lowercase()
+        listOf("incoming text messages", "saved contact", "saved in your contacts").forEach { assertFalse(it, all.contains(it)) }
+    }
+    @Test fun deletingAnAccountIsExplainedInThePrivacyPolicy() {
+        val privacy = asset(LegalDoc.PRIVACY)
+        assertTrue(privacy.contains("Delete my account"))
+        assertTrue(privacy.contains("account-deletion"))
+    }
     @Test fun theDocumentsNeverPromiseWhatHarborDoesNotDo() {
         val child = asset(LegalDoc.CHILD_ABOUT)
         assertTrue(child.contains("Only your parents"))

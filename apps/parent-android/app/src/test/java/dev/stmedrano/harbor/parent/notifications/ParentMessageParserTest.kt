@@ -23,7 +23,7 @@ class ParentMessageParserTest {
         val hint = checkNotNull(ParentMessageParser.parse(envelope()))
         assertTrue(hint.matchesFamily(owner, FamilyState(base)))
         assertFalse(hint.matchesFamily(owner, FamilyState(base.copy(devices = base.devices.map { it.copy(childId = EVENT) }))))
-        assertFalse(hint.matchesFamily(owner, FamilyState(base, cached = true)))
+        assertFalse(hint.matchesFamily(owner, FamilyState(base, loading = true)))
         assertFalse(hint.matchesFamily(owner, FamilyState(base, failure = FamilyFailure.ACCESS_DENIED)))
         assertFalse(hint.matchesFamily(ParentIdentity("other", "session"), FamilyState(base)))
     }

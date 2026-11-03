@@ -6,18 +6,20 @@ import dev.stmedrano.harbor.parent.data.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.json.Json
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
 
 enum class FamilyFailure { ACCESS_DENIED, NETWORK }
-data class FamilyState(val snapshot: FamilySnapshot? = null, val loading: Boolean = false, val cached: Boolean = false, val failure: FamilyFailure? = null)
+/**
+ * What the family screens show. [snapshot] only ever holds an answer read from the server in this run of the app: nothing
+ * saved on the phone is shown, so a parent sees the loading screen rather than information that may be out of date.
+ */
+data class FamilyState(val snapshot: FamilySnapshot? = null, val loading: Boolean = false, val failure: FamilyFailure? = null)
 
 class FamilyRepository(private val api: ParentApi, private val cache: FamilyCacheDao, private val currentIdentity: () -> ParentIdentity?) {
     private val mutableState = MutableStateFlow(FamilyState())
     val state = mutableState.asStateFlow()
-    private val json = Json { ignoreUnknownKeys = true }
     private val generation = AtomicLong(0)
     private val commits = Mutex()
     private val frames = Any()
@@ -25,43 +27,29 @@ class FamilyRepository(private val api: ParentApi, private val cache: FamilyCach
     suspend fun refresh(identity: ParentIdentity, familyId: String): FamilySnapshot {
         requireCurrent(identity)
         val ticket = synchronized(frames) { generation.incrementAndGet() }
-        val previous = cached(identity, familyId)
         synchronized(frames) {
             requireTicket(identity, ticket)
-            mutableState.value = FamilyState(previous, loading = true, cached = previous != null)
+            mutableState.value = FamilyState(answered(identity, familyId), loading = true)
         }
         try {
             val snapshot = api.readFamily(familyId)
             requireTicket(identity, ticket)
             validate(snapshot, identity, familyId)
-            commits.withLock {
-                requireTicket(identity, ticket)
-                cache.putSnapshot(FamilyCacheRow(identity.userId, familyId, json.encodeToString(snapshot), snapshot.fetchedAt))
-                synchronized(frames) { requireTicket(identity, ticket); mutableState.value = FamilyState(snapshot) }
-            }
+            synchronized(frames) { requireTicket(identity, ticket); mutableState.value = FamilyState(snapshot) }
             return snapshot
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (denied: FamilyAccessDenied) {
-            commits.withLock {
-                if (current(identity, ticket)) {
-                    cache.deleteFamily(identity.userId, familyId)
-                    synchronized(frames) { if (current(identity, ticket)) mutableState.value = FamilyState(failure = FamilyFailure.ACCESS_DENIED) }
-                }
-            }
+            synchronized(frames) { if (current(identity, ticket)) mutableState.value = FamilyState(failure = FamilyFailure.ACCESS_DENIED) }
             throw denied
         } catch (failure: Exception) {
-            synchronized(frames) { if (current(identity, ticket)) mutableState.value = FamilyState(previous, cached = previous != null, failure = FamilyFailure.NETWORK) }
+            synchronized(frames) { if (current(identity, ticket)) mutableState.value = FamilyState(answered(identity, familyId), failure = FamilyFailure.NETWORK) }
             throw failure
         }
     }
 
-    suspend fun cached(identity: ParentIdentity, familyId: String): FamilySnapshot? {
-        if (currentIdentity() != identity) return null
-        val row = cache.getSnapshot(identity.userId, familyId) ?: return null
-        return try {
-            json.decodeFromString<FamilySnapshot>(row.snapshotJson).also { validate(it, identity, familyId) }
-        } catch (_: Exception) { cache.deleteFamily(identity.userId, familyId); null }
-    }
+    /** The answer already on screen, kept through a refresh so the page does not blink. Never one from an earlier run. */
+    private fun answered(identity: ParentIdentity, familyId: String) =
+        mutableState.value.snapshot?.takeIf { it.family.id == familyId && it.membership.userId == identity.userId }
 
     suspend fun clearFamily(identity: ParentIdentity, familyId: String) {
         val ticket = synchronized(frames) { generation.incrementAndGet() }
@@ -77,24 +65,19 @@ class FamilyRepository(private val api: ParentApi, private val cache: FamilyCach
         hideVisible()
         commits.withLock { requireCurrent(identity); cache.retainUser(identity.userId); requireCurrent(identity) }
     }
-    suspend fun showCached(identity: ParentIdentity, familyId: String) {
+    /** The first read of a run is on its way and there is nothing on screen yet. */
+    fun showLoading(identity: ParentIdentity) = synchronized(frames) {
         requireCurrent(identity)
-        val ticket = synchronized(frames) { generation.incrementAndGet() }
-        val snapshot = cached(identity, familyId)
-        synchronized(frames) { requireTicket(identity, ticket); mutableState.value = FamilyState(snapshot, cached = true, failure = FamilyFailure.NETWORK) }
+        if (mutableState.value.snapshot == null) { generation.incrementAndGet(); mutableState.value = FamilyState(loading = true) }
     }
-    /**
-     * Puts the saved view on screen straight away while the first network answer is on its way, so the app opens with
-     * something to read instead of a blank page. It is marked cached, so every change stays switched off until the live
-     * answer replaces it, and it never overwrites a view that is already showing.
-     */
-    suspend fun showCachedWhileLoading(identity: ParentIdentity, familyId: String) {
+    /** The read failed: say so, with what was already read in this run if there is any, and nothing older. */
+    fun showFailure(identity: ParentIdentity) = synchronized(frames) {
         requireCurrent(identity)
-        if (mutableState.value.snapshot != null) return
-        val ticket = synchronized(frames) { generation.incrementAndGet() }
-        val snapshot = cached(identity, familyId) ?: return
-        synchronized(frames) { requireTicket(identity, ticket); mutableState.value = FamilyState(snapshot, loading = true, cached = true) }
+        generation.incrementAndGet()
+        mutableState.value = FamilyState(mutableState.value.snapshot, failure = FamilyFailure.NETWORK)
     }
+    /** Earlier versions saved each family on the phone to show while loading. Nothing reads those copies now. */
+    suspend fun forgetSavedFamilies() = commits.withLock { cache.deleteSnapshots() }
     private fun current(identity: ParentIdentity, ticket: Long) = generation.get() == ticket && currentIdentity() == identity
     private fun requireTicket(identity: ParentIdentity, ticket: Long) { if (!current(identity, ticket)) throw AuthSessionRejected() }
     private fun requireCurrent(identity: ParentIdentity) { if (currentIdentity() != identity) throw AuthSessionRejected() }

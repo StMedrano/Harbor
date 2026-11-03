@@ -24,7 +24,7 @@ fun parentPushText(kind: String): String = when (kind) {
 
 fun ParentHint.matchesFamily(identity: ParentIdentity, state: FamilyState): Boolean {
     val snapshot = state.snapshot ?: return false
-    return !state.cached && !state.loading && state.failure == null &&
+    return !state.loading && state.failure == null &&
         snapshot.family.id == route.familyId && snapshot.membership.userId == identity.userId &&
         snapshot.membership.status == "active" && snapshot.membership.role in setOf("owner", "parent") &&
         snapshot.children.any { it.id == route.childId } &&

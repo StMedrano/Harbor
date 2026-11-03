@@ -50,6 +50,8 @@ interface ParentApi {
     suspend fun createParentInvite(familyId: String): ParentInvite = throw UnsupportedOperationException()
     suspend fun acceptParentInvite(code: String): JoinedFamily = throw UnsupportedOperationException()
     suspend fun leaveFamily(familyId: String): LeaveOutcome = throw UnsupportedOperationException()
+    /** Deletes this parent's account and whatever only they could reach. [confirmation] must be the word DELETE. */
+    suspend fun deleteAccount(confirmation: String): Unit = throw UnsupportedOperationException()
 }
 
 class SdkParentApi(private val client: SupabaseClient, private val auth: ParentAuthRepository,
@@ -132,6 +134,11 @@ class SdkParentApi(private val client: SupabaseClient, private val auth: ParentA
             if (failure.statusCode in setOf(401, 403)) throw FamilyAccessDenied()
             throw failure
         }
+    }
+
+    override suspend fun deleteAccount(confirmation: String): Unit = auth.withAccessToken {
+        client.postgrest.rpc("delete_my_account", buildJsonObject { put("p_confirmation", confirmation) })
+        Unit
     }
 
     override suspend fun readFamily(familyId: String): FamilySnapshot = auth.withAccessToken {

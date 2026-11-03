@@ -120,7 +120,7 @@ class FamilyViewModelTest {
         assertEquals(listOf("Family" to "stable", "Family" to "stable"), requests)
     }
 
-    @Test fun savedViewShowsBeforeTheNetworkAnswerAndIsReadOnlyUntilItArrives() = runTest {
+    @Test fun reopeningShowsTheLoadingStateAndNoSavedViewUntilTheAnswerArrives() = runTest {
         val release = CompletableDeferred<Unit>()
         var slow = false
         val api = object : TestParentApi() {
@@ -136,13 +136,12 @@ class FamilyViewModelTest {
         val loading = async { runCatching { controller.load(identity) } }
         runCurrent()
         val early = repository.state.value
-        assertNotNull(early.snapshot)
-        assertTrue(early.cached)
+        assertNull(early.snapshot)
         assertTrue(early.loading)
         assertNull(early.failure)
         release.complete(Unit)
         assertTrue(loading.await().isSuccess)
-        assertFalse(repository.state.value.cached)
+        assertNotNull(repository.state.value.snapshot)
         assertFalse(repository.state.value.loading)
     }
 

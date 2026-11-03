@@ -155,7 +155,14 @@ function tabHeader(k) {
   const [eb, t] = HEAD[S.tab];
   return header(eb, t, S.tab === 'family' ? famName() : k ? (k.device ? `${possessive(k.name)} ${k.device.name || 'phone'}` : `${k.name} has no phone paired yet`) : '');
 }
-const loadingCard = what => `<div class="hb-card"><div class="hb-loading hb-loading-row"><i class="hb-spin" style="color:var(--acc)"></i><span class="hb-loading-t">${e(what)}</span></div></div>`;
+/** The design system's loader (hb-ld in harbor.css), drawn on the grid its animation origins expect. */
+const LOADER = '<svg class="hb-ld" width="120" height="88" viewBox="0 0 120 88" aria-hidden="true">'
+  + '<path class="hb-ld-beam hb-ld-l" d="M52 38.5 8 27v23z" fill="var(--logo-lamp)"/><path class="hb-ld-beam hb-ld-r" d="M68 38.5 112 27v23z" fill="var(--logo-lamp)"/>'
+  + '<path d="M54 44h12l4 32H50z" fill="var(--ink)"/><path d="M51 55l18-5v5l-18 5zM51 67l18-5v5l-18 5z" fill="var(--hb-ground)"/>'
+  + '<rect x="54" y="34" width="12" height="9" fill="var(--logo-lamp)"/><rect x="52" y="43" width="16" height="2.5" fill="var(--ink)"/><path d="M52 34l8-8 8 8z" fill="var(--ink)"/>'
+  + '<g fill="none" stroke="var(--acc)" stroke-width="2.6" stroke-linecap="round"><path class="hb-ld-w1" d="M-48 77q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0"/>'
+  + '<path class="hb-ld-w2" d="M-24 84q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0q6-4 12 0t12 0"/></g></svg>';
+const loadingCard = what => `<div class="hb-loading hf-loader">${LOADER}<span class="hb-loading-t" role="status">${e(what)}</span></div>`;
 const refreshBtn = (kind, label) => btn(`Refresh ${label}`, `data-a="refresh" data-v="${kind}"`, 'outline', 'hb-btn-block');
 
 function noPhone(k) {
@@ -341,7 +348,7 @@ function familyView() {
     + others
     + leaveSection()
     + mineSection()
-    + `<div class="hf-section">Account</div><div class="hb-panel"><div class="hb-row"><div><span class="hf-rt">${e(S.user.name || 'Signed in')}</span><span class="hb-rs">${e(S.user.email || '')}</span></div>${btn('Sign out', 'data-a="signout"', 'outline', 'hb-btn-small')}</div></div>`;
+    + `<div class="hf-section">Account</div><div class="hb-panel"><div class="hb-row"><div><span class="hf-rt">${e(S.user.name || 'Signed in')}</span><span class="hb-rs">${e(S.user.email || '')}</span></div>${btn('Sign out', 'data-a="signout"', 'outline', 'hb-btn-small')}</div><div class="hb-row"><div><span class="hf-rt">Delete my account</span><span class="hb-rs">Permanently, along with any family where you’re the only parent.</span></div>${btn('Delete', 'data-a="delete-account"', 'outline', 'hb-btn-small')}</div></div>`;
 }
 
 /**
@@ -433,6 +440,11 @@ const onClick = async ev => {
     switch (a) {
       case 'x': shut(); return;
       case 'signout': await api.signOut(); cb.onSignOut && cb.onSignOut(); return;
+      case 'delete-account':
+        open('<h2>Delete your account?</h2><p class="hf-muted">This permanently deletes your account and sign-in. A family with another parent stays with them, and you leave it.</p>'
+          + '<p class="hf-muted">Any family where you’re the only parent is deleted too: its children, their phones, and every place, alert and report those phones sent. Those phones stop sharing. This can’t be undone.</p>'
+          + form('deleteaccount', fld('confirm', 'Type DELETE to confirm', 'text', 'off'), 'Delete my account'));
+        return;
       case 'tab': if (S.tab === v) return; S.tab = v; if (v === 'map') { S.mapWho = null; S.mapTitle = greeting(S.user.name); } render(true); loadTab(); return;
       case 'person': S.k = t.dataset.id; S.mapWho = t.dataset.id; S.timelineOpen = false; syncControls(); render(true); loadTab(); return;
       case 'everyone': S.mapWho = null; render(true); loadPlaces(true); return;
@@ -529,6 +541,20 @@ const onSubmit = async ev => {
   const d = Object.fromEntries(new FormData(f)), err = f.querySelector('.hb-err'), b = f.querySelector('[type=submit]');
   const fail = text => { err.textContent = text; err.hidden = false; };
   err.hidden = true;
+  if (kind === 'deleteaccount') {
+    if ((d.confirm || '').trim() !== 'DELETE') return fail('Type DELETE to confirm.');
+    busy(b, true);
+    try {
+      await api.deleteAccount('DELETE');
+      shut();
+      // The account is gone on the server, so leaving this browser must not depend on that call succeeding.
+      try { await api.signOut(); } catch { /* Nothing left to sign out of. */ }
+      cb.onSignOut && cb.onSignOut();
+      toast('Your account is deleted');
+    } catch (x) { if (!handle(x)) fail(failText(x)); }
+    finally { busy(b, false); }
+    return;
+  }
   if (kind === 'myname') {
     if (!(d.name || '').trim()) return fail('Enter the name your family will see.');
     busy(b, true);

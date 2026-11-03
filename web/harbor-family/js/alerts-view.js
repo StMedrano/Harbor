@@ -14,7 +14,7 @@ export const CATEGORY_LABEL = {
   unknown_adult_contact: 'Possible contact from an unknown adult',
 };
 export const SELF_HARM_GUIDANCE = 'Harbor flagged wording that may relate to self-harm. It can be wrong, and it is not a diagnosis. If you are worried about your child’s safety, reach out to them and to professional support. In the US you can call or text 988 (Suicide & Crisis Lifeline) any time, or text HOME to 741741 (Crisis Text Line). If someone is in immediate danger, contact your local emergency number.';
-export const LIMITS_NOTICE = 'Harbor only sees notifications it is allowed to read and the text of incoming SMS. Muted or hidden previews and end-to-end encrypted messages can be missed, and the rules make mistakes in both directions. Harbor does not read full conversations and never claims a message is safe.';
+export const LIMITS_NOTICE = 'Harbor only sees notifications it is allowed to read. Muted or hidden previews and end-to-end encrypted messages can be missed, and the rules make mistakes in both directions. Harbor does not read full conversations and never claims a message is safe.';
 
 const UNAVAILABLE = { status: 'unavailable' };
 
@@ -53,8 +53,7 @@ export function renderAlertsList(v, { name = 'your child' } = {}) {
   if (v.status === 'none') return card('No alerts set up yet', `${who}’s phone hasn’t reported. Alerts start once notification access is allowed in Harbor Family on that phone.`) + limits;
   if (v.status === 'expired') return card('No recent report', `Nothing has arrived from ${who}’s phone for 30 days, so earlier alerts were removed.`) + limits;
   const flags = (v.offline ? note('w', '<b>Can’t reach Harbor.</b> Showing the alerts received so far.') : '')
-    + (v.notificationAccess === false ? note('w', `<b>Notification access is off on ${who}’s phone.</b> Chat apps aren’t being checked, so no alerts can come from them.`) : '')
-    + (v.smsPermission === false ? note('w', `<b>SMS permission is off on ${who}’s phone.</b> Text messages aren’t being checked.`) : '');
+    + (v.notificationAccess === false ? note('w', `<b>Notification access is off on ${who}’s phone.</b> Chat apps aren’t being checked, so no alerts can come from them.`) : '');
   // Design system AlertCard: amber REVIEW for most, coral URGENT for self-harm and threats, always with the word.
   const urgent = a => a.category === 'self_harm' || a.category === 'violence_threat';
   const rows = v.alerts.map(a => `<button class="hb-al${urgent(a) ? ' hb-al-high' : ''}" data-a="alert" data-id="${esc(a.id)}"><span class="hb-tag ${urgent(a) ? 'hb-tag-high' : 'hb-tag-medium'}">${urgent(a) ? 'Urgent' : 'Review'}</span><span class="hb-ah">${esc(a.label)}</span><span class="hb-ab">${contact(a)}</span><span class="hb-at">${esc(a.app)} · ${stamp(a.at)}</span></button>`).join('');

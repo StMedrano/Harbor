@@ -107,3 +107,7 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-sans);-webki
   .hf-split{display:grid;grid-template-columns:minmax(0,3fr) minmax(300px,2fr);gap:20px;align-items:start}
   .hf-split .hb-card{margin:0}
 }
+
+/* The loading screen: the lighthouse, centred where the page will appear. */
+.hf-loader{padding:48px 0;overflow:hidden}
+.hf-loader .hb-ld{overflow:hidden}

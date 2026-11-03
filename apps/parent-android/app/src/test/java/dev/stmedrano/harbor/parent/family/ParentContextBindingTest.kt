@@ -42,7 +42,8 @@ class ParentContextBindingTest {
         val binding = ParentContextBinding({ owner }, restarted, registration,
             { registration.clearMarker(); restarted.hideVisible() }, { attempts++ })
         assertTrue(runCatching { binding.ensure() }.isFailure)
-        assertTrue(restarted.repository.state.value.cached)
+        assertEquals(FamilyFailure.NETWORK, restarted.repository.state.value.failure)
+        assertNull(restarted.repository.state.value.snapshot)
         assertEquals(key, dao.getPending(owner.userId, "family-a")?.idempotencyKey)
         assertTrue(registration.optedIn(owner))
         assertNull(registration.marker(owner))

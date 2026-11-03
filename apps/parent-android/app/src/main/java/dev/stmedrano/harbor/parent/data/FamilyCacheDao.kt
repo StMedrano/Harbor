@@ -17,7 +17,7 @@ abstract class FamilyCacheDao {
     @Query("DELETE FROM family_snapshots WHERE userId = :userId AND familyId = :familyId")
     abstract suspend fun deleteFamily(userId: String, familyId: String)
     @Query("DELETE FROM family_snapshots")
-    protected abstract suspend fun deleteSnapshots()
+    abstract suspend fun deleteSnapshots()
     @Query("DELETE FROM pending_child_creation")
     protected abstract suspend fun deleteOperations()
     @Transaction

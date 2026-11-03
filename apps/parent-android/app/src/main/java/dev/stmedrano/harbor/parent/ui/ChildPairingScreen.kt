@@ -19,7 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@Composable fun ChildPairingScreen(repository: ChildRepository, onConfirmed: () -> Unit) {
+@Composable fun ChildPairingScreen(repository: ChildRepository, onBack: (() -> Unit)? = null, onConfirmed: () -> Unit) {
     ProtectSensitiveScreen()
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -31,7 +31,8 @@ import kotlinx.coroutines.withContext
     BackHandler {
         code = ""
         operation?.cancel()
-        activity?.finish()
+        // With a role still to choose, Back returns to that choice; otherwise there is nowhere behind this screen.
+        if (onBack != null) onBack() else activity?.finish()
     }
     if (state is ChildSyncState.Blocked) {
         HarborNote("This phone needs a parent to check its setup.", HarborTone.WARN, emphasis = true)

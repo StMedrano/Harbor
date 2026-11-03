@@ -37,25 +37,18 @@ fun rememberChildAlertsUi(graph: ParentApplication, lease: ProfileLease, resumeT
 }
 
 /**
- * Message access in one line: "Message access enabled" when both permissions are on, otherwise only what is missing and
+ * Message access in one line: "Message access enabled" when notification access is on, otherwise what is missing and
  * its action. There is deliberately no disable control; only a parent can turn watching off. What is watched, what is and
  * is not sent, and the limits are written out in About.
  */
 @Composable
 fun MessageAlertsSection(ui: ChildAlertsUi) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (ui.access.notificationAccess && ui.access.smsPermission) {
+        if (ui.access.notificationAccess) {
             HarborStatus("Message access enabled", ok = true, glyph = HarborGlyph.ALERTS, detail = if (ui.host.uploadFailing) "Can't reach Harbor. Trying again." else null)
         } else {
-            if (!ui.access.notificationAccess) {
-                HarborStatus("Notification access off", ok = false, glyph = HarborGlyph.ALERTS)
-                HarborButton(ui.onOpenNotificationAccess, Modifier.fillMaxWidth()) { Text("Turn on notification access") }
-            }
-            if (!ui.access.smsPermission) {
-                HarborStatus("Text message access off", ok = false, glyph = HarborGlyph.ALERTS)
-                HarborButton(ui.onAllowSms, Modifier.fillMaxWidth()) { Text("Allow text messages") }
-                HarborOutlinedButton(ui.onOpenAppSettings, Modifier.fillMaxWidth()) { Text("Open app settings") }
-            }
+            HarborStatus("Notification access off", ok = false, glyph = HarborGlyph.ALERTS)
+            HarborButton(ui.onOpenNotificationAccess, Modifier.fillMaxWidth()) { Text("Turn on notification access") }
         }
     }
 }

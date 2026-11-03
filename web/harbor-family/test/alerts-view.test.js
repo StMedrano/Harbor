@@ -41,7 +41,7 @@ test('no message text, sender or excerpt is ever rendered, even if a reply smugg
 test('access being off is stated, and an empty list never claims the child is safe', () => {
   const html = renderAlertsList(toAlertsView([page([], { notificationAccess: false, smsPermission: false })]), { name: 'Ava' });
   assert.match(html, /Notification access is off/);
-  assert.match(html, /SMS permission is off/);
+  assert.doesNotMatch(html, /SMS/);
   assert.match(html, /doesn’t mean nothing happened/);
   assert.match(html, /never claims a message is safe/);
 });

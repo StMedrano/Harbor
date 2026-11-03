@@ -18,12 +18,12 @@ import dev.stmedrano.harbor.parent.legal.LegalDoc
 import dev.stmedrano.harbor.parent.location.LocationAccess
 
 /** The permissions a child phone needs before Harbor works. New features add a step here; nothing else has to change. */
-enum class SetupStepId { LOCATION, LOCATION_ALWAYS, NOTIFICATIONS, USAGE_ACCESS, NOTIFICATION_ACCESS, SMS }
+enum class SetupStepId { LOCATION, LOCATION_ALWAYS, NOTIFICATIONS, USAGE_ACCESS, NOTIFICATION_ACCESS }
 
 data class SetupStep(val id: SetupStepId, val title: String, val why: String, val on: Boolean)
 
 /** What the phone currently allows, read fresh from Android. The gate never trusts a remembered answer. */
-/** [alerts] is null in builds without message alerts; the two message steps are then not part of setup. */
+/** [alerts] is null in builds without message alerts; the message step is then not part of setup. */
 data class PermissionSnapshot(val location: LocationAccess, val notificationsOn: Boolean, val usageGranted: Boolean, val alerts: AlertAccess? = null)
 
 fun childSetupSteps(snapshot: PermissionSnapshot): List<SetupStep> = listOf(
@@ -39,7 +39,6 @@ fun childSetupSteps(snapshot: PermissionSnapshot): List<SetupStep> = listOf(
     SetupStep(SetupStepId.NOTIFICATION_ACCESS, "Notification access",
         "Check chat notifications on this phone.",
         alerts.notificationAccess),
-    SetupStep(SetupStepId.SMS, "Text messages", "Check texts on this phone.", alerts.smsPermission),
 ) } ?: emptyList())
 
 fun setupComplete(steps: List<SetupStep>) = steps.isNotEmpty() && steps.all { it.on }
@@ -54,6 +53,39 @@ fun SetupGateMemory.observe(complete: Boolean) = if (!complete) SetupGateMemory(
 fun SetupGateMemory.finish(complete: Boolean) = if (complete) copy(finished = true) else this
 fun SetupGateMemory.visible(complete: Boolean) = !complete || (sawGate && !finished)
 
+/** What a person is agreeing to, shown before Android's own screen and separately for each permission. */
+data class HarborDisclosure(val title: String, val body: String)
+
+/**
+ * The words Google Play requires before a sensitive permission: what is collected, why, and who sees it, in the app itself,
+ * ending in a deliberate tap. Android's own dialog never appears until that tap. Steps with no sensitive data have none.
+ */
+fun setupDisclosure(id: SetupStepId): HarborDisclosure? = when (id) {
+    SetupStepId.LOCATION -> HarborDisclosure("Share this phone's location",
+        "Harbor Family collects location data to show where this phone is to your parents, and on your family's map. Places are kept for up to 30 days. Your parent can stop this by removing the phone from the family.")
+    SetupStepId.LOCATION_ALWAYS -> HarborDisclosure("Share location all the time",
+        "Harbor Family collects location data to show where this phone is to your parents and on your family's map, even when the app is closed or not in use. A notification stays on this phone the whole time so you can always see it is happening. Places are kept for up to 30 days.")
+    SetupStepId.USAGE_ACCESS -> HarborDisclosure("Share screen time",
+        "Harbor Family reads which apps are used on this phone and for how long, and sends that to your parents so they can see screen time. It is kept for up to 30 days. It never reads messages, web pages, photos or contacts.")
+    SetupStepId.NOTIFICATION_ACCESS -> HarborDisclosure("Check chat notifications",
+        "Harbor Family reads new notifications from chat and messaging apps on this phone, including their text, to look for possible concerns such as bullying or threats. That check happens on this phone. If something is flagged, your parents are sent only the kind of concern, the app and the time, never the message or who sent it.")
+    SetupStepId.NOTIFICATIONS -> null
+}
+
+/** Separate from every other disclosure, as Google Play asks of an app using the Accessibility service. */
+val ACCESSIBILITY_DISCLOSURE = HarborDisclosure("Use the Accessibility service for app controls",
+    "Harbor Family uses Android's Accessibility service to see which app is on screen, so it can apply the rules your parent set: blocking apps, time limits, bedtime and pause. Your parents are sent which apps were opened or blocked, and when. It cannot read what is on the screen, and it does not type or tap for you.")
+
+/** The disclosure and its deliberate choice. Declining changes nothing, and the step simply stays off. */
+@Composable
+fun HarborConsentDialog(disclosure: HarborDisclosure, onAgree: () -> Unit, onDecline: () -> Unit) {
+    AlertDialog(onDismissRequest = onDecline, containerColor = harbor.s2,
+        title = { Text(disclosure.title, style = MaterialTheme.typography.titleLarge) },
+        text = { Text(disclosure.body, color = harbor.ink2) },
+        confirmButton = { TextButton(onAgree) { Text("Agree and continue") } },
+        dismissButton = { TextButton(onDecline) { Text("Not now") } })
+}
+
 /**
  * Child setup: every permission Harbor needs, each with the reason, and no way past until all are on. Android shows its own
  * screen for each one, so Harbor can only ask; the buttons say so.
@@ -63,6 +95,12 @@ fun ChildSetupGate(steps: List<SetupStep>, onTurnOn: (SetupStepId) -> Unit, onOp
     var doc by remember { mutableStateOf<LegalDoc?>(null) }
     val openDoc = doc
     if (openDoc != null) { LegalScreen(openDoc) { doc = null }; return }
+    var asking by remember { mutableStateOf<SetupStepId?>(null) }
+    asking?.let { id ->
+        setupDisclosure(id)?.let { disclosure ->
+            HarborConsentDialog(disclosure, onAgree = { asking = null; onTurnOn(id) }, onDecline = { asking = null })
+        }
+    }
     val done = steps.count { it.on }
     val complete = setupComplete(steps)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -88,7 +126,7 @@ fun ChildSetupGate(steps: List<SetupStep>, onTurnOn: (SetupStepId) -> Unit, onOp
                     },
                     trailing = {
                         if (step.on) Text("On", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
-                        else HarborButton(onClick = { onTurnOn(step.id) }, modifier = Modifier.semantics { contentDescription = "Turn on ${step.title}" }) { Text("Turn on") }
+                        else HarborButton(onClick = { if (setupDisclosure(step.id) != null) asking = step.id else onTurnOn(step.id) }, modifier = Modifier.semantics { contentDescription = "Turn on ${step.title}" }) { Text("Turn on") }
                     })
             }
         }

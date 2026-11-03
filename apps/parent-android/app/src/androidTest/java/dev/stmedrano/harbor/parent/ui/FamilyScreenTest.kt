@@ -26,7 +26,7 @@ class FamilyScreenTest {
         val selected = mutableStateOf("child")
         val dark = mutableStateOf(false)
         compose.setContent { HarborTheme(dark = dark.value) { ParentApp {
-            FamilyScreen(FamilyState(snapshot, cached = true), listOf(snapshot.family), selected.value,
+            FamilyScreen(FamilyState(snapshot), listOf(snapshot.family), selected.value,
                 onRefresh = {}, onSelectFamily = {}, onSelectChild = { selected.value = it },
                 onCreateFamily = {}, onAddChild = {}, onPair = {}, onDevice = {})
         } } }
@@ -52,7 +52,7 @@ class FamilyScreenTest {
         val snapshot = snapshot()
         compose.setContent {
             HarborTheme { ParentApp {
-                FamilyScreen(FamilyState(snapshot, cached = true), listOf(snapshot.family), "child",
+                FamilyScreen(FamilyState(snapshot), listOf(snapshot.family), "child",
                     onRefresh = {}, onSelectFamily = {}, onSelectChild = {}, onCreateFamily = {}, onAddChild = {}, onPair = {}, onDevice = {})
             } }
         }

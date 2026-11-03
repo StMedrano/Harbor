@@ -14,3 +14,8 @@ tools/notification-acceptance/android/acceptance.properties
 tools/notification-acceptance/android/**/google-services.json
 .superpowers/notification-operator/
 preview-dist/
+
+# Built from the app's documents before every web build.
+web/harbor-family/public/privacy.html
+web/harbor-family/public/terms.html
+web/harbor-family/public/account-deletion.html

@@ -15,7 +15,8 @@ import kotlinx.serialization.json.Json
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
-data class FamilyControlState(val families: List<FamilyV1> = emptyList(), val selectedChildId: String? = null, val busy: Boolean = false, val message: String? = null)
+/** [loaded] stays false until the server has said which families this parent has, so "no family yet" is never a guess. */
+data class FamilyControlState(val families: List<FamilyV1> = emptyList(), val selectedChildId: String? = null, val busy: Boolean = false, val message: String? = null, val loaded: Boolean = false)
 @Serializable private data class PendingFamily(val name: String, val idempotencyKey: String)
 
 class FamilyViewModel(private val api: ParentApi, val repository: FamilyRepository,
@@ -31,18 +32,19 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
     suspend fun load(identity: ParentIdentity) = operation(identity) {
         if (owner != identity) { mutableState.value = FamilyControlState(busy = true); owner = identity; pairing.clear() }
         try {
-            store.read("selected-family:${identity.userId}")?.let { repository.showCachedWhileLoading(identity, it) }
+            repository.forgetSavedFamilies()
+            repository.showLoading(identity)
             requireCurrent(identity)
             val families = api.listFamilies()
             requireCurrent(identity)
-            mutableState.value = state.value.copy(families = families)
+            mutableState.value = state.value.copy(families = families, loaded = true)
             val remembered = store.read("selected-family:${identity.userId}")
             val selected = families.firstOrNull { it.id == remembered } ?: families.firstOrNull()
             if (selected != null) selectUnlocked(identity, selected.id)
             else repository.clearAll()
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
-            if (activeGeneration == generation.get() && currentIdentity() == identity) store.read("selected-family:${identity.userId}")?.let { repository.showCached(identity, it) }
+            if (activeGeneration == generation.get() && currentIdentity() == identity) repository.showFailure(identity)
             throw failure
         }
     }
@@ -167,7 +169,7 @@ class FamilyViewModel(private val api: ParentApi, val repository: FamilyReposito
     fun hideVisible() { generation.incrementAndGet(); owner = null; mutableState.value = FamilyControlState(); pairing.clear(); repository.hideVisible() }
     suspend fun clear() { hideVisible(); repository.clearAll() }
     suspend fun retainUser(identity: ParentIdentity) { hideVisible(); repository.retainUser(identity) }
-    private fun requireOnline() { require(!repository.state.value.cached && repository.state.value.failure == null && repository.state.value.snapshot != null) { "Refresh online before making changes" } }
+    private fun requireOnline() { require(repository.state.value.failure == null && repository.state.value.snapshot != null) { "Refresh online before making changes" } }
     private fun requireCurrent(identity: ParentIdentity) { if (currentIdentity() != identity || activeGeneration != generation.get()) throw AuthSessionRejected() }
     private suspend fun operation(identity: ParentIdentity, block: suspend () -> Unit) = mutex.withLock {
         activeGeneration = generation.get()

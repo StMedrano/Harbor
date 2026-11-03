@@ -32,9 +32,9 @@ export const SECTIONS = [
   {
     title: 'What Harbor watches',
     lines: [
-      `Harbor watches new notifications from these apps and your incoming text messages: ${MONITORED_APPS.join(', ')}.`,
+      `Harbor watches new notifications from these apps: ${MONITORED_APPS.join(', ')}.`,
       'It checks them on your phone for possible concerns: bullying or harassment, self-harm or wellbeing, adult content, drugs or alcohol, violence or threats, and contact from an unknown adult.',
-      'When something is flagged, your parents are sent only the category, which app it came from, the time, and whether the sender is saved in your contacts. Your parents are never sent the message text, who sent it, a phone number, or any part of the message.',
+      'When something is flagged, your parents are sent only the category, which app it came from, and the time. Your parents are never sent the message text, who sent it, a phone number, or any part of the message.',
       'Harbor can miss things: muted or hidden message previews and end-to-end encrypted messages may not be seen, and it makes mistakes in both directions. It does not read your whole conversations.',
     ],
   },

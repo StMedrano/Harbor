@@ -49,7 +49,6 @@ fun ParentAlertsScreen(view: AlertsViewState, onRefresh: (() -> Unit)? = null) {
 @Composable
 private fun AvailableAlerts(view: AlertsViewState) {
     if (view.notificationAccess == false) HarborNote("Notification access is off on this phone, so chat-app alerts are not arriving.", HarborTone.WARN)
-    if (view.smsPermission == false) HarborNote("SMS permission is off on this phone, so text-message alerts are not arriving.", HarborTone.WARN)
     if (view.alerts.isEmpty()) {
         HarborCard { HarborEmptyState("No alerts yet.", art = HarborArt.LIGHTHOUSE) }
         return

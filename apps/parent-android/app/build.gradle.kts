@@ -60,8 +60,8 @@ android {
         buildConfigField("boolean", "CI_FIXTURE", ciFixture.toString())
         buildConfigField("String", "SUPABASE_URL", "\"${config.getProperty("supabaseUrl")}\"")
         buildConfigField("String", "PUBLISHABLE_KEY", "\"${config.getProperty("publishableKey")}\"")
-        versionCode = 37
-        versionName = "0.37-development"
+        versionCode = 38
+        versionName = "0.38-development"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -74,6 +74,11 @@ android {
     }
     buildTypes {
         getByName("debug") { if (harborKeystore != null) signingConfig = signingConfigs.getByName("harbor") }
+        // What goes to Google Play. Shrinking stays off until a release build has been run through every screen with it on.
+        getByName("release") {
+            isMinifyEnabled = false
+            if (harborKeystore != null) signingConfig = signingConfigs.getByName("harbor")
+        }
     }
     if (ciFixture) sourceSets.getByName("main").manifest.srcFile("../config/ci-manifest.xml")
     sourceSets.getByName("androidTest").assets.srcDir("src/test/resources")
@@ -83,7 +88,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
-androidComponents.beforeVariants { variant -> variant.enable = variant.buildType == "debug" }
+// The CI fixture is an offline test build and must never become a release. People on Google Play see this version name.
+androidComponents.beforeVariants { variant -> variant.enable = variant.buildType == "debug" || !ciFixture }
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+    variant.outputs.forEach { it.versionName.set("1.0.0") }
+}
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 dependencies {
     implementation(platform(libs.supabase.bom))

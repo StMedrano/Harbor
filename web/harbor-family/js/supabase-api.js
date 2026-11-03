@@ -167,6 +167,10 @@ export const supabaseApi = {
    * Leaves a family, or deletes it when this parent is its only one and it has no children. The server decides which
    * and answers 'left', 'deleted', or 'last_parent_with_children' when it changed nothing.
    */
+  /** Deletes this account and any family where it is the only parent. The server needs the word DELETE. */
+  async deleteAccount(confirmation) {
+    return ok(await sb().rpc('delete_my_account', { p_confirmation: confirmation }));
+  },
   async leaveFamily(familyId) {
     return ok(await sb().rpc('leave_family', { p_family_id: familyId }));
   },

@@ -10,7 +10,7 @@ Harbor Family is one app. A parent or guardian creates an account and adds child
 - Family: the family name, your children's display names, the devices that are paired, and who the other parents are.
 - Location from a child's phone: latitude, longitude, accuracy, source and time. About every 5 minutes while moving and every 15 while still, when Android allows. Kept for up to 30 days.
 - Screen time from a child's phone: which apps were used and for how long over the last 7 days, and the names of the apps that can be opened. Kept for up to 30 days. This does not read messages, web pages, photos or contacts.
-- Message alerts from a child's phone: Harbor checks new notifications from {{monitored_apps}} and incoming text messages on the phone. Only the kind of concern, the app, the time and whether the sender is a saved contact are sent. The message text, the sender, phone numbers and any part of a message are never sent. Kept for up to 30 days.
+- Message alerts from a child's phone: Harbor checks new notifications from {{monitored_apps}} on the phone. Only the kind of concern, the app and the time are sent. The message text, the sender, phone numbers and any part of a message are never sent. Kept for up to 30 days.
 - Parent location (optional, off by default): if a parent turns on Share my location, the name they choose, plus latitude, longitude, accuracy and time from their phone. It is sent only while Harbor is open on the screen, and only the latest place is kept. It is removed when the parent turns sharing off, leaves the family, or after 24 hours.
 - Check-ins: when a parent asks, the child's answer ("I'm okay" or "Running late"), the time, and the last place the phone already had if it is under an hour old. Kept for up to 30 days.
 - App control on a child's phone: the rules a parent sets, and a record of when an app was blocked or a limit was reached, with the app and the time. Kept for up to 30 days. To apply the rules, Harbor's accessibility service sees which app is in the foreground. To ask for a parent's OK before any app is removed, it also reads the name of the screen the phone's app installer brought to the front, which is used on the phone and is not sent anywhere. It does not read the contents of any screen.
@@ -30,6 +30,11 @@ A child cannot turn sharing off in the app. A parent stops it by removing the de
 
 ## Keeping and removing data
 Shared information is removed after 30 days. A parent's shared place is the latest one only and is removed after 24 hours, when they stop sharing, or when they leave the family. Removing a device removes the information that device shared.
+
+## Deleting your account
+A parent can delete their account at any time: in the app under Settings > Delete my account, or in the web app under Family > Delete my account. Either way the steps are also described at https://harbor-family-dev.vercel.app/account-deletion.html, where you can ask us to delete it if you can no longer sign in.
+
+Deleting an account removes your sign-in, your name and your shared place straight away. A family with another parent stays with that parent. A family where you are the only parent is deleted too, with its children, their phones, and everything those phones sent. A record that an action took place may stay in our security log with your identity removed.
 
 ## How data is protected
 Requests from a child's phone are signed with a key stored in the phone's secure hardware or keystore. Data is stored in a protected database and read only by parents of the family.

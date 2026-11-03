@@ -85,7 +85,7 @@ class SecurityViewModel(private val mfa: MfaGateway, private val currentIdentity
     private fun eligible(target: RevocationTarget): Boolean {
         val state = familyState()
         val snapshot = state.snapshot ?: return false
-        return currentIdentity() == target.owner && !state.cached && !state.loading && state.failure == null &&
+        return currentIdentity() == target.owner && !state.loading && state.failure == null &&
             snapshot.family.id == target.familyId && snapshot.membership.userId == target.owner.userId &&
             snapshot.membership.status == "active" && snapshot.membership.role in setOf("owner", "parent") &&
             snapshot.devices.any { it.id == target.deviceId && it.familyId == target.familyId && it.status == "active" }

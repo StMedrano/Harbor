@@ -10,15 +10,19 @@ import org.junit.Test
 class FamilyRepositoryTest {
     private val parent = ParentIdentity("parent-a", "session-a")
 
-    @Test fun cacheIsBoundToCurrentSubjectAndFamily() = runTest {
-        var current: ParentIdentity? = parent
-        val repository = FamilyRepository(TestParentApi(), MemoryFamilyDao()) { current }
+    @Test fun aFamilyIsNeverSavedToShowLater() = runTest {
+        val dao = MemoryFamilyDao()
+        val repository = FamilyRepository(TestParentApi(), dao) { parent }
         repository.refresh(parent, "family-a")
-        assertEquals(1234L, repository.cached(parent, "family-a")?.fetchedAt)
-        assertNull(repository.cached(parent, "family-b"))
-        current = ParentIdentity("parent-b", "session-b")
-        assertNull(repository.cached(current!!, "family-a"))
-        assertNull(repository.cached(parent, "family-a"))
+        assertEquals("family-a", repository.state.value.snapshot?.family?.id)
+        assertTrue(dao.snapshots.isEmpty())
+    }
+
+    @Test fun copiesSavedByEarlierVersionsAreDeleted() = runTest {
+        val dao = MemoryFamilyDao()
+        dao.putSnapshot(dev.stmedrano.harbor.parent.data.FamilyCacheRow("parent-a", "family-a", "{}", 1L))
+        FamilyRepository(TestParentApi(), dao) { parent }.forgetSavedFamilies()
+        assertTrue(dao.snapshots.isEmpty())
     }
 
     @Test fun deniedMembershipClearsOnlyThatFamilyAndShowsFailure() = runTest {
@@ -31,13 +35,12 @@ class FamilyRepositoryTest {
         repository.refresh(parent, "family-b")
         denied = true
         try { repository.refresh(parent, "family-a") } catch (_: FamilyAccessDenied) { }
-        assertNull(repository.cached(parent, "family-a"))
-        assertNotNull(repository.cached(parent, "family-b"))
+        assertNull(repository.state.value.snapshot)
         assertFalse(repository.state.value.loading)
         assertEquals(FamilyFailure.ACCESS_DENIED, repository.state.value.failure)
     }
 
-    @Test fun loadingAndNetworkFailureRetainAnExplicitCachedView() = runTest {
+    @Test fun aFailedRefreshKeepsOnlyWhatThisRunAlreadyRead() = runTest {
         val release = CompletableDeferred<Unit>()
         var failing = false
         val api = object : TestParentApi() {
@@ -54,7 +57,6 @@ class FamilyRepositoryTest {
         assertTrue(repository.state.value.loading)
         release.complete(Unit)
         assertTrue(request.await().isFailure)
-        assertTrue(repository.state.value.cached)
         assertEquals(FamilyFailure.NETWORK, repository.state.value.failure)
         assertEquals(1234L, repository.state.value.snapshot?.fetchedAt)
     }
@@ -63,7 +65,7 @@ class FamilyRepositoryTest {
         val api = object : TestParentApi() { override suspend fun readFamily(familyId: String) = snapshot(user = "parent-b") }
         val repository = FamilyRepository(api, MemoryFamilyDao()) { parent }
         assertTrue(runCatching { repository.refresh(parent, "family-a") }.isFailure)
-        assertNull(repository.cached(parent, "family-a"))
+        assertNull(repository.state.value.snapshot)
     }
 
     @Test fun InFlightReadAfterClearCannotRestoreCacheOrVisibleState() = runTest {
@@ -80,7 +82,6 @@ class FamilyRepositoryTest {
         release.complete(Unit)
         assertTrue(request.await().isFailure)
         assertNull(repository.state.value.snapshot)
-        assertNull(repository.cached(parent, "family-a"))
     }
 
     @Test fun OlderFamilyReadCannotOverwriteNewSelection() = runTest {
@@ -98,6 +99,5 @@ class FamilyRepositoryTest {
         release.complete(Unit)
         assertTrue(old.await().isFailure)
         assertEquals("family-b", repository.state.value.snapshot?.family?.id)
-        assertNull(repository.cached(parent, "family-a"))
     }
 }

@@ -33,7 +33,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     val pairing by model.pairing.state.collectAsState()
     val scope = rememberCoroutineScope()
     // Runs on every parent page so a parent who chose to share keeps sharing while Harbor is open.
-    val sharing = rememberParentSharing(familyMapModel, identity, family.snapshot?.takeIf { !family.cached }?.family?.id, resumeTick)
+    val sharing = rememberParentSharing(familyMapModel, identity, family.snapshot?.family?.id, resumeTick)
     var sheet by remember(identity) { mutableStateOf<String?>(null) }
     var deviceId by remember(identity) { mutableStateOf<String?>(null) }
     var name by remember(identity) { mutableStateOf("") }
@@ -57,7 +57,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     // Picking another bottom tab leaves any open device page or legal document, so the page matches the selected tab.
     LaunchedEffect(tab) { deviceId = null; legalDoc = null }
     BackHandler(sheet != null || deviceId != null || legalDoc != null) { sheet = null; deviceId = null; legalDoc = null }
-    val canRevoke = !family.cached && !family.loading && family.failure == null && !control.busy
+    val canRevoke = !family.loading && family.failure == null && !control.busy
     val device = family.snapshot?.takeIf { it.membership.userId == identity.userId && it.membership.status == "active" }
         ?.devices?.firstOrNull { it.id == deviceId && it.status != "revoked" }
     // A revoked phone is gone from the parent's view: close its page instead of showing a dead device.
@@ -65,8 +65,7 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
     LaunchedEffect(openDeviceRevoked) { if (openDeviceRevoked) deviceId = null }
     if (deviceId != null) {
         if (device != null) {
-            DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } },
-                cachedAt = family.snapshot?.fetchedAt?.takeIf { family.cached }) { deviceId = null }
+            DeviceScreen(device, onRevoke?.takeIf { canRevoke }?.let { action -> { action(device) } }) { deviceId = null }
         } else Column {
             Text("This device is unavailable. Refresh your family.")
             TextButton({ deviceId = null }) { Text("Back to family") }
@@ -75,11 +74,10 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
         LegalScreen(checkNotNull(legalDoc)) { legalDoc = null }
     } else if (tab != ParentTab.FAMILY && family.snapshot != null) {
         val snapshot = checkNotNull(family.snapshot)
-        val online = !family.cached && family.failure == null && !family.loading && !control.busy
+        val online = family.failure == null && !family.loading && !control.busy
         val index = snapshot.children.indexOfFirst { it.id == control.selectedChildId }
         val child = snapshot.children.getOrNull(index)
         KidSwitcher(snapshot.children, control.selectedChildId, model::selectChild, { sheet = "child"; error = null }, addEnabled = online)
-        if (family.cached) HarborNote("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(snapshot.fetchedAt)}. Connect to make changes.", HarborTone.WARN)
         if (child == null) {
             ParentTabHeader(tab, subtitle = snapshot.family.name)
             HarborCard {
@@ -121,9 +119,12 @@ fun FamilyRoute(model: FamilyViewModel, identity: ParentIdentity, runtime: Paren
                 onAskCheckIn = checkInModel?.takeIf { online }?.let { m -> { scope.launch { m.ask(identity, phone.id) } } })
             ParentChildPage(tab, child, phone, data, HarborKid.color(index), onPair = if (online) ({ sheet = "pair"; submit { model.issuePairing(identity) } }) else null)
         }
+    } else if (family.snapshot == null && family.failure == null && (!control.loaded || family.loading || control.busy)) {
+        // Nothing has been read yet: the loading screen, never "get started" and never a saved copy.
+        HarborLoadingScreen("Loading your family…")
     } else {
         FamilyScreen(family.copy(loading = family.loading || control.busy), control.families, control.selectedChildId,
-            onRefresh = { submit { model.refresh(identity) } },
+            onRefresh = { submit { if (family.snapshot == null) model.load(identity) else model.refresh(identity) } },
             onSelectFamily = { id -> submit { model.selectFamily(identity, id) } },
             onSelectChild = model::selectChild,
             onCreateFamily = { sheet = "family"; error = null },

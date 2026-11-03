@@ -5,7 +5,7 @@ Harbor Family connects this phone to your parents' Harbor app. This page explain
 ## What Harbor shares with your parents
 - Your location. About every 5 minutes while you are moving and every 15 minutes while you are still, when Android allows. Each update is latitude, longitude, how accurate it is and the time. Your parents can see recent places for up to 30 days. A notification stays on this phone while location is being shared.
 - Your screen time. Which apps you used and for how long over the last 7 days, and the names of the apps on this phone you can open. Your parents see the last report your phone sent, which can be a few minutes old. Up to 30 days of reports are kept.
-- Possible concerns in messages. Only the kind of concern, the app it came from, the time, and whether the sender is saved in your contacts.
+- Possible concerns in messages. Only the kind of concern, the app it came from, and the time.
 - Check-in answers. When a parent asks you to check in, they get your answer ("I'm okay" or "Running late"), the time, and the last place this phone already knew if it is less than an hour old.
 
 ## What you see in the Family tab
@@ -14,11 +14,11 @@ The Family tab shows a map of your family: the children in your family, includin
 The other children in your family can see your latest place there too. A parent can turn the family map off for children at any time, and then it shows nothing. A parent who shares can stop whenever they like.
 
 ## What Harbor checks on this phone
-Harbor watches new notifications from these apps, and your incoming text messages: {{monitored_apps}}.
+Harbor watches new notifications from these apps: {{monitored_apps}}.
 
 It looks for possible concerns: bullying or harassment, self-harm or wellbeing, adult content, drugs or alcohol, violence or threats, and contact from an unknown adult. The checking happens on this phone.
 
-When something is flagged, your parents are sent only the category, the app, the time and whether the sender is saved in your contacts. They are never sent the message text, who sent it, a phone number, or any part of the message. Harbor does not read your whole conversations.
+When something is flagged, your parents are sent only the category, the app and the time. They are never sent the message text, who sent it, a phone number, or any part of the message. Harbor does not read your whole conversations.
 
 ## What your parents can control
 - Your parents can pause the phone, set a daily limit on your screen time, set a bedtime, and set a limit or a block on particular apps. Harbor warns you a few minutes before an app or the day's screen time runs out.

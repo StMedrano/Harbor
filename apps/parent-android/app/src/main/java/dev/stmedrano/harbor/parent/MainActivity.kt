@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                         childPairing = {
                             dev.stmedrano.harbor.parent.ui.HarborScreenHeader("Connect this phone", "Enter pairing code",
                                 subtitle = "Ask your parent for a fresh six-digit pairing code.")
-                            if (child != null) ChildPairingScreen(child) {
+                            if (child != null) ChildPairingScreen(child, onBack = if (setupRole.value == ProfileRole.CHILD) ({ setupRole.value = null }) else null) {
                                 graph.accountScope.launch { graph.profiles.activateChild() }
                             } else Text("This phone needs a parent to check its setup.")
                         },
@@ -207,7 +207,6 @@ class MainActivity : ComponentActivity() {
                                                 } else openNotificationSettings()
                                             SetupStepId.USAGE_ACCESS -> gateUsage.onOpenSettings()
                                             SetupStepId.NOTIFICATION_ACCESS -> alertsUi?.onOpenNotificationAccess?.invoke()
-                                            SetupStepId.SMS -> alertsUi?.onAllowSms?.invoke()
                                         }
                                     },
                                     onOpenAppSettings = gateLocation.onOpenAppSettings,
@@ -290,6 +289,9 @@ class MainActivity : ComponentActivity() {
                     parentTab.value = picked; graph.closeNotification() }) }
             } else null
             androidx.activity.compose.BackHandler(settingsPage.value) { settingsPage.value = false }
+            androidx.activity.compose.BackHandler(profile == ProfileState.Setup && identity == null && setupRole.value == ProfileRole.PARENT) {
+                graph.closeParentSetup(); setupRole.value = null
+            }
             HarborTheme {
                 ParentApp(showBrand = identity != null && !authenticationOpen, bottomBar = parentBar, scrollKey = effectiveTab) {
                     if (runtime?.signingOut == true) Text("Signing out…")
@@ -325,13 +327,13 @@ class MainActivity : ComponentActivity() {
                                     val checkIn = rememberParentCheckInView(graph.parentCheckIn, identity, visibleDevice.id, resumeTick.intValue)
                                     val childName = snapshot?.children?.firstOrNull { it.id == visibleDevice.childId }?.displayName ?: "your child"
                                     DeviceScreen(visibleDevice,
-                                        onRevoke = if (family != null && !family.cached && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
-                                        cachedAt = snapshot?.fetchedAt?.takeIf { family?.cached == true }, usage = usage,
+                                        onRevoke = if (family != null && !family.loading && family.failure == null) { { openRevocation(visibleDevice) } } else null,
+                                        usage = usage,
                                         onRefreshUsage = graph.parentUsage?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
                                         location = location, onRefreshLocation = graph.parentLocation?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
                                         alerts = alerts, onRefreshAlerts = graph.parentAlerts?.let { m -> { graph.accountScope.launch { m.load(identity, visibleDevice.id) } } },
                                         checkIn = checkIn, childName = childName,
-                                        onAskCheckIn = graph.parentCheckIn?.takeIf { family != null && !family.cached && !family.loading && family.failure == null }
+                                        onAskCheckIn = graph.parentCheckIn?.takeIf { family != null && !family.loading && family.failure == null }
                                             ?.let { m -> { graph.accountScope.launch { m.ask(identity, visibleDevice.id) } } }) { graph.closeNotification() }
                                 }
                                 else if (settingsPage.value) SettingsScreen(notifications, runtime ?: ParentRuntimeState(), graph.notifications != null,
@@ -343,6 +345,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onRemove = { graph.accountScope.launch { graph.accountWork { graph.notifications?.remove() } } },
                                     onSignOut = { logoutRequested.value = true; graph.accountScope.launch { graph.runtime?.signOutCurrent() } },
+                                    onDeleteAccount = { confirmation -> withContext(Dispatchers.IO) { logoutRequested.value = true; graph.deleteParentAccount(confirmation) } },
                                     developmentReceipt = if (BuildConfig.DEBUG && !BuildConfig.CI_FIXTURE) notifications.receipt else null,
                                     onExport = { val receipt = notifications.receipt; if (identity != null && receipt != null) {
                                         pendingExport.value = identity to receipt

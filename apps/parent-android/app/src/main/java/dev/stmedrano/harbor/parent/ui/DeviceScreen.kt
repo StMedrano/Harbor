@@ -13,7 +13,7 @@ import dev.stmedrano.harbor.parent.location.LocationViewState
 import dev.stmedrano.harbor.parent.usage.UsageViewState
 
 @Composable
-fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedAt: Long? = null, usage: UsageViewState? = null,
+fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, usage: UsageViewState? = null,
     onRefreshUsage: (() -> Unit)? = null, location: LocationViewState? = null, onRefreshLocation: (() -> Unit)? = null,
     alerts: AlertsViewState? = null, onRefreshAlerts: (() -> Unit)? = null,
     checkIn: CheckInViewState? = null, childName: String = "your child", onAskCheckIn: (() -> Unit)? = null,
@@ -21,7 +21,6 @@ fun DeviceScreen(device: DevicePublicV1, onRevoke: (() -> Unit)? = null, cachedA
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         HarborBackButton(onBack, "Back to family")
         HarborScreenHeader("$childName's phone", device.displayName)
-        cachedAt?.let { HarborNote("Cached view · last refreshed ${java.time.Instant.ofEpochMilli(it)}. Connect to make changes.", HarborTone.WARN) }
         HarborPanel("Connected device") {
             HarborRow("Status: ${device.status}", leading = { HarborIcon(HarborGlyph.PHONE, harbor.ink2) })
             HarborRow("Supervision: ${device.supervisionMode}", divider = true, leading = { HarborIcon(HarborGlyph.EYE, harbor.ink2) })

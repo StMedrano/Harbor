@@ -51,7 +51,7 @@ class MfaRevocationTest {
     }
 
     @Test fun cachedForeignMissingDeviceAndNetworkFailureNeverShowCompletion() = runTest {
-        for (state in listOf(family().copy(cached = true), family(role = "child"), family(user = "other"), family().copy(failure = FamilyFailure.NETWORK))) {
+        for (state in listOf(family().copy(loading = true), family(role = "child"), family(user = "other"), family().copy(failure = FamilyFailure.NETWORK))) {
             var calls = 0
             val model = SecurityViewModel(Mfa(), { parent }, { state }, { _, _ -> calls++ }, {})
             model.requestRevocation("family", "device"); model.confirmRetry()

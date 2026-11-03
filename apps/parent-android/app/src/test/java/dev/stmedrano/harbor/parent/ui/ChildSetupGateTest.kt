@@ -21,7 +21,6 @@ class ChildSetupGateTest {
             SetupStepId.NOTIFICATIONS to allOn.copy(notificationsOn = false),
             SetupStepId.USAGE_ACCESS to allOn.copy(usageGranted = false),
             SetupStepId.NOTIFICATION_ACCESS to allOn.copy(alerts = AlertAccess(notificationAccess = false, smsPermission = true)),
-            SetupStepId.SMS to allOn.copy(alerts = AlertAccess(notificationAccess = true, smsPermission = false)),
         )
         for ((missing, snapshot) in cases) {
             val steps = childSetupSteps(snapshot)
@@ -42,11 +41,27 @@ class ChildSetupGateTest {
         assertEquals(listOf(SetupStepId.LOCATION, SetupStepId.LOCATION_ALWAYS, SetupStepId.NOTIFICATIONS, SetupStepId.USAGE_ACCESS), steps.map { it.id })
         assertTrue(setupComplete(steps))
     }
-    @Test fun messageAlertPermissionsAreStepsOfTheirOwnWithPlainReasons() {
+    @Test fun messageAlertPermissionIsAStepOfItsOwnWithAPlainReason() {
         val steps = childSetupSteps(allOn)
-        assertEquals(6, steps.size)
-        val reasons = steps.filter { it.id == SetupStepId.NOTIFICATION_ACCESS || it.id == SetupStepId.SMS }.map { it.why }
-        assertTrue(reasons.all { it.contains("this phone") })
+        assertEquals(5, steps.size)
+        assertTrue(steps.first { it.id == SetupStepId.NOTIFICATION_ACCESS }.why.contains("this phone"))
+    }
+    /** Google Play's wording rule for background location: the word location, and that it happens when the app is closed. */
+    @Test fun backgroundLocationConsentSaysSoInTheWordsPlayRequires() {
+        val body = checkNotNull(setupDisclosure(SetupStepId.LOCATION_ALWAYS)).body
+        assertTrue(body.contains("location data"))
+        assertTrue(body.contains("when the app is closed"))
+    }
+    @Test fun everySensitiveStepAsksFirst() {
+        for (id in listOf(SetupStepId.LOCATION, SetupStepId.LOCATION_ALWAYS, SetupStepId.USAGE_ACCESS, SetupStepId.NOTIFICATION_ACCESS)) {
+            assertNotNull(id.name, setupDisclosure(id))
+        }
+    }
+    /** Play asks for this one to stand alone, and to say what is and is not accessed. */
+    @Test fun accessibilityConsentStandsAloneAndNamesTheService() {
+        assertTrue(ACCESSIBILITY_DISCLOSURE.body.contains("Accessibility service"))
+        assertTrue(ACCESSIBILITY_DISCLOSURE.body.contains("cannot read what is on the screen"))
+        for (id in SetupStepId.values()) assertNotEquals(ACCESSIBILITY_DISCLOSURE, setupDisclosure(id))
     }
     @Test fun emptyListIsNeverComplete() = assertFalse(setupComplete(emptyList()))
     @Test fun everyStepExplainsItself() {

@@ -61,7 +61,7 @@ fun alertGuidance(category: AlertCategory): String? = when (category) {
 
 /** The standing limits notice shown on the parent alerts screen; it keeps the feature honest about what it can miss. */
 const val ALERT_LIMITS_NOTICE =
-    "Harbor only sees notifications it is allowed to read and the text of incoming SMS. Muted or hidden previews and " +
+    "Harbor only sees notifications it is allowed to read. Muted or hidden previews and " +
         "end-to-end encrypted messages can be missed, and the rules make mistakes in both directions. Harbor does not " +
         "read full conversations and never claims a message is safe."
 

@@ -52,7 +52,7 @@ class ChildPairingScreenTest {
     }
     private fun show(repository: ChildRepository, confirmed: () -> Unit) {
         compose.setContent { HarborTheme { ParentApp(showBrand = false) {
-            ChildPairingScreen(repository, confirmed)
+            ChildPairingScreen(repository, onConfirmed = confirmed)
         } } }
     }
     @Test fun confirmedClaimAloneOpensChildAndClearsCode() {

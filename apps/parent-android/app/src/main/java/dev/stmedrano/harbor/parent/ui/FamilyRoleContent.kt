@@ -34,6 +34,6 @@ fun FamilyRoleContent(state: FamilyEntryState, entry: @Composable () -> Unit,
                 if (network && onRetry != null) HarborButton(onClick = onRetry) { Text("Retry saved setup") }
             }
         }
-        FamilyDestination.RESTORING -> Text("Restoring your family setup…")
+        FamilyDestination.RESTORING -> HarborLoadingScreen("Opening Harbor…")
     }
 }

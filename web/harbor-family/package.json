@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/legal-pages.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test test/*.test.js"

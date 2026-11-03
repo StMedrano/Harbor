@@ -475,6 +475,18 @@ class ParentApplication : Application() {
         parentConstructionAllowed = true
         return true
     }
+    /**
+ * The parent stepped back to the choice of role. With nothing signed in or saved this phone is still undecided, so it can
+ * still become a child's phone; once a sign-in has written anything, [childForSetup] keeps refusing, as it always has.
+ */
+    fun closeParentSetup() {
+        if (profiles.state.value == ProfileState.Setup && getSharedPreferences("harbor-secure-auth", MODE_PRIVATE).all.isEmpty()) parentConstructionAllowed = false
+    }
+    /** Deletes the account on the server, then clears this phone exactly as signing out does. */
+    suspend fun deleteParentAccount(confirmation: String) {
+        checkNotNull(parentApi).deleteAccount(confirmation)
+        runtime?.signOutCurrent()
+    }
     fun retrySetupValidation() { accountScope.launch { profiles.retryValidation() } }
     fun hasChildSetup() = EncryptedChildStore.hasRecords(this)
     fun childForSetup(): ChildRepository? = if (!parentConstructionAllowed &&

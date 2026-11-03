@@ -11,9 +11,9 @@ import androidx.core.content.ContextCompat
 data class AlertAccess(val notificationAccess: Boolean, val smsPermission: Boolean)
 
 /**
- * Reads the two special grants message alerts depend on. Notification Access is a Settings toggle (no runtime
- * dialog), rechecked on resume like Usage Access; SMS is a normal runtime permission. Nothing here reads any
- * message; it only reports whether the phone is allowed to observe.
+ * Reads the grant message alerts depend on: Notification Access, a Settings toggle with no runtime dialog, rechecked on
+ * resume like Usage Access. The report still carries an SMS field for the existing contract; Harbor no longer declares
+ * the permission (Google Play does not allow it for this kind of app), so it is always false.
  */
 class AlertPermission(context: Context) {
     private val context = context.applicationContext

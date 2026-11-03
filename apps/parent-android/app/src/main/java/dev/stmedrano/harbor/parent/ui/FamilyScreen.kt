@@ -42,20 +42,21 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
     onSettings: (() -> Unit)? = null, onSecurity: (() -> Unit)? = null, onOpenDoc: ((LegalDoc) -> Unit)? = null,
     sharing: ParentSharingUi? = null) {
     val snapshot = state.snapshot
-    val online = !state.cached && state.failure == null && !state.loading
+    val online = state.failure == null && !state.loading
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         ParentTabHeader(ParentTab.FAMILY, subtitle = snapshot?.family?.name ?: "Your family")
         if (state.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.5.dp); Text("Refreshing family…", color = harbor.ink2)
         }
-        if (state.cached && snapshot != null) HarborNote("Cached view · last refreshed ${Instant.ofEpochMilli(snapshot.fetchedAt)}. Connect to make changes.", HarborTone.WARN)
         if (state.failure != null) HarborNote(if (state.failure == FamilyFailure.ACCESS_DENIED) "Family access was removed." else "Refresh failed. Check your connection and retry.", HarborTone.DANGER, emphasis = true)
         if (families.size > 1) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 families.forEach { family -> HarborChip(family.name, snapshot?.family?.id == family.id, { onSelectFamily(family.id) }) }
             }
         }
-        if (snapshot == null) {
+        if (snapshot == null && state.failure == FamilyFailure.NETWORK) {
+            // We could not ask, so we do not know whether this parent has a family. Offer to ask again, nothing else.
+        } else if (snapshot == null) {
             HarborCard {
                 HarborEmptyState("Get started", art = HarborArt.ANCHOR,
                     body = "Start your own family, or join one another parent already set up.",
@@ -122,7 +123,7 @@ fun FamilyScreen(state: FamilyState, families: List<FamilyV1>, selectedChildId: 
             TextButton(onCreateFamily, enabled = online) { Text("Start another family") }
             if (onLeaveFamily != null) LeaveFamilyCard(snapshot, online, onLeaveFamily)
         }
-        HarborOutlinedButton(onRefresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text("Refresh family") }
+        HarborOutlinedButton(onRefresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) { Text(if (snapshot == null) "Try again" else "Refresh family") }
         if (snapshot != null && sharing != null) ParentSharingPanel(sharing)
         if (onSettings != null || onSecurity != null || onOpenDoc != null) HarborCard {
             if (onSettings != null) HarborRow("Settings", onClick = onSettings, leading = { HarborIcon(HarborGlyph.SETTINGS, harbor.ink2) }, trailing = { HarborChevron() })

@@ -84,11 +84,12 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
         if (!busy) scope.launch { if (runRequest(success, action)) afterSuccess() }
     }
 
+    val idle = "Sign in to your parent account."
     fun backToSignIn() {
         if (busy || closing) return
         navigate(page) // Clear typed secrets immediately, before cancellation can await storage.
         if (repository == null) navigate(AccountPage.SIGN_IN)
-        else submit("Email flow cancelled. You can sign in or request a new link.", ::openParentIfVerified) {
+        else submit(idle, ::openParentIfVerified) {
             it.cancelEmailFlow()
             recoveryReady = false
             navigate(AccountPage.SIGN_IN)
@@ -98,7 +99,7 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
     BackHandler(enabled = page != AccountPage.SIGN_IN) { backToSignIn() }
     LaunchedEffect(repository, callback) {
         if (!restored) {
-            val accepted = runRequest("Session checked. Sign in if needed.") { it.restore() }
+            val accepted = runRequest(idle) { it.restore() }
             restored = true
             if (accepted && callback == null) openParentIfVerified()
         }
@@ -109,6 +110,8 @@ fun AuthScreen(repository: ParentAuthRepository?, callback: String?, runtime: Pa
         }
     }
 
+    // Until we know whether a sign-in is saved, the loading screen rather than a form that may vanish a moment later.
+    if (!restored && repository != null) { HarborLoadingScreen("Opening Harbor…"); return }
     val enabled = repository != null && !busy && !closing
     val navigationEnabled = !busy && !closing
     val accountForm = page == AccountPage.SIGN_IN || page == AccountPage.SIGN_UP
